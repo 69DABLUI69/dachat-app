@@ -560,11 +560,13 @@ export default function DaChat() {
         )}
       </div>
 
-      {/* 4. MEMBER LIST (Contrast Panel) */}
+{/* 4. MEMBER LIST (Fixed: Now part of the flex layout) */}
       {view === "servers" && active.server && (
-        <div className="w-[260px] bg-[#111111] flex flex-col border-l border-white/10 fixed right-0 top-0 bottom-0">
-          <div className="h-16 flex items-center px-6 font-bold text-zinc-500 text-[11px] uppercase tracking-widest border-b border-white/10 bg-[#141414]">Members — {serverMembers.length}</div>
-          <div className="flex-1 p-5 overflow-y-auto">
+        <div className="w-[260px] bg-[#111111] flex flex-col border-l border-white/10 flex-shrink-0">
+          <div className="h-16 flex items-center px-6 font-bold text-zinc-500 text-[11px] uppercase tracking-widest border-b border-white/10 bg-[#141414]">
+            Members — {serverMembers.length}
+          </div>
+          <div className="flex-1 p-5 overflow-y-auto custom-scrollbar">
              <div className="grid grid-cols-2 gap-2 mb-6">
                 <button onClick={inviteUser} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold py-2.5 rounded-lg transition-all border border-white/5">Invite</button>
                 <button onClick={leaveServer} className="bg-red-900/20 hover:bg-red-900/30 text-red-400 text-xs font-bold py-2.5 rounded-lg transition-all border border-red-500/10">Leave</button>
