@@ -6,11 +6,11 @@ import Peer from "simple-peer";
 // ⚠️ POLYFILL FOR SIMPLE-PEER
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
-// 🔑 REPLACE WITH YOUR REAL KLIPY API KEY
-const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
+// 🔑 CONFIG
+const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; // Keep your keys here if you have them
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
-// If we are in production, use the environment variable. Otherwise, use localhost.
+// 🌐 DYNAMIC BACKEND URL (Automatic Switching)
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const socket = io(BACKEND_URL);
 
@@ -26,7 +26,7 @@ const UserAvatar = memo(({ src, alt, className, fallbackClass }: any) => {
 });
 UserAvatar.displayName = "UserAvatar";
 
-// 🔥 KLIPY GIF PICKER (Manual Fetch Implementation)
+// 🔥 KLIPY GIF PICKER
 const GifPicker = ({ onSelect, onClose }: any) => {
   const [gifs, setGifs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -35,16 +35,12 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   const fetchGifs = async (query: string) => {
     setLoading(true);
     try {
-      // Klipy API endpoints (Trending vs Search)
       const endpoint = query 
         ? `${KLIPY_BASE_URL}/search?q=${query}&key=${KLIPY_API_KEY}&limit=20`
         : `${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`;
       
       const res = await fetch(endpoint);
       const data = await res.json();
-      
-      // Klipy returns data in a 'results' array.
-      // We map it to ensure we have a consistent structure.
       setGifs(data.results || []);
     } catch (err) { 
         console.error("Klipy API Error", err); 
@@ -54,16 +50,8 @@ const GifPicker = ({ onSelect, onClose }: any) => {
 
   useEffect(() => { fetchGifs(""); }, []);
 
-  // Helper to safely get the GIF URL from Klipy's structure
-  const getGifUrl = (item: any) => {
-    // Klipy usually puts the GIF in 'files.gif.url' or 'media_formats.gif.url' depending on version
-    return item?.files?.gif?.url || item?.media_formats?.gif?.url || "";
-  };
-
-  const getPreviewUrl = (item: any) => {
-    // Use tinygif for the grid preview to save bandwidth
-    return item?.files?.tinygif?.url || item?.media_formats?.tinygif?.url || getGifUrl(item);
-  };
+  const getGifUrl = (item: any) => item?.files?.gif?.url || item?.media_formats?.gif?.url || "";
+  const getPreviewUrl = (item: any) => item?.files?.tinygif?.url || item?.media_formats?.tinygif?.url || getGifUrl(item);
 
   return (
     <div className="absolute bottom-24 left-4 w-[400px] h-[500px] bg-[#18181b] border border-white/20 rounded-[24px] shadow-2xl flex flex-col z-50 animate-scale-up overflow-hidden ring-1 ring-black">
@@ -139,7 +127,8 @@ export default function DaChat() {
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
-      const res = await fetch(`http://localhost:3001/${endpoint}`, {
+      // 🌐 USE BACKEND_URL HERE
+      const res = await fetch(`${BACKEND_URL}/${endpoint}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(authForm),
       });
@@ -152,21 +141,22 @@ export default function DaChat() {
   };
 
   const fetchServers = async (id: number) => {
-    const res = await fetch(`http://localhost:3001/my-servers/${id}`);
+    // 🌐 USE BACKEND_URL HERE
+    const res = await fetch(`${BACKEND_URL}/my-servers/${id}`);
     const data = await res.json();
     setServers(data);
     return data;
   };
-  const fetchFriends = async (id: number) => setFriends(await (await fetch(`http://localhost:3001/my-friends/${id}`)).json());
+  const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchMembers = async (serverId: number) => {
-    const res = await fetch(`http://localhost:3001/servers/${serverId}/members`);
+    const res = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
     setServerMembers(await res.json());
   };
 
   const selectServer = async (server: any) => {
     setView("servers");
     setActive({ ...active, server, friend: null });
-    const res = await fetch(`http://localhost:3001/servers/${server.id}/channels`);
+    const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     const data = await res.json();
     setChannels(data);
     const textChannels = data.filter((c: any) => c.type === 'text');
@@ -305,32 +295,32 @@ export default function DaChat() {
   };
 
   // --- ACTIONS ---
-  const addFriend = async () => { const friendString = prompt("Enter Name#1234"); if (!friendString) return; const res = await fetch("http://localhost:3001/add-friend", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendString }) }); const data = await res.json(); data.success ? (alert("Added!"), fetchFriends(user.id)) : alert(data.message); };
-  const createServer = async () => { const name = prompt("Server Name"); if (!name) return; const res = await fetch("http://localhost:3001/create-server", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); const data = await res.json(); if (data.success) { fetchServers(user.id); selectServer(data.server); } };
-  const createChannel = async () => { const name = prompt("Channel Name"); const type = confirm("Is this a Voice Channel?") ? "voice" : "text"; if (name) await fetch("http://localhost:3001/create-channel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); };
-  const inviteUser = async () => { const userString = prompt("Invite user (e.g. Robin#1234):"); if (!userString) return; const res = await fetch("http://localhost:3001/servers/invite", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userString }) }); const data = await res.json(); if (data.success) alert("User invited!"); else alert(data.message); };
-  const kickMember = async (memberId: number) => { if (!confirm("Kick this user?")) return; const res = await fetch("http://localhost:3001/servers/kick", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, requesterId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
-  const deleteChannel = async (channelId: number) => { if (!confirm("Delete this channel?")) return; const res = await fetch("http://localhost:3001/channels/delete", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId, requesterId: user.id }) }); const data = await res.json(); if (data.success) selectServer(active.server); else alert(`Failed: ${data.message}`); };
-  const promoteMember = async (memberId: number) => { if (!confirm("Make this user an ADMIN?")) return; const res = await fetch("http://localhost:3001/servers/promote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, ownerId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
-  const demoteMember = async (memberId: number) => { if (!confirm("Remove Admin status?")) return; const res = await fetch("http://localhost:3001/servers/demote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, ownerId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
-  const leaveServer = async () => { if (!confirm(`Are you sure you want to leave ${active.server.name}?`)) return; const res = await fetch("http://localhost:3001/servers/leave", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); const data = await res.json(); if (data.success) { setServers(prev => prev.filter(s => s.id !== active.server.id)); goToHome(); } else { alert(data.message); } };
+  const addFriend = async () => { const friendString = prompt("Enter Name#1234"); if (!friendString) return; const res = await fetch(`${BACKEND_URL}/add-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendString }) }); const data = await res.json(); data.success ? (alert("Added!"), fetchFriends(user.id)) : alert(data.message); };
+  const createServer = async () => { const name = prompt("Server Name"); if (!name) return; const res = await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); const data = await res.json(); if (data.success) { fetchServers(user.id); selectServer(data.server); } };
+  const createChannel = async () => { const name = prompt("Channel Name"); const type = confirm("Is this a Voice Channel?") ? "voice" : "text"; if (name) await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); };
+  const inviteUser = async () => { const userString = prompt("Invite user (e.g. Robin#1234):"); if (!userString) return; const res = await fetch(`${BACKEND_URL}/servers/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userString }) }); const data = await res.json(); if (data.success) alert("User invited!"); else alert(data.message); };
+  const kickMember = async (memberId: number) => { if (!confirm("Kick this user?")) return; const res = await fetch(`${BACKEND_URL}/servers/kick`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, requesterId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
+  const deleteChannel = async (channelId: number) => { if (!confirm("Delete this channel?")) return; const res = await fetch(`${BACKEND_URL}/channels/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId, requesterId: user.id }) }); const data = await res.json(); if (data.success) selectServer(active.server); else alert(`Failed: ${data.message}`); };
+  const promoteMember = async (memberId: number) => { if (!confirm("Make this user an ADMIN?")) return; const res = await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, ownerId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
+  const demoteMember = async (memberId: number) => { if (!confirm("Remove Admin status?")) return; const res = await fetch(`${BACKEND_URL}/servers/demote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: memberId, ownerId: user.id }) }); const data = await res.json(); if (!data.success) alert(`Failed: ${data.message}`); };
+  const leaveServer = async () => { if (!confirm(`Are you sure you want to leave ${active.server.name}?`)) return; const res = await fetch(`${BACKEND_URL}/servers/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); const data = await res.json(); if (data.success) { setServers(prev => prev.filter(s => s.id !== active.server.id)); goToHome(); } else { alert(data.message); } };
 
   // --- SETTINGS ---
   const openSettings = () => { setNewUsername(user.username); setNewBio(user.bio || ""); setNewAvatar(null); setShowSettings(true); };
-  const viewUserProfile = async (userId: number) => { const res = await fetch(`http://localhost:3001/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
+  const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
   const handleUpdateProfile = async () => {
     let avatarUrl = user.avatar_url;
     if (newAvatar) {
       const formData = new FormData();
       formData.append("file", newAvatar);
-      try { const res = await fetch("http://localhost:3001/upload", { method: "POST", body: formData }); const data = await res.json(); if (data.success) avatarUrl = data.fileUrl; } catch { alert("Failed to upload image"); return; }
+      try { const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) avatarUrl = data.fileUrl; } catch { alert("Failed to upload image"); return; }
     }
-    const res = await fetch("http://localhost:3001/update-profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: newUsername, avatarUrl, bio: newBio }) });
+    const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: newUsername, avatarUrl, bio: newBio }) });
     const data = await res.json();
     if (data.success) { setUser(data.user); setShowSettings(false); alert("Profile updated!"); } else { alert("Update failed"); }
   };
 
-  const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file); try { const res = await fetch("http://localhost:3001/upload", { method: "POST", body: formData }); const data = await res.json(); if (data.success) sendMessage(null, data.fileUrl); } catch { alert("Error uploading"); } setIsUploading(false); };
+  const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file); try { const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) sendMessage(null, data.fileUrl); } catch { alert("Error uploading"); } setIsUploading(false); };
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { const content = textMsg || (fileUrl ? "Sent an image" : ""); const payload: any = { content, senderId: user.id, senderName: `${user.username}#${user.discriminator}`, fileUrl }; if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } setMessage(""); };
 
   useEffect(() => { socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); socket.on("load_messages", (msgs) => setChatHistory(msgs)); return () => { socket.off("receive_message"); socket.off("load_messages"); }; }, []);
@@ -531,7 +521,7 @@ export default function DaChat() {
                       <div className="flex-1">
                         <div className="flex items-baseline gap-2 mb-1"> <span className={`font-bold text-[14px] cursor-pointer hover:underline ${msg.sender_id === user.id ? "text-yellow-500" : "text-blue-400"}`} onClick={() => viewUserProfile(msg.sender_id)}>{msg.sender_name}</span> <span className="text-[10px] text-zinc-500 font-medium">Today at 12:00 PM</span> </div>
                         {msg.content && (
-                            msg.content.startsWith("http") && msg.content.includes("tenor") ? 
+                            msg.content.startsWith("http") && (msg.content.includes("tenor") || msg.content.includes("klipy")) ? 
                             <img src={msg.content} className="rounded-xl max-w-sm border border-white/10 shadow-md" /> :
                             <p className="text-zinc-300 text-[15px] leading-relaxed font-normal">{msg.content}</p>
                         )}
@@ -657,7 +647,7 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
             <>
                 <video ref={ref} autoPlay playsInline className="hidden" /> 
                 <div className="flex flex-col items-center">
-                    <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-full object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-full bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
+                    <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
                     <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Unknown"}</span> 
                 </div>
             </>
