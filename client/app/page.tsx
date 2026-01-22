@@ -236,9 +236,10 @@ export default function DaChat() {
     return peer;
   };
 
-  // 🔥 SCREEN SHARE 🔥
+// 🔥 FIXED SCREEN SHARE (Uses replaceTrack to swap Camera <-> Screen)
   const startScreenShare = async () => {
     if (!myStream) return;
+    
     try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
         const screenTrack = stream.getVideoTracks()[0];
@@ -246,22 +247,32 @@ export default function DaChat() {
         setScreenStream(stream); 
         setIsScreenSharing(true);
 
+        const currentVideoTrack = myStream.getVideoTracks()[0];
+
+        // Swap the track for every connected peer
         peersRef.current.forEach(p => {
-            p.peer.addTrack(screenTrack, myStream);
+            // replaceTrack(oldTrack, newTrack, stream)
+            p.peer.replaceTrack(currentVideoTrack, screenTrack, myStream);
         });
 
-        screenTrack.onended = () => stopScreenShare(screenTrack);
+        // Listen for the "Stop Sharing" floating button from the browser
+        screenTrack.onended = () => stopScreenShare();
 
     } catch (err) { console.log("Cancelled screen share"); }
   };
 
-  const stopScreenShare = (screenTrack?: MediaStreamTrack) => {
-    if (!myStream) return;
-    const trackToStop = screenTrack || screenStream?.getVideoTracks()[0];
-    if (trackToStop) {
-        trackToStop.stop();
-        peersRef.current.forEach(p => { try { p.peer.removeTrack(trackToStop, myStream); } catch(e) {} });
-    }
+  const stopScreenShare = () => {
+    if (!myStream || !screenStream) return;
+
+    const screenTrack = screenStream.getVideoTracks()[0];
+    const cameraTrack = myStream.getVideoTracks()[0];
+
+    // Swap back to camera
+    peersRef.current.forEach(p => {
+        p.peer.replaceTrack(screenTrack, cameraTrack, myStream);
+    });
+
+    screenTrack.stop(); // Kill the screen light
     setScreenStream(null);
     setIsScreenSharing(false);
     setMaximizedContent(null);
@@ -621,7 +632,7 @@ export default function DaChat() {
   );
 }
 
-// 🔥 INTELLIGENT MEDIA PLAYER (Video/Screen Share)
+// 🔥 INTELLIGENT MEDIA PLAYER (Fixed: Full Screen Format + Maximize Button)
 const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [hasVideo, setHasVideo] = useState(false);
@@ -633,26 +644,49 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
             ref.current.play().catch(e => console.log("Autoplay blocked", e));
         }
         setHasVideo(stream.getVideoTracks().length > 0);
-        stream.onaddtrack = () => { setHasVideo(stream.getVideoTracks().length > 0); if(ref.current) ref.current.play(); };
+        
+        // Listen for track changes (switching between Screen and Camera)
+        stream.onaddtrack = () => setHasVideo(stream.getVideoTracks().length > 0);
         stream.onremovetrack = () => setHasVideo(stream.getVideoTracks().length > 0);
     });
   }, [peer]);
 
   return (
-    <div className="w-full h-full absolute inset-0 flex items-center justify-center">
+    <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-zinc-900">
         {hasVideo ? (
-            <>
-                <video ref={ref} autoPlay playsInline className="w-full h-full object-contain bg-black" />
-                <div onClick={() => onMaximize(ref.current?.srcObject)} className="absolute bottom-4 right-4 bg-black/60 hover:bg-black/80 backdrop-blur-md text-white p-2.5 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer border border-white/10"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg> </div>
-            </>
-        ) : (
-            <>
-                <video ref={ref} autoPlay playsInline className="hidden" /> 
-                <div className="flex flex-col items-center">
-                    <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
-                    <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Unknown"}</span> 
+            <div className="relative w-full h-full group">
+                {/* Video: object-contain ensures the screen share is never cropped */}
+                <video 
+                    ref={ref} 
+                    autoPlay 
+                    playsInline 
+                    className="w-full h-full object-contain bg-black" 
+                />
+                
+                {/* Maximize Button - Appears on Hover */}
+                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <button 
+                        onClick={() => onMaximize(ref.current?.srcObject)} 
+                        className="bg-black/60 hover:bg-blue-600 text-white p-2 rounded-lg backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95 flex items-center gap-2"
+                        title="Maximize Screen"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+                        </svg>
+                        <span className="text-xs font-bold pr-1">VIEW</span>
+                    </button>
                 </div>
-            </>
+                
+                {/* User Name Tag */}
+                <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-full text-white text-xs font-bold border border-white/10 backdrop-blur-md">
+                    {userInfo?.username || "Unknown"}
+                </div>
+            </div>
+        ) : (
+            <div className="flex flex-col items-center">
+                <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
+                <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Connecting..."}</span> 
+            </div>
         )}
     </div>
   );
