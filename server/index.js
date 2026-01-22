@@ -220,13 +220,15 @@ app.post("/channels/delete", async (req, res) => {
 });
 
 // --- SOCKET & WEBRTC (NO GHOSTS FIX) ---
+// 1. Find the line that creates the server (keep this line)
 const server = http.createServer(app);
-const io = new Server(server, { 
-  cors: { 
-    // Allow both localhost (for you) and your future Vercel app
-    origin: ["http://localhost:3000", process.env.CLIENT_URL], 
-    methods: ["GET", "POST"] 
-  } 
+
+// 2. DELETE your old 'const io' section and PASTE this instead:
+const io = new Server(server, {
+  cors: {
+    origin: "*",  // This asterisk is the magic key that allows any website to connect
+    methods: ["GET", "POST"]
+  }
 });
 
 const socketMapping = {}; // socketId -> { userId, roomId, userData }
