@@ -255,7 +255,8 @@ export default function DaChat() {
     }; 
   }, [user]);
 
-  // --- VOICE LOGIC (FIXED) ---
+  // ... inside page.tsx ...
+
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
     
@@ -270,48 +271,56 @@ export default function DaChat() {
     socket.off("receiving_returned_signal");
     socket.off("user_left");
 
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true }).then(stream => {
-      setInCall(true);
-      setMyStream(stream);
+    // 1. TRY GETTING VIDEO AND AUDIO
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      .catch((err) => {
+        console.warn("Failed to get Video+Audio. Trying Audio only...", err);
+        // 2. FALLBACK: TRY AUDIO ONLY (If user has no webcam)
+        return navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+      })
+      .then(stream => {
+        setInCall(true);
+        setMyStream(stream);
 
-      // Join room AFTER getting stream to avoid race conditions
-      socket.emit("join_voice", { roomId, userData: user });
+        // Join room AFTER getting stream
+        socket.emit("join_voice", { roomId, userData: user });
 
-      socket.on("all_users", (users) => {
-        const peersArr: any[] = [];
-        users.forEach((u: any) => {
-            const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
-            peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
-            peersArr.push({ peerID: u.socketId, peer, info: u.userData });
+        socket.on("all_users", (users) => {
+          const peersArr: any[] = [];
+          users.forEach((u: any) => {
+              const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
+              peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
+              peersArr.push({ peerID: u.socketId, peer, info: u.userData });
+          });
+          setPeers(peersArr);
         });
-        setPeers(peersArr);
-      });
 
-      socket.on("user_joined", (payload) => {
-        const peer = addPeer(payload.signal, payload.callerID, stream);
-        peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
-        setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
-      });
+        socket.on("user_joined", (payload) => {
+          const peer = addPeer(payload.signal, payload.callerID, stream);
+          peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
+          setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
+        });
 
-      socket.on("receiving_returned_signal", (payload) => {
-        const item = peersRef.current.find(p => p.peerID === payload.id);
-        if (item) item.peer.signal(payload.signal);
-      });
+        socket.on("receiving_returned_signal", (payload) => {
+          const item = peersRef.current.find(p => p.peerID === payload.id);
+          if (item) item.peer.signal(payload.signal);
+        });
 
-      socket.on("user_left", (id: string) => {
-        const peerObj = peersRef.current.find(p => p.peerID === id);
-        if (peerObj) peerObj.peer.destroy();
-        const newPeers = peersRef.current.filter(p => p.peerID !== id);
-        peersRef.current = newPeers;
-        setPeers(newPeers);
-      });
+        socket.on("user_left", (id: string) => {
+          const peerObj = peersRef.current.find(p => p.peerID === id);
+          if (peerObj) peerObj.peer.destroy();
+          const newPeers = peersRef.current.filter(p => p.peerID !== id);
+          peersRef.current = newPeers;
+          setPeers(newPeers);
+        });
 
-    }).catch(err => {
-      console.error("Mic/Video Error:", err);
-      alert("Could not access camera/microphone.");
-      setIsCalling(false);
-      setInCall(false);
-    });
+      }).catch(err => {
+        console.error("Mic/Video Error:", err);
+        // 3. SHOW SPECIFIC ERROR MESSAGE TO USER
+        alert(`Could not start call. Error: ${err.name} (Check browser permissions or mic connection)`);
+        setIsCalling(false);
+        setInCall(false);
+      });
   };
 
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
