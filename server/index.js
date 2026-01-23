@@ -73,23 +73,6 @@ app.post("/login", async (req, res) => {
   }
 });
 
-// ✨ RANDOM TAGLINE LOGIC
-  const [tagline, setTagline] = useState("Your new digital home.");
-
-  useEffect(() => {
-    const lines = [
-      "Your new digital home.",
-      "Where communities thrive.",
-      "Chat, hang out, and stay close.",
-      "Your world, organized.",
-      "Talk, video, and hang out.",
-      "Low latency, high fun.",
-      "The best place to hang out."
-    ];
-    // Pick one randomly when the app loads
-    setTagline(lines[Math.floor(Math.random() * lines.length)]);
-  }, []);
-
 app.get("/my-servers/:id", async (req, res) => {
   const result = await pool.query(`SELECT s.* FROM servers s JOIN server_members sm ON s.id = sm.server_id WHERE sm.user_id = $1`, [req.params.id]);
   res.json(result.rows);
@@ -279,5 +262,40 @@ io.on("connection", (socket) => {
   socket.on("disconnect", handleDisconnect);
   socket.on("leave_voice", handleDisconnect);
 });
+
+// 📞 NEW CALLING SIGNALING 📞
+  socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
+    // Find the socket ID of the user we want to call
+    const recipientSocket = Object.keys(socketMapping).find(
+      key => socketMapping[key].userId === userToCall
+    );
+
+    if (recipientSocket) {
+      io.to(recipientSocket).emit("incoming_call", { 
+        from: fromUser, 
+        roomId,
+        signal: null // In this simple flow, we join room after accept
+      });
+    }
+  });
+
+  socket.on("answer_call", ({ to, roomId }) => {
+    // Notify the caller that the call was accepted
+    const callerSocket = Object.keys(socketMapping).find(
+        key => socketMapping[key].userId === to.id
+    );
+    if (callerSocket) {
+        io.to(callerSocket).emit("call_accepted", { roomId });
+    }
+  });
+
+  socket.on("reject_call", ({ to }) => {
+    const callerSocket = Object.keys(socketMapping).find(
+        key => socketMapping[key].userId === to.id
+    );
+    if (callerSocket) {
+        io.to(callerSocket).emit("call_rejected");
+    }
+  });
 
 server.listen(3001, () => console.log("Server running on 3001"));
