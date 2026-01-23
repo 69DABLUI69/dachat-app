@@ -263,36 +263,47 @@ io.on("connection", (socket) => {
   socket.on("leave_voice", handleDisconnect);
 });
 
-// 📞 NEW CALLING SIGNALING 📞
+// 📞 NEW CALLING SIGNALING (FIXED) 📞
   socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
-    // Find the socket ID of the user we want to call
-    const recipientSocket = Object.keys(socketMapping).find(
-      key => socketMapping[key].userId === userToCall
+    console.log(`[CALL START] ${fromUser.username} wants to call ID: ${userToCall}`);
+
+    // 🔍 ROBUST FIND: Convert both to String() so 15 matches "15"
+    const recipientSocket = Object.keys(socketMapping).find(key => 
+      String(socketMapping[key].userId) === String(userToCall)
     );
 
     if (recipientSocket) {
+      console.log(`[CALL SENT] Ringing socket: ${recipientSocket}`);
       io.to(recipientSocket).emit("incoming_call", { 
         from: fromUser, 
         roomId,
-        signal: null // In this simple flow, we join room after accept
+        signal: null 
       });
+    } else {
+      console.log(`[CALL FAILED] User ID ${userToCall} not found in socket mapping.`);
     }
   });
 
   socket.on("answer_call", ({ to, roomId }) => {
-    // Notify the caller that the call was accepted
-    const callerSocket = Object.keys(socketMapping).find(
-        key => socketMapping[key].userId === to.id
+    console.log(`[CALL ACCEPTED] answering user ID: ${to.id}`);
+    
+    // Find the original caller's socket
+    const callerSocket = Object.keys(socketMapping).find(key => 
+        String(socketMapping[key].userId) === String(to.id)
     );
+
     if (callerSocket) {
         io.to(callerSocket).emit("call_accepted", { roomId });
     }
   });
 
   socket.on("reject_call", ({ to }) => {
-    const callerSocket = Object.keys(socketMapping).find(
-        key => socketMapping[key].userId === to.id
+    console.log(`[CALL REJECTED] rejecting user ID: ${to.id}`);
+    
+    const callerSocket = Object.keys(socketMapping).find(key => 
+        String(socketMapping[key].userId) === String(to.id)
     );
+
     if (callerSocket) {
         io.to(callerSocket).emit("call_rejected");
     }
