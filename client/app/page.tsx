@@ -4,7 +4,11 @@ import { io } from "socket.io-client";
 import Peer from "simple-peer";
 
 // ⚠️ POLYFILL FOR SIMPLE-PEER (Required for Next.js)
-if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
+if (typeof window !== 'undefined') { 
+    (window as any).global = window; 
+    (window as any).process = { env: { DEBUG: undefined }, }; 
+    (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; 
+}
 
 // 🔑 CONFIG
 const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
@@ -234,7 +238,7 @@ export default function DaChat() {
     return peer;
   };
 
-  // 🔥 ROBUST SCREEN SHARE (Directly modifies the WebRTC Senders)
+  // 🔥 FINAL SCREEN SHARE FIX (Direct WebRTC Sender Replacement)
   const startScreenShare = async () => {
     try {
       // 1. Get Screen Stream
@@ -247,9 +251,11 @@ export default function DaChat() {
       // 2. Force swap the track for every peer using internal WebRTC Sender
       peersRef.current.forEach((peerObj) => {
         const peer = peerObj.peer;
+        // Access the internal WebRTC connection to find the video sender
         if (peer._pc) {
             const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
             if (sender) {
+                // "Nuclear Option": Force the cable to plug into the screen track
                 sender.replaceTrack(screenTrack);
             }
         }
@@ -641,22 +647,32 @@ export default function DaChat() {
   );
 }
 
-// 🔥 INTELLIGENT MEDIA PLAYER (Fixed: Full Screen Format + Maximize Button)
+// 🔥 INTELLIGENT MEDIA PLAYER (Auto-refreshes on track swap)
 const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
+    // 1. Handle Initial Stream
     peer.on("stream", (stream: MediaStream) => {
         if (ref.current) {
             ref.current.srcObject = stream;
-            ref.current.play().catch(e => console.log("Autoplay blocked", e));
+            ref.current.play().catch(e => console.error("Autoplay error:", e));
         }
         setHasVideo(stream.getVideoTracks().length > 0);
-        
-        // Listen for track changes (switching between Screen and Camera)
-        stream.onaddtrack = () => setHasVideo(stream.getVideoTracks().length > 0);
-        stream.onremovetrack = () => setHasVideo(stream.getVideoTracks().length > 0);
+
+        // 2. Handle Track Swaps (Screen Share <-> Camera)
+        // When a track is replaced, the new one might need a "kick"
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) {
+            // If the track mutes/unmutes (happens during swap), force update
+            videoTrack.onunmute = () => {
+                if (ref.current) {
+                    ref.current.srcObject = stream; // Re-assign to force refresh
+                    ref.current.play().catch(() => {});
+                }
+            };
+        }
     });
   }, [peer]);
 
@@ -664,29 +680,20 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
     <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-zinc-900">
         {hasVideo ? (
             <div className="relative w-full h-full group">
-                {/* Video: object-contain ensures the screen share is never cropped */}
                 <video 
                     ref={ref} 
                     autoPlay 
                     playsInline 
                     className="w-full h-full object-contain bg-black" 
                 />
-                
-                {/* Maximize Button - Appears on Hover */}
                 <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => onMaximize(ref.current?.srcObject)} 
                         className="bg-black/60 hover:bg-blue-600 text-white p-2 rounded-lg backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95 flex items-center gap-2"
-                        title="Maximize Screen"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
-                        </svg>
-                        <span className="text-xs font-bold pr-1">VIEW</span>
+                        <span className="text-xs font-bold px-1">VIEW SCREEN</span>
                     </button>
                 </div>
-                
-                {/* User Name Tag */}
                 <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-full text-white text-xs font-bold border border-white/10 backdrop-blur-md">
                     {userInfo?.username || "Unknown"}
                 </div>
