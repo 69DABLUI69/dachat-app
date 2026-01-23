@@ -237,32 +237,49 @@ io.on("connection", (socket) => {
     callerSockets.forEach(socketId => io.to(socketId).emit("call_rejected"));
   });
 
-  // --- DISCONNECT HANDLING (GHOST KILLER) ---
-  const handleDisconnect = () => {
+// -----------------------------------------------------
+  // 🔥 FIXED DISCONNECT & LEAVE LOGIC 🔥
+  // -----------------------------------------------------
+
+  const handleLeaveRoom = () => {
     const info = socketMapping[socket.id];
-    if (info) {
+    
+    // Only proceed if we know who this socket is AND they are actually in a room
+    if (info && info.roomId) {
       const { roomId, userId } = info;
 
-      if (roomId && voiceRooms[roomId]) {
-        // Remove from Voice Room List
+      if (voiceRooms[roomId]) {
+        // 1. Remove user from the memory list for that room
         voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
         
-        // Notify others in that room to destroy the peer connection
+        // 2. Tell everyone else in the room to remove this peer (Kill the Ghost)
         io.to(roomId).emit("user_left", socket.id);
 
-        // Update UI State
+        // 3. Update the visual "Who is in this channel" state
         const stillInRoom = voiceRooms[roomId]?.some(u => String(u.userData.id) === String(userId));
         if (!stillInRoom && roomStates[roomId]) {
             roomStates[roomId].delete(userId);
             io.emit("voice_state_update", { channelId: roomId, users: Array.from(roomStates[roomId]) });
         }
       }
-      delete socketMapping[socket.id];
+      
+      // ✅ CRITICAL FIX: Just clear the room ID, do NOT delete the user from the map!
+      socketMapping[socket.id].roomId = null;
     }
   };
 
-  socket.on("disconnect", handleDisconnect);
-  socket.on("leave_voice", handleDisconnect);
+  // When user clicks "Leave Call" button
+  socket.on("leave_voice", () => {
+      handleLeaveRoom();
+      console.log(`User ${socket.id} left voice (Still Online)`);
+  });
+
+  // When user closes the tab
+  socket.on("disconnect", () => {
+      handleLeaveRoom(); // Remove from rooms first
+      delete socketMapping[socket.id]; // THEN remove from online list
+      console.log("User Disconnected (Offline):", socket.id);
+  });
 });
 
 server.listen(3001, () => console.log("Server running on 3001"));
