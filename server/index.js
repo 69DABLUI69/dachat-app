@@ -263,50 +263,55 @@ io.on("connection", (socket) => {
   socket.on("leave_voice", handleDisconnect);
 });
 
-// 📞 NEW CALLING SIGNALING (FIXED) 📞
+// 📞 NEW ROBUST CALLING (Rings ALL devices) 📞
   socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
-    console.log(`[CALL START] ${fromUser.username} wants to call ID: ${userToCall}`);
+    console.log(`[CALL START] ${fromUser.username} (ID: ${fromUser.id}) calling User ID: ${userToCall}`);
 
-    // 🔍 ROBUST FIND: Convert both to String() so 15 matches "15"
-    const recipientSocket = Object.keys(socketMapping).find(key => 
+    // 1. Find ALL sockets for this user (not just the first one)
+    const recipientSockets = Object.keys(socketMapping).filter(key => 
       String(socketMapping[key].userId) === String(userToCall)
     );
 
-    if (recipientSocket) {
-      console.log(`[CALL SENT] Ringing socket: ${recipientSocket}`);
-      io.to(recipientSocket).emit("incoming_call", { 
-        from: fromUser, 
-        roomId,
-        signal: null 
+    if (recipientSockets.length > 0) {
+      console.log(`[CALL SENT] Ringing ${recipientSockets.length} sockets:`, recipientSockets);
+      
+      // 2. Emit to ALL found sockets
+      recipientSockets.forEach(socketId => {
+          io.to(socketId).emit("incoming_call", { 
+            from: fromUser, 
+            roomId,
+            signal: null 
+          });
       });
     } else {
-      console.log(`[CALL FAILED] User ID ${userToCall} not found in socket mapping.`);
+      console.log(`[CALL FAILED] User ID ${userToCall} is NOT ONLINE.`);
+      console.log("DEBUG: Current Online Users:", socketMapping); // See who is actually connected
     }
   });
 
   socket.on("answer_call", ({ to, roomId }) => {
     console.log(`[CALL ACCEPTED] answering user ID: ${to.id}`);
     
-    // Find the original caller's socket
-    const callerSocket = Object.keys(socketMapping).find(key => 
+    // Find ALL sockets for the original caller
+    const callerSockets = Object.keys(socketMapping).filter(key => 
         String(socketMapping[key].userId) === String(to.id)
     );
 
-    if (callerSocket) {
-        io.to(callerSocket).emit("call_accepted", { roomId });
-    }
+    callerSockets.forEach(socketId => {
+        io.to(socketId).emit("call_accepted", { roomId });
+    });
   });
 
   socket.on("reject_call", ({ to }) => {
     console.log(`[CALL REJECTED] rejecting user ID: ${to.id}`);
     
-    const callerSocket = Object.keys(socketMapping).find(key => 
+    const callerSockets = Object.keys(socketMapping).filter(key => 
         String(socketMapping[key].userId) === String(to.id)
     );
 
-    if (callerSocket) {
-        io.to(callerSocket).emit("call_rejected");
-    }
+    callerSockets.forEach(socketId => {
+        io.to(socketId).emit("call_rejected");
+    });
   });
 
 server.listen(3001, () => console.log("Server running on 3001"));
