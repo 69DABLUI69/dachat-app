@@ -263,55 +263,66 @@ io.on("connection", (socket) => {
   socket.on("leave_voice", handleDisconnect);
 });
 
-// 📞 NEW ROBUST CALLING (Rings ALL devices) 📞
-  socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
-    console.log(`[CALL START] ${fromUser.username} (ID: ${fromUser.id}) calling User ID: ${userToCall}`);
+// --- WEBRTC & SOCKET SETUP ---
+  useEffect(() => {
+    if (!user) return;
 
-    // 1. Find ALL sockets for this user (not just the first one)
-    const recipientSockets = Object.keys(socketMapping).filter(key => 
-      String(socketMapping[key].userId) === String(userToCall)
-    );
+    // 1. Define the "Handshake" function
+    // This runs whenever we connect (or reconnect after a drop)
+    const performHandshake = () => {
+        console.log("🔌 (Re)Connected to Server. Socket ID:", socket.id);
+        console.log("🔑 Authenticating as User ID:", user.id);
+        socket.emit("setup", user.id);
+    };
 
-    if (recipientSockets.length > 0) {
-      console.log(`[CALL SENT] Ringing ${recipientSockets.length} sockets:`, recipientSockets);
-      
-      // 2. Emit to ALL found sockets
-      recipientSockets.forEach(socketId => {
-          io.to(socketId).emit("incoming_call", { 
-            from: fromUser, 
-            roomId,
-            signal: null 
-          });
-      });
-    } else {
-      console.log(`[CALL FAILED] User ID ${userToCall} is NOT ONLINE.`);
-      console.log("DEBUG: Current Online Users:", socketMapping); // See who is actually connected
+    // 2. Trigger immediately if already connected
+    if (socket.connected) {
+        performHandshake();
     }
-  });
 
-  socket.on("answer_call", ({ to, roomId }) => {
-    console.log(`[CALL ACCEPTED] answering user ID: ${to.id}`);
-    
-    // Find ALL sockets for the original caller
-    const callerSockets = Object.keys(socketMapping).filter(key => 
-        String(socketMapping[key].userId) === String(to.id)
-    );
+    // 3. Listen for connection events (The "Discord-like" magic)
+    socket.on("connect", performHandshake);
 
-    callerSockets.forEach(socketId => {
-        io.to(socketId).emit("call_accepted", { roomId });
+    // 📞 LISTEN FOR INCOMING CALLS
+    socket.on("incoming_call", (data) => {
+        console.log("📞 INCOMING CALL from:", data.from.username);
+        setIncomingCall(data);
+        
+        // Play Ringtone
+        if (ringtoneAudioRef.current) {
+            ringtoneAudioRef.current.loop = true;
+            ringtoneAudioRef.current.currentTime = 0; // Start from beginning
+            ringtoneAudioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
+        }
     });
-  });
 
-  socket.on("reject_call", ({ to }) => {
-    console.log(`[CALL REJECTED] rejecting user ID: ${to.id}`);
-    
-    const callerSockets = Object.keys(socketMapping).filter(key => 
-        String(socketMapping[key].userId) === String(to.id)
-    );
-
-    callerSockets.forEach(socketId => {
-        io.to(socketId).emit("call_rejected");
+    // 📞 CALL ACCEPTED (Stop ringing, join room)
+    socket.on("call_accepted", ({ roomId }) => {
+        console.log("✅ Call Accepted! Joining room:", roomId);
+        setIsCalling(false); // Remove "Calling..." modal
+        joinVoiceRoom(roomId);
     });
-  });
+
+    // 📞 CALL REJECTED
+    socket.on("call_rejected", () => {
+        console.log("❌ Call Rejected");
+        setIsCalling(false);
+        alert("Call declined.");
+    });
+
+    // Chat Listeners
+    socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
+    socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
+    
+    // Cleanup listeners on unmount (prevents double-ringing)
+    return () => { 
+        socket.off("connect", performHandshake);
+        socket.off("incoming_call");
+        socket.off("call_accepted");
+        socket.off("call_rejected");
+        socket.off("receive_message"); 
+        socket.off("load_messages");
+    }; 
+  }, [user]); // Re-run ONLY if the user changes (login/logout)
 
 server.listen(3001, () => console.log("Server running on 3001"));
