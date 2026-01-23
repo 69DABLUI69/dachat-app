@@ -256,29 +256,50 @@ export default function DaChat() {
     setIncomingCall(null);
   };
 
-  // --- WEBRTC & SOCKET SETUP ---
+// --- WEBRTC & SOCKET SETUP ---
   useEffect(() => {
     if (!user) return;
-    socket.emit("setup", user.id); 
 
-    // 📞 LISTEN FOR INCOMING CALLS
+    // 1. Handshake Function
+    const performHandshake = () => {
+        console.log("%c🔌 CONNECTED: Sending setup for User ID: " + user.id, "color: green; font-weight: bold;");
+        socket.emit("setup", user.id);
+    };
+
+    // 2. Connect
+    if (socket.connected) performHandshake();
+    socket.on("connect", performHandshake);
+
+    // 📞 INCOMING CALL
     socket.on("incoming_call", (data) => {
+        console.log("%c📞 INCOMING CALL DETECTED!", "color: red; font-size: 20px; font-weight: bold;");
+        console.log("From:", data.from.username);
+        
+        // Force state update immediately
         setIncomingCall(data);
-        // Play Ringtone
+        
+        // Try Audio (but don't crash if it fails)
         if (ringtoneAudioRef.current) {
             ringtoneAudioRef.current.loop = true;
-            ringtoneAudioRef.current.play().catch(e => console.log("Audio play failed (interaction needed)", e));
+            ringtoneAudioRef.current.currentTime = 0;
+            const playPromise = ringtoneAudioRef.current.play();
+            
+            if (playPromise !== undefined) {
+                playPromise.catch(error => {
+                    console.warn("⚠️ Audio blocked by browser (User hasn't clicked yet). The visual prompt should still show.");
+                });
+            }
         }
     });
 
-    // 📞 CALL ACCEPTED (Caller Side)
     socket.on("call_accepted", ({ roomId }) => {
+        console.log("✅ Call Accepted");
         setIsCalling(false);
         joinVoiceRoom(roomId);
     });
 
-    // 📞 CALL REJECTED (Caller Side)
     socket.on("call_rejected", () => {
+        console.log("❌ Call Rejected");
         setIsCalling(false);
         alert("Call declined.");
     });
@@ -287,11 +308,12 @@ export default function DaChat() {
     socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
     
     return () => { 
-        socket.off("receive_message"); 
-        socket.off("load_messages");
+        socket.off("connect", performHandshake);
         socket.off("incoming_call");
         socket.off("call_accepted");
         socket.off("call_rejected");
+        socket.off("receive_message"); 
+        socket.off("load_messages");
     }; 
   }, [user]);
 

@@ -263,66 +263,52 @@ io.on("connection", (socket) => {
   socket.on("leave_voice", handleDisconnect);
 });
 
-// --- WEBRTC & SOCKET SETUP ---
-  useEffect(() => {
-    if (!user) return;
+// 📞 CALLING SYSTEM (WITH DEBUG LOGS) 📞
+  socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
+    console.log("-----------------------------------------------");
+    console.log(`[CALL ATTEMPT] From: ${fromUser.username} (${fromUser.id}) -> To ID: ${userToCall}`);
 
-    // 1. Define the "Handshake" function
-    // This runs whenever we connect (or reconnect after a drop)
-    const performHandshake = () => {
-        console.log("🔌 (Re)Connected to Server. Socket ID:", socket.id);
-        console.log("🔑 Authenticating as User ID:", user.id);
-        socket.emit("setup", user.id);
-    };
+    // 1. Debug: Print who is currently online
+    console.log("DEBUG: Current Socket Mapping:", JSON.stringify(socketMapping, null, 2));
 
-    // 2. Trigger immediately if already connected
-    if (socket.connected) {
-        performHandshake();
+    // 2. Find ALL sockets for the recipient (Comparing as Strings to be safe)
+    const recipientSockets = Object.keys(socketMapping).filter(key => 
+      String(socketMapping[key].userId) === String(userToCall)
+    );
+
+    if (recipientSockets.length > 0) {
+      console.log(`[SUCCESS] Found ${recipientSockets.length} active sockets for User ${userToCall}. Ringing them now...`);
+      
+      recipientSockets.forEach(socketId => {
+          io.to(socketId).emit("incoming_call", { 
+            from: fromUser, 
+            roomId,
+            signal: null 
+          });
+      });
+    } else {
+      console.log(`[FAILURE] User ID ${userToCall} is NOT in the socket mapping.`);
+      console.log("Possible causes:");
+      console.log("1. The user is not logged in.");
+      console.log("2. The user refreshed and didn't reconnect automatically.");
+      console.log("3. The user ID in the database doesn't match the one you are calling.");
     }
+    console.log("-----------------------------------------------");
+  });
 
-    // 3. Listen for connection events (The "Discord-like" magic)
-    socket.on("connect", performHandshake);
+  socket.on("answer_call", ({ to, roomId }) => {
+    console.log(`[CALL ACCEPTED] User answering. Notifying caller ID: ${to.id}`);
+    const callerSockets = Object.keys(socketMapping).filter(key => 
+        String(socketMapping[key].userId) === String(to.id)
+    );
+    callerSockets.forEach(socketId => io.to(socketId).emit("call_accepted", { roomId }));
+  });
 
-    // 📞 LISTEN FOR INCOMING CALLS
-    socket.on("incoming_call", (data) => {
-        console.log("📞 INCOMING CALL from:", data.from.username);
-        setIncomingCall(data);
-        
-        // Play Ringtone
-        if (ringtoneAudioRef.current) {
-            ringtoneAudioRef.current.loop = true;
-            ringtoneAudioRef.current.currentTime = 0; // Start from beginning
-            ringtoneAudioRef.current.play().catch(e => console.log("Autoplay blocked:", e));
-        }
-    });
-
-    // 📞 CALL ACCEPTED (Stop ringing, join room)
-    socket.on("call_accepted", ({ roomId }) => {
-        console.log("✅ Call Accepted! Joining room:", roomId);
-        setIsCalling(false); // Remove "Calling..." modal
-        joinVoiceRoom(roomId);
-    });
-
-    // 📞 CALL REJECTED
-    socket.on("call_rejected", () => {
-        console.log("❌ Call Rejected");
-        setIsCalling(false);
-        alert("Call declined.");
-    });
-
-    // Chat Listeners
-    socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
-    socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-    
-    // Cleanup listeners on unmount (prevents double-ringing)
-    return () => { 
-        socket.off("connect", performHandshake);
-        socket.off("incoming_call");
-        socket.off("call_accepted");
-        socket.off("call_rejected");
-        socket.off("receive_message"); 
-        socket.off("load_messages");
-    }; 
-  }, [user]); // Re-run ONLY if the user changes (login/logout)
-
+  socket.on("reject_call", ({ to }) => {
+    console.log(`[CALL REJECTED] User rejected. Notifying caller ID: ${to.id}`);
+    const callerSockets = Object.keys(socketMapping).filter(key => 
+        String(socketMapping[key].userId) === String(to.id)
+    );
+    callerSockets.forEach(socketId => io.to(socketId).emit("call_rejected"));
+  });
 server.listen(3001, () => console.log("Server running on 3001"));
