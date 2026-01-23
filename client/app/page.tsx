@@ -21,8 +21,11 @@ const DEFAULT_RINGTONE = "https://www.myinstants.com/media/sounds/samsung-whistl
 
 // 🔥 MEMOIZED AVATAR
 const UserAvatar = memo(({ src, alt, className, fallbackClass }: any) => {
-  return src ? (
-    <img src={src} alt={alt || "User"} className={`${className} bg-black/20`} loading="eager" />
+  // Only render image if src exists and is not empty string
+  const hasImage = src && src.trim() !== "";
+  
+  return hasImage ? (
+    <img src={src} alt={alt || "User"} className={`${className} bg-black/20`} loading="eager" onError={(e) => { (e.target as any).style.display = 'none'; (e.target as any).nextSibling.style.display = 'flex'; }} />
   ) : (
     <div className={`${className} ${fallbackClass || "bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/10"} flex items-center justify-center`}>
        <span className="text-[10px] text-white/70 font-bold">?</span>
@@ -688,30 +691,70 @@ export default function DaChat() {
   );
 }
 
-// 🔥 INTELLIGENT MEDIA PLAYER
+// 🔥 INTELLIGENT MEDIA PLAYER (Fixed for Audio-Only Calls)
 const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
+    // Listen for the stream
     peer.on("stream", (stream: MediaStream) => {
+        const videoTracks = stream.getVideoTracks();
+        const hasVideoTrack = videoTracks.length > 0 && videoTracks[0].enabled;
+        
+        setHasVideo(hasVideoTrack);
+
         if (ref.current) {
             ref.current.srcObject = stream;
-            // IMPORTANT: If this is remote, we must NOT mute it. If local (not this component), mute it.
-            ref.current.muted = false; 
+            ref.current.muted = false; // Remote stream should typically be audible
             ref.current.play().catch(e => console.error("Autoplay error:", e));
         }
-        setHasVideo(true);
+
+        // Listen for track changes (e.g. user turns off camera during call)
+        if (hasVideoTrack) {
+            videoTracks[0].onmute = () => setHasVideo(false);
+            videoTracks[0].onunmute = () => setHasVideo(true);
+        }
     });
   }, [peer]);
 
   return (
     <div className="relative w-full h-full flex items-center justify-center bg-black/40 overflow-hidden group">
-        <video ref={ref} autoPlay playsInline className={`absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-300 ${hasVideo ? "opacity-100 z-10" : "opacity-0 z-0"}`} />
+        {/* Only show video element if we actually have video */}
+        <video 
+            ref={ref} 
+            autoPlay 
+            playsInline 
+            className={`absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-300 ${hasVideo ? "opacity-100 z-10" : "opacity-0 z-0"}`} 
+        />
+
+        {/* Show Avatar if NO video */}
         {!hasVideo && (
             <div className="z-20 flex flex-col items-center animate-fade-in">
-                <UserAvatar src={userInfo?.avatar_url} className="w-28 h-28 rounded-[40px] object-cover border-4 border-white/5 mb-6 shadow-2xl" />
-                <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Connecting..."}</span> 
+                <UserAvatar 
+                    src={userInfo?.avatar_url} 
+                    className="w-28 h-28 rounded-[40px] object-cover border-4 border-white/5 mb-6 shadow-2xl" 
+                />
+                <span className="text-white font-semibold text-xl tracking-tight">
+                    {userInfo?.username || "Connecting..."}
+                </span> 
+                {/* Audio Active Indicator */}
+                <div className="mt-4 flex gap-2 items-center px-3 py-1 bg-white/10 rounded-full">
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
+                    <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Audio Only</span>
+                </div>
+            </div>
+        )}
+        
+        {/* Fullscreen Button (Only if video exists) */}
+        {hasVideo && (
+             <div className="absolute top-4 right-4 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button 
+                    onClick={() => onMaximize(ref.current?.srcObject)} 
+                    className="bg-black/60 hover:bg-cyan-600 text-white p-2.5 rounded-xl backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
+                </button>
             </div>
         )}
     </div>
