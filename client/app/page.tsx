@@ -184,7 +184,7 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-  // --- VOICE LOGIC ---
+// --- VOICE LOGIC ---
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
     socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
@@ -197,6 +197,9 @@ export default function DaChat() {
       socket.on("all_users", (users) => {
         const peersArr: any[] = [];
         users.forEach((u: any) => {
+          // 👻 GHOST FIX: Don't connect to myself!
+          if (u.userData.id === user.id) return;
+
           const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
           peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
           peersArr.push({ peerID: u.socketId, peer, info: u.userData });
@@ -205,6 +208,9 @@ export default function DaChat() {
       });
 
       socket.on("user_joined", (payload) => {
+        // 👻 GHOST FIX: Reject incoming calls from myself
+        if (payload.userData.id === user.id) return;
+
         if (peersRef.current.find(p => p.peerID === payload.callerID)) {
             const item = peersRef.current.find(p => p.peerID === payload.callerID);
             item.peer.signal(payload.signal);
