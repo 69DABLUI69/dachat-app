@@ -36,13 +36,41 @@ app.post("/register", async (req, res) => {
 
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
+  
+  console.log(`Login Attempt: ${username}`); // Debug log
+
   try {
     const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: "User not found" });
-    const match = await bcrypt.compare(password, result.rows[0].password_hash);
-    if (match) res.json({ success: true, user: result.rows[0] });
-    else res.status(401).json({ success: false, message: "Invalid password" });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+    
+    // 1. Check if user exists
+    if (result.rows.length === 0) {
+        return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const user = result.rows[0];
+
+    // 2. SAFETY CHECK: Ensure we actually have data to compare
+    if (!password) {
+        console.log("Error: No password provided from client");
+        return res.status(400).json({ success: false, message: "Password input is empty" });
+    }
+    if (!user.password_hash) {
+        console.log("Error: User exists but has no password_hash in DB");
+        return res.status(500).json({ success: false, message: "Account corrupted (no password set)" });
+    }
+
+    // 3. Compare
+    const match = await bcrypt.compare(password, user.password_hash);
+    if (match) {
+        res.json({ success: true, user });
+    } else {
+        res.status(401).json({ success: false, message: "Invalid password" });
+    }
+
+  } catch (err) { 
+      console.error("Login Error:", err); // See the exact error in terminal
+      res.status(500).json({ success: false, message: err.message }); 
+  }
 });
 
 app.get("/my-servers/:id", async (req, res) => {
