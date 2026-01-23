@@ -16,8 +16,8 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const socket = io(BACKEND_URL);
 
-// 🎵 DEFAULT RINGTONE
-const DEFAULT_RINGTONE = "https://www.myinstants.com/media/sounds/samsung-whistle-ringtone.mp3";
+// 🎵 DEFAULT RINGTONE (Yeat - Off Tha Lot Instrumental)
+const DEFAULT_RINGTONE = "https://www.youtube.com/watch?v=2kpCGfYUE3U";
 
 // 🔥 MEMOIZED AVATAR
 const UserAvatar = memo(({ src, alt, className, fallbackClass }: any) => {
@@ -671,19 +671,48 @@ export default function DaChat() {
       )}
 
       {/* SETTINGS */}
+{/* ⚙️ SETTINGS MODAL (Glass) */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl animate-fade-in">
           <div className="bg-[#0f0f13]/80 w-[440px] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden animate-scale-up ring-1 ring-white/10 backdrop-blur-2xl">
-            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"> <h2 className="text-xl font-bold text-white tracking-tight">Edit Profile</h2> <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">✕</button> </div>
+            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"> 
+                <h2 className="text-xl font-bold text-white tracking-tight">Edit Profile</h2> 
+                <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">✕</button> 
+            </div>
+            
             <div className="p-10 flex flex-col gap-8">
+              {/* Avatar Upload Section */}
               <div className="flex flex-col items-center gap-6">
-                <div onClick={() => avatarInputRef.current?.click()} className="relative group cursor-pointer"> {newAvatar ? <img src={URL.createObjectURL(newAvatar)} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" /> : <UserAvatar src={user.avatar_url} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" />} </div> <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && setNewAvatar(e.target.files[0])} /> 
+                <div onClick={() => avatarInputRef.current?.click()} className="relative group cursor-pointer"> 
+                    {newAvatar ? <img src={URL.createObjectURL(newAvatar)} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" /> : <UserAvatar src={user.avatar_url} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" />} 
+                </div> 
+                <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && setNewAvatar(e.target.files[0])} /> 
               </div>
+
+              {/* Input Fields */}
               <div className="space-y-5">
-                <div className="flex flex-col gap-2"> <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">Username</label> <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium backdrop-blur-sm" /> </div>
+                <div className="flex flex-col gap-2"> 
+                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">Username</label> 
+                    <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium backdrop-blur-sm" /> 
+                </div>
+
+                {/* ✅ NEW RINGTONE INPUT ADDED HERE */}
+                <div className="flex flex-col gap-2"> 
+                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">Ringtone URL</label> 
+                    <input value={ringtoneUrl} onChange={(e) => setRingtoneUrl(e.target.value)} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium backdrop-blur-sm" placeholder="Paste MP3 URL here..." /> 
+                </div>
+
+                <div className="flex flex-col gap-2"> 
+                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">About Me</label> 
+                    <textarea value={newBio} onChange={(e) => setNewBio(e.target.value)} rows={3} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all resize-none font-medium backdrop-blur-sm" placeholder="Write something..." /> 
+                </div>
               </div>
             </div>
-            <div className="p-8 bg-black/20 border-t border-white/5 flex justify-end gap-3"> <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl text-xs font-bold hover:bg-white/5 transition-colors text-white/40 hover:text-white">CANCEL</button> <button onClick={handleUpdateProfile} className="px-8 py-3 bg-white text-black hover:bg-zinc-200 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95">SAVE CHANGES</button> </div>
+
+            <div className="p-8 bg-black/20 border-t border-white/5 flex justify-end gap-3"> 
+                <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl text-xs font-bold hover:bg-white/5 transition-colors text-white/40 hover:text-white">CANCEL</button> 
+                <button onClick={handleUpdateProfile} className="px-8 py-3 bg-white text-black hover:bg-zinc-200 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95">SAVE CHANGES</button> 
+            </div>
           </div>
         </div>
       )}
