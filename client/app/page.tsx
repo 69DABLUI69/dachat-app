@@ -184,26 +184,20 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-// --- VOICE LOGIC (GHOST FIX + AUDIO FIX) ---
+// --- VOICE LOGIC ---
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
-    // 🧹 Clean up previous listeners
-    socket.off("all_users"); 
-    socket.off("user_joined"); 
-    socket.off("receiving_returned_signal");
+    socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
 
-    // 🎤 1. Get Audio Only First
     navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
       setInCall(true);
       setMyStream(stream);
       socket.emit("join_voice", { roomId, userData: user });
 
-      // 👻 2. Listen for users, strictly ignoring myself AND filtering duplicates
       socket.on("all_users", (users) => {
         const peersArr: any[] = [];
         const uniqueUsers = new Map();
 
-        // DE-DUPLICATION LOGIC: Only keep the last socket ID for a given User ID
         users.forEach((u: any) => {
              if (String(u.userData.id) !== String(user.id)) {
                  uniqueUsers.set(u.userData.id, u);
@@ -219,10 +213,8 @@ export default function DaChat() {
       });
 
       socket.on("user_joined", (payload) => {
-        // STRICT ID CHECK
         if (String(payload.userData.id) === String(user.id)) return;
 
-        // Prevent double-connections to same socket
         if (peersRef.current.find(p => p.peerID === payload.callerID)) {
             const item = peersRef.current.find(p => p.peerID === payload.callerID);
             item.peer.signal(payload.signal);
@@ -239,7 +231,7 @@ export default function DaChat() {
       });
     }).catch(err => {
       console.error("Mic Error:", err);
-      alert("Could not access microphone. Please allow permissions.");
+      alert("Could not access microphone.");
     });
   };
 
@@ -256,33 +248,23 @@ export default function DaChat() {
     return peer;
   };
 
-  // 🔥 SCREEN SHARE FIX (Track Swapping)
+  // 🔥 SCREEN SHARE
   const startScreenShare = async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = stream.getVideoTracks()[0];
-
       setScreenStream(stream);
       setIsScreenSharing(true);
-
       peersRef.current.forEach((peerObj) => {
         const peer = peerObj.peer;
         if (peer._pc) {
             const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-            if (sender) {
-                sender.replaceTrack(screenTrack).catch((e: any) => console.error("ReplaceTrack failed", e));
-            } else {
-                // If no video sender, we try to add one (experimental for voice->video upgrade)
-                if(peer.addTrack) peer.addTrack(screenTrack, stream);
-            }
+            if (sender) sender.replaceTrack(screenTrack).catch((e: any) => console.error(e));
+            else if(peer.addTrack) peer.addTrack(screenTrack, stream);
         }
       });
-
       screenTrack.onended = () => stopScreenShare();
-
-    } catch (err) {
-      console.error("Screen share failed", err);
-    }
+    } catch (err) { console.error("Screen share failed", err); }
   };
 
   const stopScreenShare = () => {
@@ -291,16 +273,13 @@ export default function DaChat() {
     setScreenStream(null);
     setIsScreenSharing(false);
     setMaximizedContent(null);
-
     if (myStream) {
         const cameraTrack = myStream.getVideoTracks()[0]; 
         peersRef.current.forEach((peerObj) => {
             const peer = peerObj.peer;
             if (peer._pc) {
                 const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-                if (sender) {
-                   sender.replaceTrack(cameraTrack || null); 
-                }
+                if (sender) sender.replaceTrack(cameraTrack || null); 
             }
         });
     }
@@ -528,7 +507,8 @@ export default function DaChat() {
                     {isScreenSharing && (
                         <>
                             <div className="absolute top-6 right-6 bg-red-600 hover:bg-red-500 text-white px-4 py-2 rounded-lg text-xs font-bold cursor-pointer shadow-lg z-10 transition-colors tracking-wide border border-red-400/20" onClick={() => stopScreenShare()}>STOP SHARING</div>
-                            <div onClick={() => setMaximizedContent({ stream: myVideoRef.current!.srcObject as MediaStream, type: 'local' })} className="absolute bottom-6 right-6 bg-black/80 hover:bg-black text-white p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer border border-white/10"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg> </div>
+                            {/* MOVED: Local maximize button to TOP-LEFT to avoid floating controls */}
+                            <div onClick={() => setMaximizedContent({ stream: myVideoRef.current!.srcObject as MediaStream, type: 'local' })} className="absolute top-4 left-4 bg-black/80 hover:bg-black text-white p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer border border-white/10 z-10"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg> </div>
                         </>
                     )}
                   </div>
@@ -541,8 +521,8 @@ export default function DaChat() {
                   ))}
                 </div>
                 
-                {/* Floating Controls */}
-                <div className="absolute bottom-10 flex gap-4 p-3 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl">
+                {/* Floating Controls - Added z-50 to ensure they stay on top of video tiles */}
+                <div className="absolute bottom-10 flex gap-4 p-3 bg-[#111111] border border-white/10 rounded-2xl shadow-2xl z-50">
                     <button onClick={startScreenShare} className={`w-12 h-12 rounded-xl flex items-center justify-center transition-all ${isScreenSharing ? "bg-zinc-800 text-zinc-600 cursor-not-allowed" : "bg-zinc-800 hover:bg-zinc-700 text-white"}`} disabled={isScreenSharing}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
                     </button>
@@ -666,19 +646,14 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
-    // 1. Handle Initial Stream
     peer.on("stream", (stream: MediaStream) => {
-        // ALWAYS attach stream to video element, even if it's audio-only
         if (ref.current) {
             ref.current.srcObject = stream;
             ref.current.play().catch(e => console.error("Autoplay error:", e));
         }
-
-        // Check if we actually have a video track enabled
         const videoTracks = stream.getVideoTracks();
         setHasVideo(videoTracks.length > 0 && videoTracks[0].enabled);
 
-        // 2. Listen for Track Changes (Screen Share <-> Camera)
         if (videoTracks.length > 0) {
             videoTracks[0].onmute = () => setHasVideo(false);
             videoTracks[0].onunmute = () => {
@@ -690,18 +665,15 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   }, [peer]);
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-zinc-900 overflow-hidden">
-        {/* 🔊 THE VIDEO ELEMENT (ALWAYS RENDERED, HIDDEN IF NO VIDEO) */}
-        {/* This ensures audio always plays because the element exists in DOM */}
+    <div className="relative w-full h-full flex items-center justify-center bg-zinc-900 overflow-hidden group">
         <video 
             ref={ref} 
             autoPlay 
             playsInline 
-            muted={false} // Important: Don't mute remote peers!
+            muted={false}
             className={`absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-300 ${hasVideo ? "opacity-100 z-10" : "opacity-0 z-0"}`} 
         />
 
-        {/* 👤 AVATAR FALLBACK (Shows when video is hidden) */}
         {!hasVideo && (
             <div className="z-20 flex flex-col items-center animate-fade-in">
                 <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
@@ -709,10 +681,9 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
             </div>
         )}
 
-        {/* 🔲 CONTROLS OVERLAY (Only if video exists) */}
         {hasVideo && (
             <>
-                <div className="absolute top-4 right-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-200">
+                <div className="absolute top-4 right-4 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => onMaximize(ref.current?.srcObject)} 
                         className="bg-black/60 hover:bg-blue-600 text-white p-2 rounded-lg backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95 flex items-center gap-2"
