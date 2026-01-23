@@ -184,21 +184,26 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-// --- VOICE LOGIC ---
+// --- VOICE LOGIC (GHOST FIX APPLIED) ---
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
-    socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
+    // 🧹 Clean up previous listeners to prevent duplicates
+    socket.off("all_users"); 
+    socket.off("user_joined"); 
+    socket.off("receiving_returned_signal");
 
+    // 🎤 1. Get Audio Only First (Ensures Voice works)
     navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
       setInCall(true);
       setMyStream(stream);
       socket.emit("join_voice", { roomId, userData: user });
 
+      // 👻 2. Listen for users, strictly ignoring myself
       socket.on("all_users", (users) => {
         const peersArr: any[] = [];
         users.forEach((u: any) => {
-          // 👻 GHOST FIX: Don't connect to myself!
-          if (u.userData.id === user.id) return;
+          // STRICT ID CHECK: If the user ID matches mine (string vs number safe), ignore.
+          if (String(u.userData.id) === String(user.id)) return;
 
           const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
           peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
@@ -208,8 +213,8 @@ export default function DaChat() {
       });
 
       socket.on("user_joined", (payload) => {
-        // 👻 GHOST FIX: Reject incoming calls from myself
-        if (payload.userData.id === user.id) return;
+        // STRICT ID CHECK
+        if (String(payload.userData.id) === String(user.id)) return;
 
         if (peersRef.current.find(p => p.peerID === payload.callerID)) {
             const item = peersRef.current.find(p => p.peerID === payload.callerID);
@@ -227,7 +232,7 @@ export default function DaChat() {
       });
     }).catch(err => {
       console.error("Mic Error:", err);
-      alert("Could not access microphone.");
+      alert("Could not access microphone. Please allow permissions.");
     });
   };
 
@@ -244,30 +249,37 @@ export default function DaChat() {
     return peer;
   };
 
-  // 🔥 FINAL SCREEN SHARE FIX (Direct WebRTC Sender Replacement)
+  // 🔥 SCREEN SHARE FIX (Track Swapping)
   const startScreenShare = async () => {
     try {
-      // 1. Get Screen Stream
+      // 1. Get Screen Stream (Video Only)
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = stream.getVideoTracks()[0];
 
       setScreenStream(stream);
       setIsScreenSharing(true);
 
-      // 2. Force swap the track for every peer using internal WebRTC Sender
+      // 2. Loop through all peers and REPLACE their video track
       peersRef.current.forEach((peerObj) => {
         const peer = peerObj.peer;
-        // Access the internal WebRTC connection to find the video sender
+        
+        // METHOD A: Modern WebRTC "Sender" Replacement
         if (peer._pc) {
             const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
             if (sender) {
-                // "Nuclear Option": Force the cable to plug into the screen track
-                sender.replaceTrack(screenTrack);
+                console.log("Replacing track for peer", peerObj.peerID);
+                sender.replaceTrack(screenTrack).catch((e: any) => console.error("ReplaceTrack failed", e));
+            } else {
+                // If no video sender exists (voice only call), we might need to add one.
+                // Simple-peer handles this poorly, but usually there's a transceiver.
+                console.warn("No video sender found to replace.");
+                // Fallback: Add track if not present (experimental)
+                if(peer.addTrack) peer.addTrack(screenTrack, stream);
             }
         }
       });
 
-      // 3. Handle "Stop Sharing" button from browser
+      // 3. Handle "Stop Sharing" button from browser UI
       screenTrack.onended = () => stopScreenShare();
 
     } catch (err) {
@@ -284,15 +296,19 @@ export default function DaChat() {
     setIsScreenSharing(false);
     setMaximizedContent(null);
 
-    // 2. Swap back to Camera
+    // 2. Swap back to Camera (if it exists) or remove video track
     if (myStream) {
-        const cameraTrack = myStream.getVideoTracks()[0];
+        // If we have a camera track, put it back
+        const cameraTrack = myStream.getVideoTracks()[0]; 
+        // Note: Voice-only calls might not have a camera track.
+        
         peersRef.current.forEach((peerObj) => {
             const peer = peerObj.peer;
             if (peer._pc) {
                 const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
                 if (sender) {
-                    sender.replaceTrack(cameraTrack);
+                   // If we have a camera track, use it. If not, we pass null to stop sending video.
+                   sender.replaceTrack(cameraTrack || null); 
                 }
             }
         });
