@@ -73,6 +73,23 @@ app.post("/login", async (req, res) => {
   }
 });
 
+// ✨ RANDOM TAGLINE LOGIC
+  const [tagline, setTagline] = useState("Your new digital home.");
+
+  useEffect(() => {
+    const lines = [
+      "Your new digital home.",
+      "Where communities thrive.",
+      "Chat, hang out, and stay close.",
+      "Your world, organized.",
+      "Talk, video, and hang out.",
+      "Low latency, high fun.",
+      "The best place to hang out."
+    ];
+    // Pick one randomly when the app loads
+    setTagline(lines[Math.floor(Math.random() * lines.length)]);
+  }, []);
+
 app.get("/my-servers/:id", async (req, res) => {
   const result = await pool.query(`SELECT s.* FROM servers s JOIN server_members sm ON s.id = sm.server_id WHERE sm.user_id = $1`, [req.params.id]);
   res.json(result.rows);

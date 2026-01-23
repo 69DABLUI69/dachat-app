@@ -367,6 +367,31 @@ export default function DaChat() {
   const amIAdmin = myMemberInfo?.is_admin === true;
   const canModerate = amIOwner || amIAdmin;
 
+// ✨ RANDOM TAGLINE LOGIC
+  const [tagline, setTagline] = useState("Best place to talk shit");
+
+  useEffect(() => {
+    const lines = [
+      "Top 10 DABLUI moments",
+      "Garjigga",
+      "Debis",
+      "GRAS VERSTAPPEN",
+      "Dusmanos",
+      "Intalnire suveranista 2026",
+      "Cel mai cabana Calimanesti",
+      "Also try DABROWSER",
+      "Netanyahu is watching",
+      "Tel Aviv group trip 2026 ?",
+      "Macar io am apa calda",
+      "Tortista autista",
+      "Denise iesi afara din grup",
+      "Out cu Bragapula",
+      "DABLUI ON TOP (nu bottom ca BIBI)"
+    ];
+    // Pick one randomly when the app loads
+    setTagline(lines[Math.floor(Math.random() * lines.length)]);
+  }, []);
+
   // 🔥 LOGIN SCREEN (Color + Glass)
   if (!user) return ( 
     <div className="flex h-screen items-center justify-center bg-[#09090b] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/60 via-[#09090b] to-[#09090b] text-white font-sans"> 
@@ -376,7 +401,7 @@ export default function DaChat() {
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-white"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.18.063-2.33.155-3.456.279M6 7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0124 7.5v11.25a2.25 2.25 0 01-2.25 2.25h-9.568a4.51 4.51 0 00-1.789.365L6 24V7.5z" /></svg>
             </div>
             <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-md">DaChat</h1> 
-            <p className="text-indigo-200/50 text-sm mt-2 font-medium">Your new digital home.</p>
+            <p className="text-indigo-200/50 text-sm mt-2 font-medium animate-pulse">{tagline}</p>
         </div>
         {error && <p className="text-red-300 text-xs bg-red-500/20 py-3 rounded-xl border border-red-500/10 font-medium">{error}</p>} 
         <div className="space-y-3">
@@ -384,7 +409,7 @@ export default function DaChat() {
             <input className="w-full bg-black/20 border border-white/10 text-white px-5 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder-white/20 text-sm font-medium backdrop-blur-sm" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} /> 
         </div>
         <button onClick={handleAuth} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white py-3.5 rounded-2xl font-bold transition-all shadow-lg shadow-blue-900/20 mt-2 text-sm active:scale-95 border border-white/10">
-            {isRegistering ? "Create Account" : "Enter Space"}
+            {isRegistering ? "Create Account" : "Log in"}
         </button> 
         <p className="text-xs cursor-pointer text-white/40 hover:text-white transition-colors mt-2" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Already have an account?" : "Need an account?"}</p> 
       </div> 
