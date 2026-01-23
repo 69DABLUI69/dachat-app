@@ -3,11 +3,11 @@ import { useEffect, useState, useRef, memo } from "react";
 import { io } from "socket.io-client";
 import Peer from "simple-peer";
 
-// ⚠️ POLYFILL FOR SIMPLE-PEER
+// ⚠️ POLYFILL FOR SIMPLE-PEER (Required for Next.js)
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
 // 🔑 CONFIG
-const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; // Keep your keys here if you have them
+const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 // 🌐 DYNAMIC BACKEND URL (Automatic Switching)
@@ -127,7 +127,6 @@ export default function DaChat() {
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
-      // 🌐 USE BACKEND_URL HERE
       const res = await fetch(`${BACKEND_URL}/${endpoint}`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(authForm),
@@ -141,7 +140,6 @@ export default function DaChat() {
   };
 
   const fetchServers = async (id: number) => {
-    // 🌐 USE BACKEND_URL HERE
     const res = await fetch(`${BACKEND_URL}/my-servers/${id}`);
     const data = await res.json();
     setServers(data);
@@ -236,46 +234,57 @@ export default function DaChat() {
     return peer;
   };
 
-// 🔥 FIXED SCREEN SHARE (Uses replaceTrack to swap Camera <-> Screen)
+  // 🔥 ROBUST SCREEN SHARE (Directly modifies the WebRTC Senders)
   const startScreenShare = async () => {
-    if (!myStream) return;
-    
     try {
-        const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-        const screenTrack = stream.getVideoTracks()[0];
+      // 1. Get Screen Stream
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      const screenTrack = stream.getVideoTracks()[0];
 
-        setScreenStream(stream); 
-        setIsScreenSharing(true);
+      setScreenStream(stream);
+      setIsScreenSharing(true);
 
-        const currentVideoTrack = myStream.getVideoTracks()[0];
+      // 2. Force swap the track for every peer using internal WebRTC Sender
+      peersRef.current.forEach((peerObj) => {
+        const peer = peerObj.peer;
+        if (peer._pc) {
+            const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+            if (sender) {
+                sender.replaceTrack(screenTrack);
+            }
+        }
+      });
 
-        // Swap the track for every connected peer
-        peersRef.current.forEach(p => {
-            // replaceTrack(oldTrack, newTrack, stream)
-            p.peer.replaceTrack(currentVideoTrack, screenTrack, myStream);
-        });
+      // 3. Handle "Stop Sharing" button from browser
+      screenTrack.onended = () => stopScreenShare();
 
-        // Listen for the "Stop Sharing" floating button from the browser
-        screenTrack.onended = () => stopScreenShare();
-
-    } catch (err) { console.log("Cancelled screen share"); }
+    } catch (err) {
+      console.error("Screen share failed", err);
+    }
   };
 
   const stopScreenShare = () => {
-    if (!myStream || !screenStream) return;
+    if (!screenStream) return;
 
-    const screenTrack = screenStream.getVideoTracks()[0];
-    const cameraTrack = myStream.getVideoTracks()[0];
-
-    // Swap back to camera
-    peersRef.current.forEach(p => {
-        p.peer.replaceTrack(screenTrack, cameraTrack, myStream);
-    });
-
-    screenTrack.stop(); // Kill the screen light
+    // 1. Stop the screen tracks
+    screenStream.getTracks().forEach(track => track.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
     setMaximizedContent(null);
+
+    // 2. Swap back to Camera
+    if (myStream) {
+        const cameraTrack = myStream.getVideoTracks()[0];
+        peersRef.current.forEach((peerObj) => {
+            const peer = peerObj.peer;
+            if (peer._pc) {
+                const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+                if (sender) {
+                    sender.replaceTrack(cameraTrack);
+                }
+            }
+        });
+    }
   };
 
   useEffect(() => {
@@ -571,7 +580,7 @@ export default function DaChat() {
         )}
       </div>
 
-{/* 4. MEMBER LIST (Fixed: Now part of the flex layout) */}
+      {/* 4. MEMBER LIST (Fixed: Now part of the flex layout) */}
       {view === "servers" && active.server && (
         <div className="w-[260px] bg-[#111111] flex flex-col border-l border-white/10 flex-shrink-0">
           <div className="h-16 flex items-center px-6 font-bold text-zinc-500 text-[11px] uppercase tracking-widest border-b border-white/10 bg-[#141414]">
