@@ -184,27 +184,33 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-// --- VOICE LOGIC (GHOST FIX APPLIED) ---
+// --- VOICE LOGIC (GHOST FIX + AUDIO FIX) ---
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
-    // 🧹 Clean up previous listeners to prevent duplicates
+    // 🧹 Clean up previous listeners
     socket.off("all_users"); 
     socket.off("user_joined"); 
     socket.off("receiving_returned_signal");
 
-    // 🎤 1. Get Audio Only First (Ensures Voice works)
+    // 🎤 1. Get Audio Only First
     navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
       setInCall(true);
       setMyStream(stream);
       socket.emit("join_voice", { roomId, userData: user });
 
-      // 👻 2. Listen for users, strictly ignoring myself
+      // 👻 2. Listen for users, strictly ignoring myself AND filtering duplicates
       socket.on("all_users", (users) => {
         const peersArr: any[] = [];
-        users.forEach((u: any) => {
-          // STRICT ID CHECK: If the user ID matches mine (string vs number safe), ignore.
-          if (String(u.userData.id) === String(user.id)) return;
+        const uniqueUsers = new Map();
 
+        // DE-DUPLICATION LOGIC: Only keep the last socket ID for a given User ID
+        users.forEach((u: any) => {
+             if (String(u.userData.id) !== String(user.id)) {
+                 uniqueUsers.set(u.userData.id, u);
+             }
+        });
+
+        uniqueUsers.forEach((u: any) => {
           const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
           peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
           peersArr.push({ peerID: u.socketId, peer, info: u.userData });
@@ -216,6 +222,7 @@ export default function DaChat() {
         // STRICT ID CHECK
         if (String(payload.userData.id) === String(user.id)) return;
 
+        // Prevent double-connections to same socket
         if (peersRef.current.find(p => p.peerID === payload.callerID)) {
             const item = peersRef.current.find(p => p.peerID === payload.callerID);
             item.peer.signal(payload.signal);
@@ -252,34 +259,25 @@ export default function DaChat() {
   // 🔥 SCREEN SHARE FIX (Track Swapping)
   const startScreenShare = async () => {
     try {
-      // 1. Get Screen Stream (Video Only)
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = stream.getVideoTracks()[0];
 
       setScreenStream(stream);
       setIsScreenSharing(true);
 
-      // 2. Loop through all peers and REPLACE their video track
       peersRef.current.forEach((peerObj) => {
         const peer = peerObj.peer;
-        
-        // METHOD A: Modern WebRTC "Sender" Replacement
         if (peer._pc) {
             const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
             if (sender) {
-                console.log("Replacing track for peer", peerObj.peerID);
                 sender.replaceTrack(screenTrack).catch((e: any) => console.error("ReplaceTrack failed", e));
             } else {
-                // If no video sender exists (voice only call), we might need to add one.
-                // Simple-peer handles this poorly, but usually there's a transceiver.
-                console.warn("No video sender found to replace.");
-                // Fallback: Add track if not present (experimental)
+                // If no video sender, we try to add one (experimental for voice->video upgrade)
                 if(peer.addTrack) peer.addTrack(screenTrack, stream);
             }
         }
       });
 
-      // 3. Handle "Stop Sharing" button from browser UI
       screenTrack.onended = () => stopScreenShare();
 
     } catch (err) {
@@ -289,25 +287,18 @@ export default function DaChat() {
 
   const stopScreenShare = () => {
     if (!screenStream) return;
-
-    // 1. Stop the screen tracks
     screenStream.getTracks().forEach(track => track.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
     setMaximizedContent(null);
 
-    // 2. Swap back to Camera (if it exists) or remove video track
     if (myStream) {
-        // If we have a camera track, put it back
         const cameraTrack = myStream.getVideoTracks()[0]; 
-        // Note: Voice-only calls might not have a camera track.
-        
         peersRef.current.forEach((peerObj) => {
             const peer = peerObj.peer;
             if (peer._pc) {
                 const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
                 if (sender) {
-                   // If we have a camera track, use it. If not, we pass null to stop sending video.
                    sender.replaceTrack(cameraTrack || null); 
                 }
             }
@@ -669,7 +660,7 @@ export default function DaChat() {
   );
 }
 
-// 🔥 INTELLIGENT MEDIA PLAYER (Auto-refreshes on track swap)
+// 🔥 INTELLIGENT MEDIA PLAYER (Fixed: Always renders video for audio)
 const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [hasVideo, setHasVideo] = useState(false);
@@ -677,38 +668,51 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   useEffect(() => {
     // 1. Handle Initial Stream
     peer.on("stream", (stream: MediaStream) => {
+        // ALWAYS attach stream to video element, even if it's audio-only
         if (ref.current) {
             ref.current.srcObject = stream;
             ref.current.play().catch(e => console.error("Autoplay error:", e));
         }
-        setHasVideo(stream.getVideoTracks().length > 0);
 
-        // 2. Handle Track Swaps (Screen Share <-> Camera)
-        // When a track is replaced, the new one might need a "kick"
-        const videoTrack = stream.getVideoTracks()[0];
-        if (videoTrack) {
-            // If the track mutes/unmutes (happens during swap), force update
-            videoTrack.onunmute = () => {
-                if (ref.current) {
-                    ref.current.srcObject = stream; // Re-assign to force refresh
-                    ref.current.play().catch(() => {});
-                }
+        // Check if we actually have a video track enabled
+        const videoTracks = stream.getVideoTracks();
+        setHasVideo(videoTracks.length > 0 && videoTracks[0].enabled);
+
+        // 2. Listen for Track Changes (Screen Share <-> Camera)
+        if (videoTracks.length > 0) {
+            videoTracks[0].onmute = () => setHasVideo(false);
+            videoTracks[0].onunmute = () => {
+                 setHasVideo(true);
+                 if (ref.current) { ref.current.srcObject = stream; ref.current.play(); }
             };
         }
     });
   }, [peer]);
 
   return (
-    <div className="w-full h-full absolute inset-0 flex items-center justify-center bg-zinc-900">
-        {hasVideo ? (
-            <div className="relative w-full h-full group">
-                <video 
-                    ref={ref} 
-                    autoPlay 
-                    playsInline 
-                    className="w-full h-full object-contain bg-black" 
-                />
-                <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+    <div className="relative w-full h-full flex items-center justify-center bg-zinc-900 overflow-hidden">
+        {/* 🔊 THE VIDEO ELEMENT (ALWAYS RENDERED, HIDDEN IF NO VIDEO) */}
+        {/* This ensures audio always plays because the element exists in DOM */}
+        <video 
+            ref={ref} 
+            autoPlay 
+            playsInline 
+            muted={false} // Important: Don't mute remote peers!
+            className={`absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-300 ${hasVideo ? "opacity-100 z-10" : "opacity-0 z-0"}`} 
+        />
+
+        {/* 👤 AVATAR FALLBACK (Shows when video is hidden) */}
+        {!hasVideo && (
+            <div className="z-20 flex flex-col items-center animate-fade-in">
+                <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
+                <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Connecting..."}</span> 
+            </div>
+        )}
+
+        {/* 🔲 CONTROLS OVERLAY (Only if video exists) */}
+        {hasVideo && (
+            <>
+                <div className="absolute top-4 right-4 z-30 opacity-0 hover:opacity-100 transition-opacity duration-200">
                     <button 
                         onClick={() => onMaximize(ref.current?.srcObject)} 
                         className="bg-black/60 hover:bg-blue-600 text-white p-2 rounded-lg backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95 flex items-center gap-2"
@@ -716,15 +720,10 @@ const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
                         <span className="text-xs font-bold px-1">VIEW SCREEN</span>
                     </button>
                 </div>
-                <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded-full text-white text-xs font-bold border border-white/10 backdrop-blur-md">
+                <div className="absolute bottom-4 left-4 z-30 bg-black/60 px-3 py-1 rounded-full text-white text-xs font-bold border border-white/10 backdrop-blur-md">
                     {userInfo?.username || "Unknown"}
                 </div>
-            </div>
-        ) : (
-            <div className="flex flex-col items-center">
-                <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-[36px] object-cover border-4 border-blue-900/50 mb-6 shadow-xl" fallbackClass="w-24 h-24 rounded-[36px] bg-blue-900/20 border-4 border-blue-900/50 mb-6" />
-                <span className="text-white font-semibold text-xl tracking-tight">{userInfo?.username || "Connecting..."}</span> 
-            </div>
+            </>
         )}
     </div>
   );
