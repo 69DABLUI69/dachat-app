@@ -181,8 +181,19 @@ app.get("/users/:id", safeRoute(async (req, res) => {
 // Update Profile
 app.post("/update-profile", safeRoute(async (req, res) => {
   const { userId, username, avatarUrl, bio } = req.body;
-  const { data, error } = await supabase.from("users").update({ username, avatar_url: avatarUrl, bio }).eq("id", userId).select().single();
-  if(error) return res.json({ success: false });
+  
+  const { data, error } = await supabase
+    .from("users")
+    .update({ username, avatar_url: avatarUrl, bio })
+    .eq("id", userId)
+    .select()
+    .single();
+
+  if(error) {
+    console.error("Update Profile Error:", error.message);
+    return res.json({ success: false, message: error.message });
+  }
+
   io.emit("user_updated", { userId });
   res.json({ success: true, user: data });
 }));

@@ -216,29 +216,52 @@ export default function DaChat() {
   const saveProfile = async () => {
       let finalAvatarUrl = editForm.avatarUrl;
       
-      // Upload new avatar if selected
+      // 1. Upload new avatar if selected
       if (newAvatarFile) {
           const formData = new FormData();
           formData.append("file", newAvatarFile);
-          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
-          const data = await res.json();
-          if (data.success) finalAvatarUrl = data.fileUrl;
+          try {
+            const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.success) {
+                finalAvatarUrl = data.fileUrl;
+            } else {
+                alert("Failed to upload image. Please try again.");
+                return;
+            }
+          } catch (e) {
+              alert("Error uploading image.");
+              return;
+          }
       }
 
-      const res = await fetch(`${BACKEND_URL}/update-profile`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl })
-      });
-      
-      const data = await res.json();
-      if (data.success) {
-          setUser(data.user);
-          setShowSettings(false);
-          setNewAvatarFile(null);
-          alert("Profile Updated!");
-      } else {
-          alert("Update Failed");
+      // 2. Send profile update to backend
+      try {
+        const res = await fetch(`${BACKEND_URL}/update-profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                userId: user.id, 
+                username: editForm.username, 
+                bio: editForm.bio, 
+                avatarUrl: finalAvatarUrl 
+            })
+        });
+        
+        const data = await res.json();
+
+        // 3. Handle Response
+        if (data.success) {
+            setUser(data.user);
+            setShowSettings(false);
+            setNewAvatarFile(null);
+            alert("Profile Updated Successfully!");
+        } else {
+            // 🚨 THIS IS THE FIX: It now tells you exactly why it failed
+            alert(`Update Failed: ${data.message || "Unknown error"}`);
+        }
+      } catch (e) {
+          alert("Could not connect to server.");
       }
   };
 
