@@ -7,10 +7,33 @@ const { Pool } = require("pg");
 const bcrypt = require("bcrypt");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-const ytdl = require('ytdl-core'); // 🎵 YouTube Downloader
+const ytdl = require('ytdl-core'); 
 
 const app = express();
-app.use(cors());
+
+// 🔥 CRITICAL CORS SETUP 🔥
+// We explicitly allow your Vercel frontend and Localhost (for testing)
+const allowedOrigins = [
+  "https://dachat-app.vercel.app", 
+  "http://localhost:3000"
+];
+
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log("Blocked by CORS:", origin); // Debugging log
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  methods: ["GET", "POST"],
+  credentials: true
+};
+
+app.use(cors(corsOptions));
 app.use(express.json());
 
 // ⚠️ PASTE YOUR DB & SUPABASE INFO HERE ⚠️
@@ -23,7 +46,15 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const upload = multer({ storage: multer.memoryStorage() });
 
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
+
+// 🔥 SOCKET.IO CORS SETUP 🔥
+const io = new Server(server, { 
+  cors: { 
+    origin: allowedOrigins,
+    methods: ["GET", "POST"],
+    credentials: true
+  } 
+});
 
 // --- 🎵 YOUTUBE RINGTONE STREAMER ---
 app.get("/stream-audio", async (req, res) => {
@@ -229,12 +260,22 @@ io.on("connection", (socket) => {
     console.log("-----------------------------------------------");
     console.log(`[CALL STARTED] By ${fromUser.username} (ID: ${fromUser.id}) -> To ID: ${userToCall}`);
     
+    // Debug: Print who is currently online in memory
+    console.log("Current Online Users (Socket Mapping):");
+    Object.keys(socketMapping).forEach(sockId => {
+        console.log(` - Socket: ${sockId} is User ID: ${socketMapping[sockId].userId}`);
+    });
+
+    // 1. Find all sockets that belong to the recipient
     const recipientSockets = Object.keys(socketMapping).filter(key => 
       String(socketMapping[key].userId) === String(userToCall)
     );
 
+    console.log(`Found ${recipientSockets.length} sockets for User ${userToCall}`);
+
     if (recipientSockets.length > 0) {
       console.log(`[RINGING] Sending 'incoming_call' event to ${recipientSockets.length} sockets.`);
+      
       recipientSockets.forEach(socketId => {
           io.to(socketId).emit("incoming_call", { from: fromUser, roomId });
       });
@@ -244,9 +285,11 @@ io.on("connection", (socket) => {
     console.log("-----------------------------------------------");
   });
 
+  // --- FIXED ANSWER CALL LOGIC ---
   socket.on("answer_call", ({ to, roomId }) => {
     console.log("-----------------------------------------------");
     console.log(`[CALL ANSWERED] In Room: ${roomId}`);
+    console.log(` - Recipient (Answering): ${socket.id}`);
     
     if (!to || !to.id) {
         console.error("❌ ERROR: 'to' user object is invalid or missing ID.");
@@ -254,11 +297,13 @@ io.on("connection", (socket) => {
     }
 
     const targetId = String(to.id);
+
+    // Find the caller in our active socket list
     const callerSockets = Object.keys(socketMapping).filter(key => 
         String(socketMapping[key].userId) === targetId
     );
 
-    console.log(` - Found ${callerSockets.length} sockets for Original Caller (ID: ${targetId})`);
+    console.log(` - Found ${callerSockets.length} socket(s) for Original Caller (ID: ${targetId})`);
 
     if (callerSockets.length > 0) {
         callerSockets.forEach(socketId => {
@@ -266,7 +311,7 @@ io.on("connection", (socket) => {
             io.to(socketId).emit("call_accepted", { roomId });
         });
     } else {
-        console.warn(`⚠️ FAILURE: Original caller seems offline.`);
+        console.warn(`⚠️ FAILURE: Original caller (ID ${targetId}) seems offline or disconnected.`);
     }
     console.log("-----------------------------------------------");
   });
@@ -282,31 +327,39 @@ io.on("connection", (socket) => {
   const handleLeaveRoom = () => {
     const info = socketMapping[socket.id];
     
+    // Only proceed if we know who this socket is AND they are actually in a room
     if (info && info.roomId) {
       const { roomId, userId } = info;
 
       if (voiceRooms[roomId]) {
+        // 1. Remove user from the memory list for that room
         voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
+        
+        // 2. Tell everyone else in the room to remove this peer (Kill the Ghost)
         io.to(roomId).emit("user_left", socket.id);
 
+        // 3. Update the visual "Who is in this channel" state
         const stillInRoom = voiceRooms[roomId]?.some(u => String(u.userData.id) === String(userId));
         if (!stillInRoom && roomStates[roomId]) {
             roomStates[roomId].delete(userId);
             io.emit("voice_state_update", { channelId: roomId, users: Array.from(roomStates[roomId]) });
         }
       }
-      // Just clear room ID, stay online
+      
+      // ✅ CRITICAL FIX: Just clear the room ID, do NOT delete the user from the map!
       if (socketMapping[socket.id]) {
         socketMapping[socket.id].roomId = null;
       }
     }
   };
 
+  // When user clicks "Leave Call" button
   socket.on("leave_voice", () => {
       handleLeaveRoom();
       console.log(`User ${socket.id} left voice (Still Online)`);
   });
 
+  // When user closes the tab
   socket.on("disconnect", () => {
       handleLeaveRoom(); // Remove from rooms first
       delete socketMapping[socket.id]; // THEN remove from online list
