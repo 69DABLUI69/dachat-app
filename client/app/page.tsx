@@ -3,35 +3,57 @@ import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 
-// ⚠️ POLYFILL
+// ⚠️ POLYFILL FOR SIMPLE-PEER
 if (typeof window !== 'undefined') { 
     (window as any).global = window; 
     (window as any).process = { env: { DEBUG: undefined }, }; 
     (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; 
 }
 
+// 🌐 CONFIGURATION
 const BACKEND_URL = "https://dachat-app.onrender.com"; 
 const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
-const PEER_CONFIG = { iceServers: [{ urls: "stun:stun.l.google.com:19302" }] };
+const PEER_CONFIG = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+    ]
+};
 
+// 🔌 SOCKET INITIALIZATION
 const socket: Socket = io(BACKEND_URL, { 
     autoConnect: false,
     transports: ["websocket", "polling"]
 });
 
+// 🎨 CUSTOM COMPONENTS
+
 const GlassPanel = ({ children, className, onClick }: any) => (
-  <div onClick={onClick} className={`backdrop-blur-xl bg-gray-900/60 border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ${className}`}>
+  <div 
+    onClick={onClick} 
+    className={`backdrop-blur-xl bg-gray-900/60 border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ${className}`}
+  >
     {children}
   </div>
 );
 
 const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) => {
   return src ? (
-    <img key={src} onClick={onClick} src={src} alt={alt || "User"} className={`${className} bg-black/20 object-cover cursor-pointer`} loading="lazy" />
+    <img 
+        key={src} 
+        onClick={onClick} 
+        src={src} 
+        alt={alt || "User"} 
+        className={`${className} bg-black/20 object-cover cursor-pointer`} 
+        loading="lazy" 
+    />
   ) : (
-    <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}>
+    <div 
+        onClick={onClick} 
+        className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}
+    >
        <span className="text-[10px] text-white/40 font-bold">?</span>
     </div>
   );
@@ -41,17 +63,44 @@ UserAvatar.displayName = "UserAvatar";
 const GifPicker = ({ onSelect, onClose }: any) => {
   const [gifs, setGifs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
-  useEffect(() => { fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`).then(r => r.json()).then(d => setGifs(d.results || [])); }, []);
-  const searchGifs = async (q: string) => { if(!q) return; const res = await fetch(`${KLIPY_BASE_URL}/search?q=${q}&key=${KLIPY_API_KEY}&limit=20`); const data = await res.json(); setGifs(data.results || []); };
+
+  useEffect(() => {
+    fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`)
+      .then(r => r.json())
+      .then(d => setGifs(d.results || []));
+  }, []);
+
+  const searchGifs = async (q: string) => {
+      if(!q) return;
+      const res = await fetch(`${KLIPY_BASE_URL}/search?q=${q}&key=${KLIPY_API_KEY}&limit=20`);
+      const data = await res.json();
+      setGifs(data.results || []);
+  };
+
   return (
     <GlassPanel className="absolute bottom-24 left-4 w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
-        <input className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5" placeholder="Search GIFs..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)} autoFocus />
-        <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60">✕</button>
+        <input 
+            className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all"
+            placeholder="Search GIFs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)}
+            autoFocus
+        />
+        <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 transition-colors">✕</button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         <div className="columns-2 gap-3 space-y-3">
-          {gifs.map((g) => ( <div key={g.id} className="relative group overflow-hidden rounded-2xl cursor-pointer hover:ring-2 ring-blue-500/50" onClick={() => onSelect(g?.media_formats?.gif?.url)}> <img src={g?.media_formats?.tinygif?.url} className="w-full h-auto object-cover rounded-xl" /> </div> ))}
+          {gifs.map((g) => (
+            <div 
+                key={g.id} 
+                className="relative group overflow-hidden rounded-2xl cursor-pointer hover:ring-2 ring-blue-500/50 transition-all" 
+                onClick={() => onSelect(g?.media_formats?.gif?.url)}
+            >
+              <img src={g?.media_formats?.tinygif?.url} className="w-full h-auto object-cover rounded-xl" />
+            </div>
+          ))}
         </div>
       </div>
     </GlassPanel>
@@ -59,6 +108,7 @@ const GifPicker = ({ onSelect, onClose }: any) => {
 };
 
 export default function DaChat() {
+  // --- STATE MANAGEMENT ---
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
@@ -72,17 +122,21 @@ export default function DaChat() {
 
   const [view, setView] = useState("dms");
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
+  
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   
+  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
+  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [peers, setPeers] = useState<any[]>([]);
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
+  
   const peersRef = useRef<any[]>([]);
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,26 +144,47 @@ export default function DaChat() {
   // Settings & Edit States
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [showServerSettings, setShowServerSettings] = useState(false); // ✅ NEW
+  const [showServerSettings, setShowServerSettings] = useState(false);
   const [showProfileGifPicker, setShowProfileGifPicker] = useState(false);
+  
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
-  const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" }); // ✅ NEW
+  const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
+  
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
-  const [newServerFile, setNewServerFile] = useState<File | null>(null); // ✅ NEW
+  const [newServerFile, setNewServerFile] = useState<File | null>(null);
 
+  // --- 1. INITIALIZATION & RECONNECTION ---
   useEffect(() => { 
       socket.connect(); 
-      const handleConnect = () => { if (user) socket.emit("setup", user.id); };
+      
+      const handleConnect = () => {
+          console.log("Connected to server");
+          if (user) {
+              console.log("Re-registering user:", user.id);
+              socket.emit("setup", user.id);
+          }
+      };
+
       socket.on("connect", handleConnect);
       socket.on("connect_error", (err) => console.error("Connection Error:", err));
-      if (socket.connected && user) socket.emit("setup", user.id);
-      return () => { socket.off("connect", handleConnect); socket.disconnect(); }; 
+      
+      if (socket.connected && user) {
+          socket.emit("setup", user.id);
+      }
+
+      return () => { 
+          socket.off("connect", handleConnect);
+          socket.disconnect(); 
+      }; 
   }, [user]); 
 
+  // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
       socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
+      socket.on("voice_state_update", ({ channelId, users }) => { 
+          setVoiceStates(prev => ({ ...prev, [channelId]: users })); 
+      });
       
       socket.on("user_updated", ({ userId }) => { 
           if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
@@ -119,13 +194,18 @@ export default function DaChat() {
       
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
+      
       socket.on("server_updated", ({ serverId }) => { 
           if (active.server?.id === serverId) {
               fetchServers(user.id); 
               selectServer({ id: serverId }); // Refresh contents
           }
       });
-      socket.on("incoming_call", (data) => setIncomingCall(data));
+      
+      socket.on("incoming_call", (data) => {
+          console.log("Incoming call received", data);
+          setIncomingCall(data);
+      });
       
       return () => { 
           socket.off("receive_message"); 
@@ -139,6 +219,7 @@ export default function DaChat() {
       }; 
   }, [user, viewingProfile, active.server]);
 
+  // --- AUTHENTICATION ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
@@ -157,39 +238,123 @@ export default function DaChat() {
     } catch { setError("Connection failed"); }
   };
 
-  const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
-  const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
-  const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
+  // --- DATA FETCHING HELPER FUNCTIONS ---
+  const fetchServers = async (id: number) => {
+    const res = await fetch(`${BACKEND_URL}/my-servers/${id}`);
+    setServers(await res.json());
+  };
+  
+  const fetchFriends = async (id: number) => {
+      const res = await fetch(`${BACKEND_URL}/my-friends/${id}`);
+      setFriends(await res.json());
+  };
+  
+  const fetchRequests = async (id: number) => {
+      const res = await fetch(`${BACKEND_URL}/my-requests/${id}`);
+      setRequests(await res.json());
+  };
 
+  // --- NAVIGATION LOGIC ---
   const selectServer = async (server: any) => {
     setView("servers");
     setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null }));
+    
+    // Fetch channels
     const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     const chData = await res.json();
     setChannels(chData);
     
-    // Auto Join First Channel if none active
-    if(!active.channel && chData.length > 0) joinChannel(chData[0]);
-    else if(active.channel) joinChannel(active.channel); // Refresh current
+    // Auto-select first text channel if no active channel or switching servers
+    if(!active.channel && chData.length > 0) {
+        const firstText = chData.find((c:any) => c.type === 'text');
+        if (firstText) joinChannel(firstText);
+    }
 
+    // Fetch members
     const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`);
     setServerMembers(await memRes.json());
   };
 
   const joinChannel = (channel: any) => {
-    if (channel.type === 'voice') { if (channel.id) joinVoiceRoom(channel.id.toString()); } 
-    else { setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); setChatHistory([]); if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); }
+    if (channel.type === 'voice') {
+      if (channel.id) joinVoiceRoom(channel.id.toString());
+    } else {
+      setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null }));
+      setChatHistory([]);
+      if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() });
+    }
   };
 
-  const selectFriend = (friend: any) => { setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); setChatHistory([]); const ids = [user.id, friend.id].sort((a, b) => a - b); socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); };
-  const selectRequest = (requestUser: any) => { setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null })); };
+  const selectFriend = (friend: any) => {
+    setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null }));
+    setChatHistory([]);
+    const ids = [user.id, friend.id].sort((a, b) => a - b);
+    socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
+  };
 
-  // --- ACTIONS ---
-  const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; try { const res = await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); const data = await res.json(); alert(data.message); } catch { alert("Error sending request"); }};
-  const handleAcceptRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest); };
-  const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
-  const handleRemoveFriend = async () => { if (!viewingProfile) return; if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id }) }); setViewingProfile(null); fetchFriends(user.id); if(active.friend?.id === viewingProfile.id) setActive({ ...active, friend: null }); };
+  const selectRequest = (requestUser: any) => {
+     setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null }));
+  };
 
+  // --- FRIEND & REQUEST ACTIONS ---
+  const sendFriendRequest = async () => { 
+      const usernameToAdd = prompt("Enter username to request:"); 
+      if (!usernameToAdd) return; 
+      try { 
+          const res = await fetch(`${BACKEND_URL}/send-request`, { 
+              method: "POST", 
+              headers: { "Content-Type": "application/json" }, 
+              body: JSON.stringify({ myId: user.id, usernameToAdd }) 
+          }); 
+          const data = await res.json(); 
+          alert(data.message); 
+      } catch { 
+          alert("Error sending request"); 
+      }
+  };
+
+  const handleAcceptRequest = async () => {
+      if(!active.pendingRequest) return;
+      await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
+      fetchFriends(user.id);
+      fetchRequests(user.id);
+      selectFriend(active.pendingRequest);
+  };
+
+  const handleDeclineRequest = async () => {
+      if(!active.pendingRequest) return;
+      await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
+      fetchRequests(user.id);
+      setActive({...active, pendingRequest: null});
+  };
+
+  const handleRemoveFriend = async () => {
+      if (!viewingProfile) return;
+      if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return;
+
+      try {
+          const res = await fetch(`${BACKEND_URL}/remove-friend`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id })
+          });
+          const data = await res.json();
+          if (data.success) {
+              alert("Friend removed.");
+              setViewingProfile(null); 
+              fetchFriends(user.id);
+              if(active.friend?.id === viewingProfile.id) {
+                  setActive({ ...active, friend: null });
+              }
+          } else {
+              alert(data.message || "Failed to remove friend.");
+          }
+      } catch (e) {
+          alert("Server error.");
+      }
+  };
+
+  // --- MESSAGING & UPLOADS ---
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
       const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url }; 
@@ -199,59 +364,308 @@ export default function DaChat() {
   };
 
   const handleFileUpload = async (e: any) => {
-      const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file);
-      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json();
+      const file = e.target.files[0];
+      if(!file) return;
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+      const data = await res.json();
       if(data.success) sendMessage(null, data.fileUrl);
   };
 
-  const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
+  // --- PROFILE VIEW & EDIT ---
+  const viewUserProfile = async (userId: number) => {
+      const res = await fetch(`${BACKEND_URL}/users/${userId}`);
+      const data = await res.json();
+      if (data.success) setViewingProfile(data.user);
+  };
 
-  const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); setShowProfileGifPicker(false); };
+  const openSettings = () => {
+      setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url });
+      setShowSettings(true);
+      setShowProfileGifPicker(false);
+  };
+
   const saveProfile = async () => {
       let finalAvatarUrl = editForm.avatarUrl;
-      if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); finalAvatarUrl = (await res.json()).fileUrl; }
-      const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) });
-      if ((await res.json()).success) { setUser({...user, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl }); setShowSettings(false); setNewAvatarFile(null); alert("Updated!"); }
+      if (newAvatarFile) {
+          const formData = new FormData();
+          formData.append("file", newAvatarFile);
+          try {
+            const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+            const data = await res.json();
+            if (data.success) finalAvatarUrl = data.fileUrl;
+            else { alert("Upload failed"); return; }
+          } catch { alert("Error uploading"); return; }
+      }
+      try {
+        const res = await fetch(`${BACKEND_URL}/update-profile`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl })
+        });
+        const data = await res.json();
+        if (data.success) {
+            setUser(data.user);
+            setShowSettings(false);
+            setNewAvatarFile(null);
+            alert("Updated!");
+        } else {
+            alert(`Failed: ${data.message}`);
+        }
+      } catch { alert("Server Error"); }
   };
 
-  // --- SERVER MANAGEMENT UI LOGIC ---
-  const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); }};
+  // --- SERVER MANAGEMENT (CREATE, INVITE, LEAVE, MOD) ---
+  const createServer = async () => { 
+      const name = prompt("Server Name"); 
+      if(name) { 
+          await fetch(`${BACKEND_URL}/create-server`, { 
+              method: "POST", 
+              headers: { "Content-Type": "application/json" }, 
+              body: JSON.stringify({ name, ownerId: user.id }) 
+          }); 
+          fetchServers(user.id); 
+      }
+  };
   
-  const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) }); selectServer(active.server); }};
-  const deleteChannel = async (channelId: number) => { if(!confirm("Delete channel?")) return; await fetch(`${BACKEND_URL}/delete-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) }); selectServer(active.server); };
+  const createChannel = async () => { 
+      const name = prompt("Name"); 
+      const type = confirm("Voice?") ? "voice" : "text"; 
+      if(name) { 
+          await fetch(`${BACKEND_URL}/create-channel`, { 
+              method: "POST", 
+              headers: { "Content-Type": "application/json" }, 
+              body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) 
+          }); 
+          selectServer(active.server); 
+      }
+  };
+
+  const deleteChannel = async (channelId: number) => { 
+      if(!confirm("Delete channel?")) return; 
+      await fetch(`${BACKEND_URL}/delete-channel`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) 
+      }); 
+      selectServer(active.server); 
+  };
   
-  const inviteUser = async () => { const userString = prompt("Username to invite:"); if(!userString) return; const res = await fetch(`${BACKEND_URL}/servers/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userString }) }); alert((await res.json()).message || "Invited!"); };
-  const leaveServer = async () => { if(!confirm("Leave server?")) return; await fetch(`${BACKEND_URL}/servers/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); setView("dms"); setActive({server:null}); fetchServers(user.id); };
+  const inviteUser = async () => { 
+      const userString = prompt("Username to invite:"); 
+      if(!userString) return; 
+      const res = await fetch(`${BACKEND_URL}/servers/invite`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ serverId: active.server.id, userString }) 
+      }); 
+      alert((await res.json()).message || "Invited!"); 
+  };
+
+  const leaveServer = async () => { 
+      if(!confirm("Leave server?")) return; 
+      await fetch(`${BACKEND_URL}/servers/leave`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id }) 
+      }); 
+      setView("dms"); 
+      setActive({server:null}); 
+      fetchServers(user.id); 
+  };
   
-  const openServerSettings = () => { setServerEditForm({ name: active.server.name, imageUrl: active.server.image_url || "" }); setShowServerSettings(true); };
+  const openServerSettings = () => { 
+      setServerEditForm({ name: active.server.name, imageUrl: active.server.image_url || "" }); 
+      setShowServerSettings(true); 
+  };
+
   const saveServerSettings = async () => {
       let finalImg = serverEditForm.imageUrl;
-      if (newServerFile) { const formData = new FormData(); formData.append("file", newServerFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); finalImg = (await res.json()).fileUrl; }
-      await fetch(`${BACKEND_URL}/servers/update`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name: serverEditForm.name, imageUrl: finalImg }) });
-      setShowServerSettings(false); setNewServerFile(null);
+      if (newServerFile) { 
+          const formData = new FormData(); 
+          formData.append("file", newServerFile); 
+          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
+          finalImg = (await res.json()).fileUrl; 
+      }
+      await fetch(`${BACKEND_URL}/servers/update`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id, name: serverEditForm.name, imageUrl: finalImg }) 
+      });
+      setShowServerSettings(false); 
+      setNewServerFile(null);
   };
 
-  const promoteMember = async (targetId: number) => { if(!confirm("Toggle Moderator Status?")) return; await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) }); };
+  const promoteMember = async (targetId: number) => { 
+      if(!confirm("Toggle Moderator Status?")) return; 
+      await fetch(`${BACKEND_URL}/servers/promote`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) 
+      }); 
+  };
 
   // --- ROLE HELPERS ---
   const getRole = () => serverMembers.find(m => m.id === user.id);
   const isMod = getRole()?.is_admin;
   const isOwner = active.server?.owner_id === user.id;
 
-  // --- WEBRTC ---
-  const startDMCall = () => { if (!active.friend) return; const ids = [user.id, active.friend.id].sort((a, b) => a - b); const roomId = `dm-call-${ids[0]}-${ids[1]}`; joinVoiceRoom(roomId); socket.emit("start_call", { senderId: user.id, recipientId: active.friend.id, senderName: user.username, avatarUrl: user.avatar_url, roomId }); };
-  const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
-  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const arr: any[] = []; users.forEach((u: any) => { const p = createPeer(u.socketId, socket.id as string, stream); peersRef.current.push({ peerID: u.socketId, peer: p, info: u.userData }); arr.push({ peerID: u.socketId, peer: p, info: u.userData }); }); setPeers(arr); }); socket.on("user_joined", (p) => { const item = peersRef.current.find(x => x.peerID === p.callerID); if(item) { item.peer.signal(p.signal); return; } const peer = addPeer(p.signal, p.callerID, stream); peersRef.current.push({ peerID: p.callerID, peer, info: p.userData }); setPeers(u => [...u, { peerID: p.callerID, peer, info: p.userData }]); }); socket.on("receiving_returned_signal", (p) => { const item = peersRef.current.find(x => x.peerID === p.id); if(item) item.peer.signal(p.signal); }); }).catch(() => alert("Mic denied")); }, [user]);
-  const createPeer = (u:string, c:string, s:MediaStream) => { const p = new Peer({ initiator: true, trickle: false, stream: s, config: PEER_CONFIG }); p.on("signal", (sig:any) => socket.emit("sending_signal", { userToSignal: u, callerID: c, signal: sig, userData: user })); return p; };
-  const addPeer = (sig:any, c:string, s:MediaStream) => { const p = new Peer({ initiator: false, trickle: false, stream: s, config: PEER_CONFIG }); p.on("signal", (sig:any) => socket.emit("returning_signal", { signal: sig, callerID: c })); p.signal(sig); return p; };
-  const leaveCall = () => { if(isScreenSharing) stopScreenShare(); setInCall(false); setMyStream(null); setPeers([]); myStream?.getTracks().forEach(t => t.stop()); peersRef.current.forEach(p => p.peer.destroy()); peersRef.current = []; socket.emit("leave_voice"); };
-  const startScreenShare = async () => { try { const s = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false }); setScreenStream(s); setIsScreenSharing(true); const t = s.getVideoTracks()[0]; peersRef.current.forEach((po) => { const pc = (po.peer as any)._pc; if(pc) { const snd = pc.getSenders().find((x: any) => x.track && x.track.kind === 'video'); if(snd) snd.replaceTrack(t); } }); t.onended = () => stopScreenShare(); } catch(e) { console.error(e); } };
-  const stopScreenShare = () => { screenStream?.getTracks().forEach(t => t.stop()); setScreenStream(null); setIsScreenSharing(false); if(myStream) { const t = myStream.getVideoTracks()[0]; if(t) { peersRef.current.forEach((po) => { const pc = (po.peer as any)._pc; if(pc) { const snd = pc.getSenders().find((x: any) => x.track && x.track.kind === 'video'); if(snd) snd.replaceTrack(t); } }); } } };
+  // --- WEBRTC LOGIC ---
+  const startDMCall = () => {
+      if (!active.friend) return;
+      const ids = [user.id, active.friend.id].sort((a, b) => a - b);
+      const roomId = `dm-call-${ids[0]}-${ids[1]}`;
+      
+      joinVoiceRoom(roomId);
+      
+      socket.emit("start_call", { 
+          senderId: user.id, 
+          recipientId: active.friend.id, 
+          senderName: user.username, 
+          avatarUrl: user.avatar_url,
+          roomId: roomId 
+      });
+  };
 
-  if (!user) return ( <div className="flex h-screen items-center justify-center bg-black relative"><GlassPanel className="p-10 rounded-3xl w-96 flex flex-col gap-4 text-center"> <h1 className="text-3xl font-bold text-white">DaChat</h1> {error && <div className="text-red-400 text-xs">{error}</div>} <input className="bg-white/10 p-3 rounded text-white" placeholder="Username" onChange={e=>setAuthForm({...authForm, username: e.target.value})} /> <input className="bg-white/10 p-3 rounded text-white" type="password" placeholder="Password" onChange={e=>setAuthForm({...authForm, password: e.target.value})} /> <button onClick={handleAuth} className="bg-white text-black py-3 rounded font-bold">{isRegistering?"Register":"Login"}</button> <p className="text-white/50 cursor-pointer text-xs" onClick={()=>setIsRegistering(!isRegistering)}>{isRegistering?"Login":"Create Account"}</p> </GlassPanel></div> );
+  const answerCall = () => {
+      if (incomingCall) {
+          joinVoiceRoom(incomingCall.roomId);
+          setIncomingCall(null);
+      }
+  };
+
+  const joinVoiceRoom = useCallback((roomId: string) => {
+    if (!user) return;
+    
+    socket.off("all_users");
+    socket.off("user_joined");
+    socket.off("receiving_returned_signal");
+
+    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
+      setInCall(true);
+      setMyStream(stream);
+      socket.emit("join_voice", { roomId, userData: user });
+
+      socket.on("all_users", (users) => {
+        const peersArr: any[] = [];
+        users.forEach((u: any) => {
+          const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
+          peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
+          peersArr.push({ peerID: u.socketId, peer, info: u.userData });
+        });
+        setPeers(peersArr);
+      });
+
+      socket.on("user_joined", (payload) => {
+        const item = peersRef.current.find(p => p.peerID === payload.callerID);
+        if (item) {
+            item.peer.signal(payload.signal);
+            return;
+        }
+        const peer = addPeer(payload.signal, payload.callerID, stream);
+        peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
+        setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
+      });
+
+      socket.on("receiving_returned_signal", (payload) => {
+        const item = peersRef.current.find(p => p.peerID === payload.id);
+        if (item) item.peer.signal(payload.signal);
+      });
+    }).catch(err => {
+      console.error("Mic Error:", err);
+      alert("Mic access denied");
+    });
+  }, [user]);
+
+  const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
+    const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG });
+    peer.on("signal", (signal: any) => {
+        socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user });
+    });
+    return peer;
+  };
+
+  const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => {
+    const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG });
+    peer.on("signal", (signal: any) => {
+        socket.emit("returning_signal", { signal, callerID });
+    });
+    peer.signal(incomingSignal);
+    return peer;
+  };
+
+  const startScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      setScreenStream(stream);
+      setIsScreenSharing(true);
+      const screenTrack = stream.getVideoTracks()[0];
+      
+      peersRef.current.forEach((peerObj) => {
+        const pc = (peerObj.peer as any)._pc;
+        if(pc) {
+           const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+           if(sender) sender.replaceTrack(screenTrack);
+        }
+      });
+      screenTrack.onended = () => stopScreenShare();
+    } catch(e) { console.error(e); }
+  };
+
+  const stopScreenShare = () => {
+    screenStream?.getTracks().forEach(t => t.stop());
+    setScreenStream(null);
+    setIsScreenSharing(false);
+    if(myStream) {
+        const track = myStream.getVideoTracks()[0];
+        if(track) {
+            peersRef.current.forEach((peerObj) => {
+                const pc = (peerObj.peer as any)._pc;
+                if(pc) {
+                   const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+                   if(sender) sender.replaceTrack(track);
+                }
+            });
+        }
+    }
+  };
+
+  const leaveCall = () => {
+    if(isScreenSharing) stopScreenShare();
+    setInCall(false);
+    setMyStream(null);
+    setPeers([]);
+    myStream?.getTracks().forEach(t => t.stop());
+    peersRef.current.forEach(p => p.peer.destroy());
+    peersRef.current = [];
+    socket.emit("leave_voice");
+  };
+
+  // 🌈 RENDER: LOGIN SCREEN
+  if (!user) return (
+    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden">
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
+      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]"></div>
+      <GlassPanel className="p-10 rounded-[40px] w-[400px] text-center relative z-10 flex flex-col gap-6 ring-1 ring-white/10">
+        <div className="w-20 h-20 rounded-[30px] bg-gradient-to-tr from-blue-500 to-purple-600 mx-auto flex items-center justify-center shadow-[0_0_40px_rgba(79,70,229,0.4)] mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+        </div>
+        <div> <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">DaChat</h1> <p className="text-white/40 text-sm mt-2">Next Gen Communication</p> </div>
+        {error && <div className="bg-red-500/20 text-red-200 text-xs py-3 rounded-xl border border-red-500/20">{error}</div>}
+        <div className="space-y-3">
+            <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
+            <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
+        </div>
+        <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95">{isRegistering ? "Create Account" : "Enter Space"}</button>
+        <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Back to Login" : "Create an Account"}</p>
+      </GlassPanel>
+    </div>
+  );
 
   return (
-    <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative">
+    <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
       {/* 1. DOCK */}
@@ -259,7 +673,17 @@ export default function DaChat() {
         <div onClick={() => { setView("dms"); setActive({server:null}); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-blue-600" : "bg-white/10 hover:bg-white/20"}`}> 🏠 </div>
         <div className="w-8 h-[1px] bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar">
-            {servers.map(s => ( <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer"> {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full" />} <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} fallbackClass={`w-12 h-12 bg-white/10 flex items-center justify-center font-bold text-xs transition-all ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} /> </div> ))}
+            {servers.map(s => ( 
+                <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer"> 
+                    {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full" />} 
+                    <UserAvatar 
+                        src={s.image_url} 
+                        alt={s.name} 
+                        className={`w-12 h-12 object-cover transition-all ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} 
+                        fallbackClass={`w-12 h-12 bg-white/10 flex items-center justify-center font-bold text-xs transition-all ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} 
+                    /> 
+                </div> 
+            ))}
             <div onClick={createServer} className="w-12 h-12 rounded-[24px] border border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white hover:text-green-400 text-white/40 transition-all"> + </div>
         </div>
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer hover:ring-2 ring-white/50" />
@@ -289,9 +713,19 @@ export default function DaChat() {
             ) : (
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>Requests</span> <button onClick={sendFriendRequest} className="text-lg hover:text-white">+</button> </div>
-                    {requests.map(req => ( <div key={req.id} onClick={() => selectRequest(req)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.pendingRequest?.id===req.id?"bg-white/10":""}`}> <UserAvatar src={req.avatar_url} className="w-8 h-8 rounded-full" /> <div><div className="text-xs font-bold">{req.username}</div><div className="text-[9px] text-yellow-400">Request</div></div> </div> ))}
+                    {requests.map(req => ( 
+                        <div key={req.id} onClick={() => selectRequest(req)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.pendingRequest?.id===req.id?"bg-white/10":""}`}> 
+                            <UserAvatar src={req.avatar_url} className="w-8 h-8 rounded-full" /> 
+                            <div><div className="text-xs font-bold">{req.username}</div><div className="text-[9px] text-yellow-400">Request</div></div> 
+                        </div> 
+                    ))}
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
-                    {friends.map(f => ( <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> <div className="flex-1" onClick={()=>selectFriend(f)}><div className="text-xs font-bold">{f.username}</div><div className="text-[9px] text-green-400">Online</div></div> </div> ))}
+                    {friends.map(f => ( 
+                        <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> 
+                            <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
+                            <div className="flex-1" onClick={()=>selectFriend(f)}><div className="text-xs font-bold">{f.username}</div><div className="text-[9px] text-green-400">Online</div></div> 
+                        </div> 
+                    ))}
                 </>
             )}
         </div>
@@ -318,11 +752,27 @@ export default function DaChat() {
          ) : (active.channel || active.friend) ? (
              <>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                    {chatHistory.map((msg, i) => ( <div key={msg.id || i} className={`flex gap-3 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}> <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl" /> <div className={`max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> <div className={`px-4 py-2 rounded-2xl text-sm ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[250px] rounded-lg" /> : msg.content} </div> {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[300px] rounded-xl border border-white/10" />} </div> </div> ))}
+                    {chatHistory.map((msg, i) => ( 
+                        <div key={msg.id || i} className={`flex gap-3 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}> 
+                            <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl" /> 
+                            <div className={`max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
+                                <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> 
+                                <div className={`px-4 py-2 rounded-2xl text-sm ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
+                                    {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[250px] rounded-lg" /> : msg.content} 
+                                </div> 
+                                {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[300px] rounded-xl border border-white/10" />} 
+                            </div> 
+                        </div> 
+                    ))}
                 </div>
                 <div className="p-4">
                     {showGifPicker && <div className="absolute bottom-20 left-4 z-50"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
-                    <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2"> <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50" onClick={()=>fileInputRef.current?.click()}>📎</button> <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> <input className="flex-1 bg-transparent outline-none px-2" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> </div>
+                    <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2"> 
+                        <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50" onClick={()=>fileInputRef.current?.click()}>📎</button> 
+                        <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
+                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
+                        <input className="flex-1 bg-transparent outline-none px-2" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
+                    </div>
                 </div>
              </>
          ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest">Select a Channel</div>}
@@ -346,6 +796,8 @@ export default function DaChat() {
       )}
 
       {/* MODALS */}
+      
+      {/* View Profile Modal */}
       {viewingProfile && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setViewingProfile(null)}>
               <GlassPanel className="w-96 p-8 flex flex-col items-center relative" onClick={(e:any)=>e.stopPropagation()}>
@@ -367,6 +819,7 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* Server Settings Modal */}
       {showServerSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
               <GlassPanel className="w-96 p-8 flex flex-col gap-4">
@@ -395,7 +848,7 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* Edit Profile Modal (Existing) */}
+      {/* Edit Profile Modal */}
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
               <GlassPanel className="w-96 p-8 flex flex-col gap-4">
@@ -413,4 +866,28 @@ export default function DaChat() {
   );
 }
 
-const MediaPlayer = ({ peer }: any) => { const ref = useRef<HTMLVideoElement>(null); useEffect(() => { peer.on("stream", (stream: MediaStream) => { if (ref.current) ref.current.srcObject = stream; }); }, [peer]); return <video ref={ref} autoPlay playsInline className="w-full h-full object-cover" />; };
+// ✅ FIXED MEDIA PLAYER (Audio + Video)
+const MediaPlayer = ({ peer }: any) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        peer.on("stream", (stream: MediaStream) => {
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.log("Video Play Error:", e));
+            }
+            if (audioRef.current) {
+                audioRef.current.srcObject = stream;
+                audioRef.current.play().catch(e => console.log("Audio Play Error:", e));
+            }
+        });
+    }, [peer]);
+
+    return (
+        <>
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <audio ref={audioRef} autoPlay style={{ display: 'none' }} />
+        </>
+    );
+};
