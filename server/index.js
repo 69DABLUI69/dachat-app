@@ -243,8 +243,16 @@ io.on("connection", (socket) => {
     try { await supabase.from("messages").insert([{ content, sender_id: senderId, sender_name: senderName, file_url: fileUrl, avatar_url, channel_id: channelId || null, recipient_id: recipientId || null }]); } catch (err) {}
   });
 
-  // ✅ NEW: START CALL EVENT (Notifies specific user)
+// ✅ NEW: START CALL EVENT (Notifies specific user)
   socket.on("start_call", ({ senderId, recipientId, roomId, senderName, avatarUrl }) => {
+    console.log(`📞 Call Request: ${senderName} (${senderId}) -> User ${recipientId}`);
+    
+    // Check if the recipient is actually in their room
+    const recipientRoom = io.sockets.adapter.rooms.get(recipientId.toString());
+    if (!recipientRoom || recipientRoom.size === 0) {
+        console.warn(`⚠️ User ${recipientId} is NOT in their socket room! Notification failed.`);
+    }
+
     io.to(recipientId.toString()).emit("incoming_call", { senderId, senderName, avatarUrl, roomId });
   });
 

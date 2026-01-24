@@ -487,6 +487,33 @@ export default function DaChat() {
       }; 
   }, [user, viewingProfile, active.server]);
 
+  // --- INIT & RECONNECTION LOGIC ---
+  useEffect(() => { 
+      socket.connect(); 
+      
+      // ✅ FIX: Re-join user room immediately upon connection/reconnection
+      const handleConnect = () => {
+          console.log("Connected to server");
+          if (user) {
+              console.log("Re-registering user:", user.id);
+              socket.emit("setup", user.id);
+          }
+      };
+
+      socket.on("connect", handleConnect);
+      socket.on("connect_error", (err) => console.error("Connection Error:", err));
+      
+      // If user exists but socket was already connected (race condition fix)
+      if (socket.connected && user) {
+          socket.emit("setup", user.id);
+      }
+
+      return () => { 
+          socket.off("connect", handleConnect);
+          socket.disconnect(); 
+      }; 
+  }, [user]); // ✅ Dependency on 'user' ensures this runs after login
+
   // 🌈 LOGIN SCREEN
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black overflow-hidden relative">
