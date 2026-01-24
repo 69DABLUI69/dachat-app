@@ -94,10 +94,47 @@ app.get("/my-servers/:userId", safeRoute(async (req, res) => {
   res.json(servers || []);
 }));
 
-// Get My Friends
+// 1. GET REAL FRIENDS
 app.get("/my-friends/:userId", safeRoute(async (req, res) => {
-  const { data: users } = await supabase.from("users").select("*").neq("id", req.params.userId).limit(10);
-  res.json(users || []);
+  const { userId } = req.params;
+  
+  // Get all rows where I am the 'user_id'
+  const { data: friendRows } = await supabase.from("friends").select("friend_id").eq("user_id", userId);
+  
+  if (!friendRows || friendRows.length === 0) return res.json([]);
+
+  // Extract the IDs of my friends
+  const friendIds = friendRows.map(row => row.friend_id);
+
+  // Fetch the actual user profiles for those IDs
+  const { data: friends } = await supabase.from("users").select("*").in("id", friendIds);
+  
+  res.json(friends || []);
+}));
+
+// 2. ADD FRIEND ROUTE
+app.post("/add-friend", safeRoute(async (req, res) => {
+  const { myId, usernameToAdd } = req.body;
+
+  // A. Find the user you want to add
+  const { data: friendUser } = await supabase.from("users").select("*").eq("username", usernameToAdd).maybeSingle();
+  
+  if (!friendUser) return res.json({ success: false, message: "User not found" });
+  if (friendUser.id === myId) return res.json({ success: false, message: "You cannot add yourself" });
+
+  // B. Check if already friends
+  const { data: existing } = await supabase.from("friends").select("*").eq("user_id", myId).eq("friend_id", friendUser.id).maybeSingle();
+  if (existing) return res.json({ success: false, message: "Already friends" });
+
+  // C. Add friendship (Bi-directional: A->B and B->A)
+  const { error } = await supabase.from("friends").insert([
+    { user_id: myId, friend_id: friendUser.id },
+    { user_id: friendUser.id, friend_id: myId }
+  ]);
+
+  if (error) return res.json({ success: false, message: error.message });
+
+  res.json({ success: true, newFriend: friendUser });
 }));
 
 // Create Server

@@ -302,6 +302,30 @@ export default function DaChat() {
   const createServer = async () => { const name = prompt("Server Name"); if(name) { const res = await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); const d = await res.json(); if(d.success) { fetchServers(user.id); selectServer(d.server); }}};
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); }};
 
+  // ✅ ADD FRIEND FUNCTION
+  const addFriend = async () => { 
+      const usernameToAdd = prompt("Enter the exact username to add:"); 
+      if (!usernameToAdd) return; 
+
+      try {
+        const res = await fetch(`${BACKEND_URL}/add-friend`, { 
+            method: "POST", 
+            headers: { "Content-Type": "application/json" }, 
+            body: JSON.stringify({ myId: user.id, usernameToAdd }) 
+        }); 
+        const data = await res.json(); 
+        
+        if (data.success) { 
+            alert(`Added ${data.newFriend.username} to friends!`);
+            fetchFriends(user.id); 
+        } else { 
+            alert(data.message); 
+        } 
+      } catch (e) {
+          alert("Could not connect to server.");
+      }
+  };
+
   // 🌈 LOGIN SCREEN (REDESIGNED)
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black overflow-hidden relative">
@@ -392,12 +416,26 @@ export default function DaChat() {
                         ))}
                     </>
                 ) : (
-                    friends.map(f => (
-                        <div key={f.id} onClick={() => selectFriend(f)} className={`p-3 rounded-[24px] cursor-pointer flex items-center gap-4 transition-all ${active.friend?.id === f.id ? "bg-white/10 shadow-lg" : "hover:bg-white/5"}`}>
-                            <UserAvatar src={f.avatar_url} className="w-10 h-10 rounded-[16px]" />
-                            <div><div className="text-sm font-bold text-white/90">{f.username}</div><div className="text-[10px] text-white/40">Online</div></div>
+                    <>
+                        {/* ✅ NEW: ADD FRIEND HEADER */}
+                        <div className="flex justify-between items-center px-4 py-4 text-[11px] font-bold text-white/40 uppercase tracking-widest">
+                            <span>Direct Messages</span>
+                            <button onClick={addFriend} className="text-lg hover:text-white transition-colors">+</button>
                         </div>
-                    ))
+                        
+                        {friends.length === 0 && (
+                            <div className="px-4 py-2 text-white/30 text-xs italic text-center">
+                                No friends yet. Click + to add some!
+                            </div>
+                        )}
+
+                        {friends.map(f => (
+                            <div key={f.id} onClick={() => selectFriend(f)} className={`p-3 rounded-[24px] cursor-pointer flex items-center gap-4 transition-all ${active.friend?.id === f.id ? "bg-white/10 shadow-lg" : "hover:bg-white/5"}`}>
+                                <UserAvatar src={f.avatar_url} className="w-10 h-10 rounded-[16px]" />
+                                <div><div className="text-sm font-bold text-white/90">{f.username}</div><div className="text-[10px] text-white/40">Online</div></div>
+                            </div>
+                        ))}
+                    </>
                 )}
             </div>
         </GlassPanel>
