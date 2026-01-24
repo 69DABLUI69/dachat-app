@@ -1,40 +1,36 @@
 "use client";
 import { useEffect, useState, useRef, memo } from "react";
 import { io } from "socket.io-client";
-
-// ⚠️ POLYFILLS FOR SIMPLE-PEER (CRITICAL FOR NEXT.JS)
-if (typeof window !== 'undefined') {
-    (window as any).global = window;
-    (window as any).process = { env: { DEBUG: undefined } };
-    (window as any).Buffer = require("buffer").Buffer;
-}
 import Peer from "simple-peer";
 
+// ⚠️ POLYFILL FOR SIMPLE-PEER
+if (typeof window !== 'undefined') { 
+    (window as any).global = window; 
+    (window as any).process = { env: { DEBUG: undefined }, }; 
+    (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; 
+}
+
 // 🔑 CONFIG
-const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
+const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
+
+// 🌐 DYNAMIC BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const socket = io(BACKEND_URL);
 
-// 🎵 DEFAULT RINGTONE (Yeat - Off Tha Lot Instrumental)
-const DEFAULT_RINGTONE = "https://www.youtube.com/watch?v=2kpCGfYUE3U";
-
 // 🔥 MEMOIZED AVATAR
 const UserAvatar = memo(({ src, alt, className, fallbackClass }: any) => {
-  // Only render image if src exists and is not empty string
-  const hasImage = src && src.trim() !== "";
-  
-  return hasImage ? (
-    <img src={src} alt={alt || "User"} className={`${className} bg-black/20`} loading="eager" onError={(e) => { (e.target as any).style.display = 'none'; (e.target as any).nextSibling.style.display = 'flex'; }} />
+  return src ? (
+    <img src={src} alt={alt || "User"} className={`${className} bg-black`} loading="eager" />
   ) : (
-    <div className={`${className} ${fallbackClass || "bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/10"} flex items-center justify-center`}>
-       <span className="text-[10px] text-white/70 font-bold">?</span>
+    <div className={`${className} ${fallbackClass || "bg-zinc-800"} flex items-center justify-center`}>
+       <span className="text-[10px] text-zinc-400 font-bold opacity-50">?</span>
     </div>
   );
 });
 UserAvatar.displayName = "UserAvatar";
 
-// 🔥 KLIPY GIF PICKER (Kept same)
+// 🔥 KLIPY GIF PICKER
 const GifPicker = ({ onSelect, onClose }: any) => {
   const [gifs, setGifs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
@@ -55,21 +51,29 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   };
 
   useEffect(() => { fetchGifs(""); }, []);
+
   const getGifUrl = (item: any) => item?.files?.gif?.url || item?.media_formats?.gif?.url || "";
   const getPreviewUrl = (item: any) => item?.files?.tinygif?.url || item?.media_formats?.tinygif?.url || getGifUrl(item);
 
   return (
-    <div className="absolute bottom-24 left-4 w-[360px] h-[480px] bg-[#1a1a2e]/90 backdrop-blur-2xl border border-white/10 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] flex flex-col z-50 animate-scale-up overflow-hidden ring-1 ring-white/10">
-      <div className="p-4 border-b border-white/5 flex gap-3 items-center bg-white/5">
-        <input className="w-full bg-black/20 text-white px-4 py-2.5 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 border border-white/5 placeholder-white/30 font-medium transition-all" placeholder="Search GIFs..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && fetchGifs(search)} autoFocus />
-        <button onClick={onClose} className="w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/50 hover:text-white transition-colors">✕</button>
+    <div className="absolute bottom-24 left-4 w-[400px] h-[500px] bg-[#18181b] border border-white/20 rounded-[24px] shadow-2xl flex flex-col z-50 animate-scale-up overflow-hidden ring-1 ring-black">
+      <div className="p-4 border-b border-white/10 flex gap-3 items-center bg-[#202023]">
+        <input 
+          className="flex-1 bg-black/40 text-white px-4 py-2.5 rounded-xl text-sm focus:outline-none border border-white/10"
+          placeholder="Search GIFs..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && fetchGifs(search)}
+          autoFocus
+        />
+        <button onClick={onClose} className="w-9 h-9 rounded-full bg-zinc-700 hover:bg-zinc-600 flex items-center justify-center text-zinc-300">✕</button>
       </div>
-      <div className="flex-1 overflow-y-auto p-3 custom-scrollbar">
-        {loading ? <div className="flex h-full items-center justify-center text-xs font-bold text-white/30 uppercase animate-pulse">Loading...</div> : (
-          <div className="columns-2 gap-2 space-y-2">
+      <div className="flex-1 overflow-y-auto p-4 custom-scrollbar bg-[#18181b]">
+        {loading ? <div className="text-center text-zinc-500 text-xs mt-10">LOADING...</div> : (
+          <div className="columns-2 gap-3 space-y-3">
             {gifs.map((g) => (
-              <div key={g.id} className="relative group overflow-hidden rounded-xl cursor-pointer hover:ring-2 hover:ring-cyan-500/50 transition-all" onClick={() => onSelect(getGifUrl(g))}>
-                <img src={getPreviewUrl(g)} className="w-full h-auto object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+              <div key={g.id} className="cursor-pointer border border-transparent hover:border-blue-500 rounded-xl overflow-hidden" onClick={() => onSelect(getGifUrl(g))}>
+                <img src={getPreviewUrl(g)} className="w-full h-auto object-cover" />
               </div>
             ))}
           </div>
@@ -102,13 +106,9 @@ export default function DaChat() {
   const [newUsername, setNewUsername] = useState("");
   const [newBio, setNewBio] = useState("");
   const [newAvatar, setNewAvatar] = useState<File | null>(null);
-  
-  const [ringtoneUrl, setRingtoneUrl] = useState(DEFAULT_RINGTONE);
 
   // Voice & Video
   const [inCall, setInCall] = useState(false);
-  const [isCalling, setIsCalling] = useState(false);
-  const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [peers, setPeers] = useState<any[]>([]);
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
@@ -120,26 +120,8 @@ export default function DaChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const myVideoRef = useRef<HTMLVideoElement>(null);
-  const ringtoneAudioRef = useRef<HTMLAudioElement>(null);
-  
-  const [tagline, setTagline] = useState("Best place to talk shit");
 
-  useEffect(() => {
-    const lines = ["Top 10 DABLUI moments", "Garjigga", "Debis", "GRAS VERSTAPPEN", "Dusmanos", "Intalnire suveranista 2026", "Cel mai cabana Calimanesti", "Also try DABROWSER", "Netanyahu is watching", "Tel Aviv group trip 2026 ?", "Macar io am apa calda", "Tortista autista", "Denise iesi afara din grup", "Out cu Bragapula", "DABLUI ON TOP (nu bottom ca BIBI)"];
-    setTagline(lines[Math.floor(Math.random() * lines.length)]);
-  }, []);
-
-  // --- HELPER FOR YOUTUBE RINGTONES ---
-  const getProcessedRingtone = (url: string) => {
-    if (!url) return "";
-    if (url.includes("youtube.com") || url.includes("youtu.be")) {
-        // Route through our new backend converter
-        return `${BACKEND_URL}/stream-audio?url=${encodeURIComponent(url)}`;
-    }
-    return url; // Return as-is if it's a normal MP3 file
-  };
-
-  // --- AUTH & DATA FETCHING ---
+  // --- AUTH & SETUP ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
@@ -159,7 +141,6 @@ export default function DaChat() {
     const res = await fetch(`${BACKEND_URL}/my-servers/${id}`);
     const data = await res.json();
     setServers(data);
-    return data;
   };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchMembers = async (serverId: number) => {
@@ -196,165 +177,46 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-  // --- CALL LOGIC (START / ACCEPT / DECLINE) ---
-  const startDMCall = () => {
-    if (!active.friend) return;
-    const ids = [user.id, active.friend.id].sort((a, b) => a - b);
-    const roomId = `dm-call-${ids[0]}-${ids[1]}`;
-    
-    setIsCalling(true);
-    socket.emit("start_call", { userToCall: active.friend.id, fromUser: user, roomId });
-  };
-
-const acceptCall = () => {
-    if (!incomingCall) return;
-
-    // 1. 🔄 Switch view to the person calling so you see the video
-    setView("dms");
-    selectFriend(incomingCall.from);
-
-    // 2. Stop Ringtone
-    if (ringtoneAudioRef.current) {
-        ringtoneAudioRef.current.pause();
-        ringtoneAudioRef.current.currentTime = 0;
-    }
-
-    // 3. Connect Logic
-    const callRoomId = incomingCall.roomId;
-    const caller = incomingCall.from;
-
-    setIncomingCall(null);
-    socket.emit("answer_call", { to: caller, roomId: callRoomId });
-    joinVoiceRoom(callRoomId); 
-  };
-
-  const declineCall = () => {
-    if (!incomingCall) return;
-    if (ringtoneAudioRef.current) {
-        ringtoneAudioRef.current.pause();
-        ringtoneAudioRef.current.currentTime = 0;
-    }
-    socket.emit("reject_call", { to: incomingCall.from });
-    setIncomingCall(null);
-  };
-
-// --- WEBRTC & SOCKET SETUP ---
-  useEffect(() => {
-    if (!user) return;
-
-    const performHandshake = () => {
-        socket.emit("setup", user.id);
-    };
-
-    if (socket.connected) performHandshake();
-    socket.on("connect", performHandshake);
-
-    // 👇 PASTE YOUR NEW CODE HERE (Replace the old incoming_call block) 👇
-    socket.on("incoming_call", (data) => {
-        console.log("📞 INCOMING CALL RECEIVED:", data); // Check browser console for this!
-        setIncomingCall(data);
-        
-        // Play sound if possible
-        if (ringtoneAudioRef.current) {
-            ringtoneAudioRef.current.loop = true;
-            ringtoneAudioRef.current.currentTime = 0;
-            ringtoneAudioRef.current.play().catch(e => console.warn("Audio blocked (Interact with page first)", e));
-        }
-    });
-    // 👆 END OF NEW CODE 👆
-
-socket.on("call_accepted", ({ roomId }) => {
-        console.log("✅ Call Accepted Event Received! Joining room:", roomId);
-        
-        // Force close popup
-        setIsCalling(false);
-        
-        // Small delay to ensure state updates before heavy video logic starts
-        setTimeout(() => {
-            joinVoiceRoom(roomId);
-        }, 100);
-    });
-
-    socket.on("call_rejected", () => {
-        setIsCalling(false);
-        alert("Call declined.");
-    });
-
-    socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
-    
-    return () => { 
-        socket.off("connect");
-        socket.off("incoming_call"); // Make sure this is still here in cleanup!
-        socket.off("call_accepted");
-        socket.off("call_rejected");
-        socket.off("receive_message"); 
-    }; 
-  }, [user]);
-
+  // --- VOICE LOGIC (WITH GHOST FIX) ---
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
-    
-    // Clear previous state just in case
-    if (myStream) myStream.getTracks().forEach(t => t.stop());
-    setPeers([]);
-    peersRef.current = [];
+    socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
 
-    // Cleanup Listeners
-    socket.off("all_users"); 
-    socket.off("user_joined"); 
-    socket.off("receiving_returned_signal");
-    socket.off("user_left");
+    navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
+      setInCall(true);
+      setMyStream(stream);
+      socket.emit("join_voice", { roomId, userData: user });
 
-    // 1. TRY GETTING VIDEO AND AUDIO
-    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      .catch((err) => {
-        console.warn("Failed to get Video+Audio. Trying Audio only...", err);
-        // 2. FALLBACK: TRY AUDIO ONLY (If user has no webcam)
-        return navigator.mediaDevices.getUserMedia({ video: false, audio: true });
-      })
-      .then(stream => {
-        setInCall(true);
-        setMyStream(stream);
-
-        // Join room AFTER getting stream
-        socket.emit("join_voice", { roomId, userData: user });
-
-        socket.on("all_users", (users) => {
-          const peersArr: any[] = [];
-          users.forEach((u: any) => {
-              const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
-              peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
-              peersArr.push({ peerID: u.socketId, peer, info: u.userData });
-          });
-          setPeers(peersArr);
+      socket.on("all_users", (users) => {
+        const peersArr: any[] = [];
+        users.forEach((u: any) => {
+          // 👻 GHOST FIX: Don't connect to myself
+          if (u.userData.id === user.id) return;
+          const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
+          peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
+          peersArr.push({ peerID: u.socketId, peer, info: u.userData });
         });
-
-        socket.on("user_joined", (payload) => {
-          const peer = addPeer(payload.signal, payload.callerID, stream);
-          peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
-          setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
-        });
-
-        socket.on("receiving_returned_signal", (payload) => {
-          const item = peersRef.current.find(p => p.peerID === payload.id);
-          if (item) item.peer.signal(payload.signal);
-        });
-
-        socket.on("user_left", (id: string) => {
-          const peerObj = peersRef.current.find(p => p.peerID === id);
-          if (peerObj) peerObj.peer.destroy();
-          const newPeers = peersRef.current.filter(p => p.peerID !== id);
-          peersRef.current = newPeers;
-          setPeers(newPeers);
-        });
-
-      }).catch(err => {
-        console.error("Mic/Video Error:", err);
-        // 3. SHOW SPECIFIC ERROR MESSAGE TO USER
-        alert(`Could not start call. Error: ${err.name} (Check browser permissions or mic connection)`);
-        setIsCalling(false);
-        setInCall(false);
+        setPeers(peersArr);
       });
+
+      socket.on("user_joined", (payload) => {
+        // 👻 GHOST FIX: Reject duplicates
+        if (payload.userData.id === user.id) return;
+        
+        if (peersRef.current.find(p => p.peerID === payload.callerID)) {
+             peersRef.current.find(p => p.peerID === payload.callerID).peer.signal(payload.signal);
+             return;
+        }
+        const peer = addPeer(payload.signal, payload.callerID, stream);
+        peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
+        setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
+      });
+
+      socket.on("receiving_returned_signal", (payload) => {
+        const item = peersRef.current.find(p => p.peerID === payload.id);
+        if (item) item.peer.signal(payload.signal);
+      });
+    }).catch(err => { console.error("Mic Error:", err); alert("Could not access microphone."); });
   };
 
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
@@ -362,7 +224,6 @@ socket.on("call_accepted", ({ roomId }) => {
     peer.on("signal", (signal: any) => socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }));
     return peer;
   };
-
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => {
     const peer = new Peer({ initiator: false, trickle: false, stream });
     peer.on("signal", (signal: any) => socket.emit("returning_signal", { signal, callerID }));
@@ -370,17 +231,20 @@ socket.on("call_accepted", ({ roomId }) => {
     return peer;
   };
 
+  // 🔥 SCREEN SHARE (NUCLEAR FIX)
   const startScreenShare = async () => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
       const screenTrack = stream.getVideoTracks()[0];
       setScreenStream(stream);
       setIsScreenSharing(true);
+
+      // FORCE REPLACE TRACK (Direct Sender)
       peersRef.current.forEach((peerObj) => {
         const peer = peerObj.peer;
         if (peer._pc) {
             const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-            if (sender) sender.replaceTrack(screenTrack).catch((e: any) => console.error(e));
+            if (sender) sender.replaceTrack(screenTrack);
         }
       });
       screenTrack.onended = () => stopScreenShare();
@@ -392,13 +256,15 @@ socket.on("call_accepted", ({ roomId }) => {
     screenStream.getTracks().forEach(track => track.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
+    setMaximizedContent(null);
+
     if (myStream) {
-        const cameraTrack = myStream.getVideoTracks()[0]; 
+        const cameraTrack = myStream.getVideoTracks()[0];
         peersRef.current.forEach((peerObj) => {
             const peer = peerObj.peer;
             if (peer._pc) {
                 const sender = peer._pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-                if (sender) sender.replaceTrack(cameraTrack || null); 
+                if (sender) sender.replaceTrack(cameraTrack);
             }
         });
     }
@@ -409,459 +275,289 @@ socket.on("call_accepted", ({ roomId }) => {
         myVideoRef.current.srcObject = screenStream;
         myVideoRef.current.muted = true; 
         myVideoRef.current.play().catch(e => console.error("Local play error", e));
-    } else if (myVideoRef.current && myStream && !screenStream) {
-        myVideoRef.current.srcObject = myStream;
-        myVideoRef.current.muted = true;
-        myVideoRef.current.play().catch(e => console.error("Local play error", e));
     }
-  }, [screenStream, isScreenSharing, myStream]);
+  }, [screenStream]);
 
   const leaveCall = () => {
     if (isScreenSharing) stopScreenShare();
     setInCall(false);
     setMaximizedContent(null);
-    
-    // Stop all tracks (cam + mic)
-    if (myStream) myStream.getTracks().forEach(track => track.stop());
+    myStream?.getTracks().forEach(track => track.stop());
     setMyStream(null);
-    
-    // Destroy peers
-    peersRef.current.forEach(p => p.peer.destroy());
     setPeers([]);
     peersRef.current = [];
-    
-    socket.off("all_users"); 
-    socket.off("user_joined"); 
-    socket.off("receiving_returned_signal");
-    socket.off("user_left"); 
-
     socket.emit("leave_voice");
   };
 
-  // --- ACTIONS (Simplified for brevity, logic remains same) ---
-  const addFriend = async () => { const friendString = prompt("Enter Name#1234"); if (!friendString) return; const res = await fetch(`${BACKEND_URL}/add-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendString }) }); const data = await res.json(); data.success ? (alert("Added!"), fetchFriends(user.id)) : alert(data.message); };
-  const createServer = async () => { const name = prompt("Server Name"); if (!name) return; const res = await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); const data = await res.json(); if (data.success) { fetchServers(user.id); selectServer(data.server); } };
-  const createChannel = async () => { const name = prompt("Channel Name"); const type = confirm("Is this a Voice Channel?") ? "voice" : "text"; if (name) await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); };
-  const inviteUser = async () => { const userString = prompt("Invite user (e.g. Robin#1234):"); if (!userString) return; const res = await fetch(`${BACKEND_URL}/servers/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userString }) }); const data = await res.json(); if (data.success) alert("User invited!"); else alert(data.message); };
-  const leaveServer = async () => { if (!confirm(`Are you sure you want to leave ${active.server.name}?`)) return; const res = await fetch(`${BACKEND_URL}/servers/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); const data = await res.json(); if (data.success) { setServers(prev => prev.filter(s => s.id !== active.server.id)); goToHome(); } else { alert(data.message); } };
-  const deleteChannel = async (channelId: number) => { if (!confirm("Delete this channel?")) return; const res = await fetch(`${BACKEND_URL}/channels/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId, requesterId: user.id }) }); const data = await res.json(); if (data.success) selectServer(active.server); else alert(`Failed: ${data.message}`); };
+  const startDMCall = () => {
+    const ids = [user.id, active.friend.id].sort((a, b) => a - b);
+    joinVoiceRoom(`dm-call-${ids[0]}-${ids[1]}`);
+  };
 
-  // --- SETTINGS (Kept same) ---
+  // --- ACTIONS ---
+  const addFriend = async () => { const f = prompt("Enter Name#1234"); if (f) { await fetch(`${BACKEND_URL}/add-friend`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ myId: user.id, friendString: f }) }); fetchFriends(user.id); }};
+  const createServer = async () => { const n = prompt("Server Name"); if (n) { const res = await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ name: n, ownerId: user.id }) }); const d = await res.json(); if(d.success) { fetchServers(user.id); selectServer(d.server); }}};
+  const createChannel = async () => { const n = prompt("Channel Name"); const t = confirm("Voice Channel?") ? "voice" : "text"; if (n) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ serverId: active.server.id, name: n, type: t }) }); selectServer(active.server); }};
+  const inviteUser = async () => { const u = prompt("Invite user (Name#1234):"); if(u) fetch(`${BACKEND_URL}/servers/invite`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ serverId: active.server.id, userString: u }) }); };
+  const leaveServer = async () => { if(confirm("Leave server?")) { await fetch(`${BACKEND_URL}/servers/leave`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); setServers(prev => prev.filter(s => s.id !== active.server.id)); goToHome(); }};
+
+  // --- SETTINGS ---
   const openSettings = () => { setNewUsername(user.username); setNewBio(user.bio || ""); setNewAvatar(null); setShowSettings(true); };
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
   const handleUpdateProfile = async () => {
     let avatarUrl = user.avatar_url;
     if (newAvatar) {
-      const formData = new FormData();
-      formData.append("file", newAvatar);
-      try { const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) avatarUrl = data.fileUrl; } catch { alert("Failed to upload image"); return; }
+      const formData = new FormData(); formData.append("file", newAvatar);
+      try { const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) avatarUrl = data.fileUrl; } catch {}
     }
-    const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: newUsername, avatarUrl, bio: newBio }) });
+    const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify({ userId: user.id, username: newUsername, avatarUrl, bio: newBio }) });
     const data = await res.json();
-    if (data.success) { setUser(data.user); setShowSettings(false); alert("Profile updated!"); } else { alert("Update failed"); }
+    if (data.success) { setUser(data.user); setShowSettings(false); }
   };
 
-  const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if (!file) return; setIsUploading(true); const formData = new FormData(); formData.append("file", file); try { const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) sendMessage(null, data.fileUrl); } catch { alert("Error uploading"); } setIsUploading(false); };
-  const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { const content = textMsg || (fileUrl ? "Sent an image" : ""); const payload: any = { content, senderId: user.id, senderName: `${user.username}#${user.discriminator}`, fileUrl }; if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } setMessage(""); };
+  const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file)return; setIsUploading(true); const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); setIsUploading(false); };
+  const sendMessage = (textMsg: string | null = null, fileUrl: string | null = null) => { 
+      const content = textMsg || (fileUrl ? "Sent an image" : ""); 
+      const payload: any = { content, senderId: user.id, senderName: `${user.username}#${user.discriminator}`, fileUrl }; 
+      if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } 
+      else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
+      setMessage(""); 
+  };
 
   useEffect(() => { 
-    socket.on("new_server_invite", async () => { if (user) { const newServers = await fetchServers(user.id); if (active.server && !newServers.find((s: any) => s.id === active.server.id)) { goToHome(); alert("You have been removed from the server."); } } });
-    socket.on("server_update", ({ serverId }) => { if (active.server && active.server.id == serverId) fetchMembers(serverId); });
-    socket.on("user_updated", () => { if (active.server) fetchMembers(active.server.id); if (user) fetchFriends(user.id); });
-    socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
-    return () => { socket.off("new_server_invite"); socket.off("server_update"); socket.off("user_updated"); socket.off("voice_state_update"); };
-  }, [user, active.server]);
+      socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
+      socket.on("load_messages", (msgs) => setChatHistory(msgs));
+      
+      // 🧹 CLEANUP ON REFRESH
+      const handleBeforeUnload = () => { socket.emit("leave_voice"); };
+      window.addEventListener("beforeunload", handleBeforeUnload);
+      
+      return () => { 
+          socket.off("receive_message"); socket.off("load_messages"); 
+          window.removeEventListener("beforeunload", handleBeforeUnload);
+      }; 
+  }, []);
+  
+  useEffect(() => { if (user) socket.emit("setup", user.id); }, [user]);
+  useEffect(() => { socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); }); return () => { socket.off("voice_state_update"); }; }, []);
 
-  // --- RENDER (KEEPING YOUR UI EXACTLY THE SAME) ---
+  // --- RENDER LOGIN ---
   if (!user) return ( 
-    <div className="flex h-screen items-center justify-center bg-[#09090b] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-indigo-900/60 via-[#09090b] to-[#09090b] text-white font-sans"> 
-      <div className="z-10 bg-black/30 backdrop-blur-2xl border border-white/10 p-10 rounded-[40px] w-[380px] text-center shadow-[0_20px_50px_rgba(0,0,0,0.5)] ring-1 ring-white/10 flex flex-col gap-6"> 
-        <div className="mb-2">
-            <div className="w-16 h-16 bg-gradient-to-tr from-cyan-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg shadow-cyan-500/20">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-8 h-8 text-white"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.18.063-2.33.155-3.456.279M6 7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0124 7.5v11.25a2.25 2.25 0 01-2.25 2.25h-9.568a4.51 4.51 0 00-1.789.365L6 24V7.5z" /></svg>
-            </div>
-            <h1 className="text-3xl font-bold tracking-tight text-white drop-shadow-md">DaChat</h1> 
-            <p className="text-indigo-200/50 text-sm mt-2 font-medium animate-pulse">{tagline}</p>
-        </div>
-        {error && <p className="text-red-300 text-xs bg-red-500/20 py-3 rounded-xl border border-red-500/10 font-medium">{error}</p>} 
+    <div className="flex h-screen items-center justify-center bg-[#050505] text-white"> 
+      <div className="bg-[#121212] border border-white/10 p-10 rounded-[24px] w-[380px] text-center shadow-2xl"> 
+        <h1 className="text-2xl font-bold mb-6">DaChat</h1>
+        {error && <p className="text-red-400 text-xs mb-4">{error}</p>}
         <div className="space-y-3">
-            <input className="w-full bg-black/20 border border-white/10 text-white px-5 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder-white/20 text-sm font-medium backdrop-blur-sm" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} /> 
-            <input className="w-full bg-black/20 border border-white/10 text-white px-5 py-3.5 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-500/50 transition-all placeholder-white/20 text-sm font-medium backdrop-blur-sm" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} /> 
+            <input className="w-full bg-[#0a0a0a] border border-white/10 px-4 py-3 rounded-lg" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} /> 
+            <input className="w-full bg-[#0a0a0a] border border-white/10 px-4 py-3 rounded-lg" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} /> 
         </div>
-        <button onClick={handleAuth} className="w-full bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white py-3.5 rounded-2xl font-bold transition-all shadow-lg shadow-blue-900/20 mt-2 text-sm active:scale-95 border border-white/10">
-            {isRegistering ? "Create Account" : "Enter Space"}
-        </button> 
-        <p className="text-xs cursor-pointer text-white/40 hover:text-white transition-colors mt-2" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Already have an account?" : "Need an account?"}</p> 
+        <button onClick={handleAuth} className="w-full bg-blue-600 hover:bg-blue-500 py-3 rounded-lg font-bold mt-4">{isRegistering ? "Create Account" : "Enter"}</button> 
+        <p className="text-xs text-zinc-500 mt-4 cursor-pointer" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Already have an account?" : "Need an account?"}</p> 
       </div> 
     </div> 
   );
 
+  const canModerate = active.server && (user.id === active.server.owner_id || serverMembers.find(m => m.id === user.id)?.is_admin);
+
   return (
-    <div className="flex h-screen bg-[#0f0f13] bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-purple-900/40 via-[#0f0f13] to-[#050505] text-white font-sans overflow-hidden p-2 gap-2 relative">
-      <audio ref={ringtoneAudioRef} src={getProcessedRingtone(ringtoneUrl)} loop={true} className="hidden" />
-
-      {/* 📞 INCOMING CALL */}
-      {incomingCall && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-            <div className="bg-[#1a1a2e] w-[320px] rounded-[40px] border border-white/10 p-8 flex flex-col items-center gap-6 shadow-[0_0_100px_rgba(59,130,246,0.3)] ring-1 ring-white/10 animate-scale-up">
-                <div className="relative">
-                    <UserAvatar src={incomingCall.from.avatar_url} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 shadow-xl" />
-                    <div className="absolute inset-0 rounded-full border-4 border-cyan-400 animate-ping opacity-75"></div>
-                </div>
-                <div className="text-center">
-                    <h2 className="text-2xl font-bold text-white mb-1">{incomingCall.from.username}</h2>
-                    <p className="text-cyan-400 text-sm font-bold uppercase tracking-widest animate-pulse">Incoming Call...</p>
-                </div>
-                <div className="flex gap-6 w-full justify-center mt-2">
-                    <button onClick={declineCall} className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center text-white transition-all shadow-lg shadow-red-500/30 active:scale-95">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                    </button>
-                    <button onClick={acceptCall} className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-400 flex items-center justify-center text-white transition-all shadow-lg shadow-green-500/30 active:scale-95 animate-bounce">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg>
-                    </button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {/* 📞 CALLING */}
-      {isCalling && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in">
-            <div className="bg-[#1a1a2e] w-[320px] rounded-[40px] border border-white/10 p-8 flex flex-col items-center gap-6 shadow-2xl">
-                <UserAvatar src={active.friend?.avatar_url} className="w-24 h-24 rounded-full object-cover border-4 border-white/5 opacity-50" />
-                <div className="text-center">
-                    <h2 className="text-xl font-bold text-white mb-1">Calling {active.friend?.username}...</h2>
-                    <p className="text-white/40 text-xs">Waiting for response</p>
-                </div>
-                <button onClick={() => { setIsCalling(false); socket.emit("reject_call", { to: active.friend.id }); }} className="w-14 h-14 rounded-full bg-red-500/20 hover:bg-red-500 text-red-400 hover:text-white flex items-center justify-center transition-all border border-red-500/20">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-            </div>
-        </div>
-      )}
-
-      {/* DOCK */}
-      <div className="w-[84px] flex flex-col items-center py-6 gap-3 z-30 rounded-[36px] bg-white/[0.03] backdrop-blur-2xl border border-white/5 shadow-2xl">
-        <div onClick={goToHome} className={`w-[52px] h-[52px] rounded-[22px] flex items-center justify-center cursor-pointer transition-all duration-300 mb-4 shadow-lg border ${view === 'dms' ? "bg-gradient-to-br from-cyan-500 to-blue-600 border-white/20 text-white shadow-cyan-500/30" : "bg-white/5 border-transparent text-white/40 hover:bg-white/10 hover:text-white"}`}> 
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg> 
-        </div>
-        <div className="w-10 h-[2px] bg-white/10 rounded-full mb-2" />
-        <div className="flex-1 w-full flex flex-col items-center gap-3 overflow-y-auto no-scrollbar px-2 pb-2">
+    <div className="flex h-screen bg-[#050505] text-zinc-200 font-sans overflow-hidden">
+      {/* 1. DOCK */}
+      <div className="w-[80px] flex flex-col items-center py-6 gap-3 bg-[#080808] border-r border-white/10 flex-shrink-0">
+        <div onClick={goToHome} className={`w-[50px] h-[50px] rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-blue-600 text-white" : "bg-zinc-900 text-zinc-500 hover:bg-zinc-800"}`}>🏠</div>
+        <div className="w-8 h-[1px] bg-white/10 rounded-full mb-3" />
+        <div className="flex-1 w-full flex flex-col items-center gap-3 overflow-y-auto no-scrollbar">
         {servers.map(s => ( 
-            <div key={s.id} onClick={() => selectServer(s)} className={`group relative w-[52px] h-[52px] rounded-[22px] flex items-center justify-center cursor-pointer transition-all duration-300 shadow-lg border ${active.server?.id === s.id ? "bg-gradient-to-br from-blue-600 to-indigo-600 border-white/20 text-white shadow-blue-500/30" : "bg-white/5 border-transparent text-white/50 hover:bg-white/10 hover:text-white"}`}> 
-                <span className="font-bold text-sm tracking-tight drop-shadow-sm">{s.name.substring(0, 2).toUpperCase()}</span> 
-                {active.server?.id === s.id && <div className="absolute -left-[19px] w-1.5 h-8 bg-white rounded-r-full shadow-[0_0_15px_rgba(255,255,255,0.8)]" />} 
+            <div key={s.id} onClick={() => selectServer(s)} className={`w-[50px] h-[50px] rounded-2xl flex items-center justify-center cursor-pointer transition-all border ${active.server?.id === s.id ? "bg-blue-600 border-blue-500 text-white" : "bg-zinc-900 border-zinc-800 text-zinc-500 hover:text-white"}`}> 
+                <span className="font-bold text-sm">{s.name.substring(0, 2).toUpperCase()}</span> 
             </div> 
         ))}
-        <div onClick={createServer} className="w-[52px] h-[52px] rounded-[22px] border border-dashed border-white/20 bg-transparent flex items-center justify-center cursor-pointer text-white/30 hover:border-emerald-400 hover:text-emerald-400 transition-all mt-2"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> </div>
+        <div onClick={createServer} className="w-[50px] h-[50px] rounded-2xl border border-dashed border-zinc-700 flex items-center justify-center cursor-pointer text-zinc-600 hover:text-green-500 text-2xl">+</div>
         </div>
       </div>
 
-      {/* SIDEBAR */}
-      <div className="w-[280px] rounded-[36px] bg-[#13131f]/60 backdrop-blur-2xl border border-white/5 flex flex-col shadow-2xl overflow-hidden">
-        <div className="h-20 flex items-center px-6 font-bold text-white text-[16px] tracking-tight border-b border-white/5 bg-white/[0.02] shadow-sm"> {active.server ? active.server.name : "Messages"} </div>
-        <div className="flex-1 p-4 overflow-y-auto">
+      {/* 2. SIDEBAR */}
+      <div className="w-[260px] bg-[#111111] flex flex-col border-r border-white/10 flex-shrink-0">
+        <div className="h-16 flex items-center px-5 font-bold text-white border-b border-white/10"> {active.server ? active.server.name : "Messages"} </div>
+        <div className="flex-1 p-3 overflow-y-auto">
           {view === "servers" && active.server ? (
             <>
-              <div className="flex justify-between items-center px-3 pb-3 pt-2 text-[11px] font-bold text-indigo-200/40 uppercase tracking-widest"> <span>Channels</span> <button onClick={createChannel} className="hover:text-white transition-colors text-lg leading-none opacity-50 hover:opacity-100">+</button> </div>
-              <div className="space-y-1">
-                {channels.map(ch => (
-                  <div key={ch.id} className={`group flex flex-col px-4 py-3 rounded-2xl cursor-pointer transition-all duration-200 border ${active.channel?.id === ch.id ? "bg-white/10 border-white/10 text-white shadow-inner" : "border-transparent hover:bg-white/5 text-indigo-100/60 hover:text-white"}`}>
-                    <div className="flex justify-between items-center w-full">
-                        <div className="flex gap-3 items-center w-full" onClick={() => joinChannel(ch)}>
-                        {ch.type === 'voice' ? <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 opacity-70"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg> : <span className="text-lg opacity-50">#</span>}
-                        <span className="truncate text-[14px] font-medium tracking-wide">{ch.name}</span>
-                        </div>
-                        {((active.server && user.id === active.server.owner_id) || (serverMembers.find(m => m.id === user.id)?.is_admin)) && <span onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-[10px] text-white/30 hover:text-red-400 transition-colors px-2">✕</span>}
+              <div className="flex justify-between px-2 pb-2 pt-4 text-[10px] font-bold text-zinc-500 uppercase"> <span>Channels</span> <button onClick={createChannel}>+</button> </div>
+              {channels.map(ch => (
+                  <div key={ch.id} className={`px-3 py-2 rounded-lg cursor-pointer flex flex-col ${active.channel?.id === ch.id ? "bg-zinc-800 text-white" : "text-zinc-400 hover:bg-zinc-800/50"}`} onClick={() => joinChannel(ch)}>
+                    <div className="flex items-center gap-2">
+                        <span>{ch.type === 'voice' ? '🔊' : '#'}</span> <span>{ch.name}</span>
                     </div>
+                    {/* Voice Avatars */}
+                    {ch.type === 'voice' && voiceStates[ch.id]?.length > 0 && (
+                        <div className="flex items-center gap-1 mt-2 ml-6">
+                            {voiceStates[ch.id].map(uid => <UserAvatar key={uid} src={serverMembers.find(m => m.id === uid)?.avatar_url} className="w-5 h-5 rounded-full" />)}
+                        </div>
+                    )}
                   </div>
-                ))}
-              </div>
+              ))}
             </>
           ) : (
             <>
-              <button onClick={addFriend} className="w-full bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 text-emerald-300 border border-emerald-500/20 text-xs font-bold py-3.5 rounded-2xl mb-6 transition-all tracking-wide shadow-sm">Find Friends</button>
-              <div className="text-[10px] font-bold text-indigo-200/40 uppercase tracking-widest px-3 mb-3">Direct Messages</div>
+              <button onClick={addFriend} className="w-full bg-[#18181b] hover:bg-[#202023] text-zinc-300 border border-white/10 text-xs py-2 rounded mb-6">Find Friends</button>
               {friends.map(f => (
-                <div key={f.id} onClick={() => selectFriend(f)} className={`px-4 py-3.5 rounded-2xl cursor-pointer flex gap-3 items-center transition-all duration-200 border ${active.friend?.id === f.id ? "bg-white/10 border-white/10 shadow-lg" : "border-transparent hover:bg-white/5"}`}>
-                  <UserAvatar src={f.avatar_url} className="w-10 h-10 rounded-full object-cover bg-black/40 ring-2 ring-black/20" />
-                  <div className="flex flex-col"> <span className="text-[14px] font-medium text-white">{f.username}</span> <span className="text-[11px] text-white/40 font-medium">Offline</span> </div>
+                <div key={f.id} onClick={() => selectFriend(f)} className={`px-3 py-2 rounded-lg cursor-pointer flex gap-3 items-center ${active.friend?.id === f.id ? "bg-zinc-800" : "hover:bg-zinc-800/50"}`}>
+                  <UserAvatar src={f.avatar_url} className="w-8 h-8 rounded-full" />
+                  <span>{f.username}</span>
                 </div>
               ))}
             </>
           )}
         </div>
-        <div className="p-4 bg-black/20 border-t border-white/5">
-          <div className="flex items-center justify-between p-2 rounded-2xl hover:bg-white/5 transition-colors group cursor-pointer" onClick={openSettings}>
-            <div className="flex items-center gap-3">
-              <UserAvatar src={user.avatar_url} className="w-10 h-10 rounded-full object-cover bg-black/40" />
-              <div className="text-sm overflow-hidden"> <div className="font-bold text-white truncate text-[13px]">{user.username}</div> <div className="text-[10px] text-white/40 font-medium">#{user.discriminator}</div> </div>
+        <div className="p-3 bg-[#111111] border-t border-white/10 flex items-center justify-between cursor-pointer hover:bg-zinc-800 rounded" onClick={openSettings}>
+            <div className="flex items-center gap-2">
+              <UserAvatar src={user.avatar_url} className="w-8 h-8 rounded-full" />
+              <div className="text-xs"> <div className="font-bold text-white">{user.username}</div> <div className="text-zinc-500">#{user.discriminator}</div> </div>
             </div>
-            <div className="text-white/30 group-hover:text-white/70 transition-colors"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> </div>
-          </div>
+            <span>⚙️</span>
         </div>
       </div>
 
-      {/* MAIN CHAT */}
-      <div className="flex-1 rounded-[36px] bg-[#000000]/40 backdrop-blur-2xl border border-white/5 flex flex-col min-w-0 relative shadow-2xl overflow-hidden">
+      {/* 3. CHAT / VIDEO AREA */}
+      <div className="flex-1 bg-[#050505] flex flex-col min-w-0 relative">
         {(active.channel || active.friend) ? (
           <>
-            <div className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-white/[0.01] z-10 sticky top-0 backdrop-blur-md">
-              <div className="flex items-center gap-4">
-                <span className="text-white/20 text-2xl font-light">{active.channel ? (active.channel.type==='voice'? <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg> : '#') : "@"}</span>
-                <span className="font-bold text-white text-lg tracking-wide drop-shadow-md">{active.channel ? active.channel.name : active.friend.username}</span>
-              </div>
-              {!active.channel && active.friend && (
-                <div onClick={startDMCall} className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white p-3.5 rounded-full cursor-pointer transition-all shadow-lg shadow-green-900/40 backdrop-blur-md"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg> </div>
-              )}
+            <div className="h-16 border-b border-white/10 flex items-center justify-between px-6 bg-[#0a0a0a] z-10 sticky top-0">
+              <span className="font-bold text-white">{active.channel ? (active.channel.type==='voice'? '🔊 '+active.channel.name : '# '+active.channel.name) : '@ '+active.friend.username}</span>
+              {!active.channel && <div onClick={startDMCall} className="bg-green-600 p-2 rounded-full cursor-pointer">📞</div>}
             </div>
 
+            {/* MAXIMIZED VIDEO */}
             {maximizedContent && (
-                <div className="absolute inset-0 bg-[#000000]/80 z-50 flex items-center justify-center animate-scale-up backdrop-blur-3xl">
-                    <button onClick={() => setMaximizedContent(null)} className="absolute top-8 right-8 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full z-50 border border-white/10 transition-all"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg> </button>
-                    <div className="w-full h-full p-12 flex items-center justify-center">
-                        <video ref={node => { if(node) { node.srcObject = maximizedContent.stream; node.muted = (maximizedContent.type === 'local'); node.play().catch(() => {}); } }} autoPlay playsInline className="w-full h-full object-contain rounded-[40px] shadow-2xl border border-white/10 bg-black/50" />
-                    </div>
+                <div className="absolute inset-0 bg-black/95 z-50 flex items-center justify-center">
+                    <button onClick={() => setMaximizedContent(null)} className="absolute top-8 right-8 text-white p-3 rounded-full bg-zinc-800">✕</button>
+                    <video ref={node => { if(node) { node.srcObject = maximizedContent.stream; node.muted = (maximizedContent.type === 'local'); node.play().catch(()=>{}); } }} autoPlay playsInline className="h-[90%] w-[90%] object-contain" />
                 </div>
             )}
 
             {inCall ? (
-              <div className="flex-1 flex flex-col items-center justify-center relative p-8">
-                <div className="grid grid-cols-2 gap-6 w-full h-full max-w-6xl">
+              <div className="flex-1 bg-black flex flex-col items-center justify-center p-8 relative">
+                <div className="grid grid-cols-2 gap-6 w-full max-w-5xl h-full">
                   {/* MY VIDEO */}
-                  <div className="bg-black/30 rounded-[40px] flex flex-col items-center justify-center relative overflow-hidden border border-white/5 shadow-2xl group backdrop-blur-md ring-1 ring-white/5"> 
-                    <div className="w-full h-full absolute inset-0 flex items-center justify-center">
-                        {isScreenSharing ? (
-                            <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain bg-black" />
-                        ) : (
-                            <div className="flex flex-col items-center">
-                                <UserAvatar src={user.avatar_url} className="w-28 h-28 rounded-[40px] object-cover border-4 border-white/5 mb-6 shadow-2xl" />
-                                <span className="text-white font-bold text-xl tracking-tight">{user.username} (You)</span> 
-                                <div className="flex items-center gap-2 mt-3 px-4 py-1.5 bg-green-500/20 rounded-full border border-green-500/20 backdrop-blur-md">
-                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                                    <span className="text-green-400 text-[10px] font-bold tracking-widest uppercase">Live</span> 
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                    {isScreenSharing && (
-                        <>
-                            <div className="absolute top-6 right-6 bg-red-500 hover:bg-red-400 text-white px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer shadow-lg z-10 transition-all tracking-wide border border-red-400/20 backdrop-blur-md" onClick={() => stopScreenShare()}>STOP SHARING</div>
-                            <div onClick={() => setMaximizedContent({ stream: myVideoRef.current!.srcObject as MediaStream, type: 'local' })} className="absolute top-6 left-6 bg-black/50 hover:bg-black/80 text-white p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer border border-white/10 backdrop-blur-md z-10"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg> </div>
-                        </>
-                    )}
+                  <div className="bg-[#111111] rounded-xl flex items-center justify-center relative overflow-hidden border border-white/10"> 
+                    {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain bg-black" /> 
+                    : <div className="flex flex-col items-center">
+                        <UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-zinc-800" />
+                        <span className="font-bold">You</span>
+                      </div>}
+                    {isScreenSharing ? <button onClick={() => stopScreenShare()} className="absolute top-4 right-4 bg-red-600 text-xs px-3 py-1 rounded">Stop</button>
+                     : <button onClick={startScreenShare} className="absolute bottom-4 right-4 bg-zinc-800 text-xs px-3 py-1 rounded">Share Screen</button>}
                   </div>
-                  
-                  {peers.map((p, i) => ( 
-                    <div key={i} className="bg-black/30 rounded-[40px] flex flex-col items-center justify-center border border-white/5 relative overflow-hidden group shadow-2xl backdrop-blur-md ring-1 ring-white/5"> 
-                      <MediaPlayer peer={p.peer} userInfo={p.info} onMaximize={(stream: MediaStream) => setMaximizedContent({ stream, type: 'remote' })} />
-                    </div> 
-                  ))}
+                  {/* PEERS */}
+                  {peers.map((p, i) => <MediaPlayer key={i} peer={p.peer} userInfo={p.info} onMaximize={(s:any) => setMaximizedContent({stream:s, type:'remote'})} />)}
                 </div>
-                
-                <div className="absolute bottom-10 flex gap-4 p-4 bg-black/50 border border-white/10 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl z-50 ring-1 ring-white/10">
-                    <button onClick={startScreenShare} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScreenSharing ? "bg-white/5 text-white/30 cursor-not-allowed" : "bg-white/10 hover:bg-white/20 text-white"}`} disabled={isScreenSharing}>
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
-                    </button>
-                    <button onClick={leaveCall} className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-red-500 to-pink-600 hover:from-red-400 hover:to-pink-500 text-white flex items-center justify-center shadow-lg shadow-red-900/30 transition-all">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" /></svg>
-                    </button>
-                </div>
+                <button onClick={leaveCall} className="absolute bottom-10 bg-red-600 px-6 py-3 rounded-xl font-bold">Leave Call</button>
               </div>
             ) : (
               <>
-                <div className="flex-1 overflow-y-auto p-8 space-y-6 custom-scrollbar">
+                <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                   {chatHistory.map((msg, i) => (
-                    <div key={i} className="flex gap-4 group animate-fade-in-up">
-                      <UserAvatar src={msg.avatar_url} className="w-12 h-12 rounded-full object-cover shadow-lg cursor-pointer hover:opacity-80 transition-opacity border border-white/5" />
-                      <div className="flex-1">
-                        <div className="flex items-baseline gap-3 mb-1"> <span className={`font-bold text-[15px] cursor-pointer hover:underline ${msg.sender_id === user.id ? "text-cyan-400" : "text-indigo-200"}`} onClick={() => viewUserProfile(msg.sender_id)}>{msg.sender_name}</span> <span className="text-[11px] text-white/30 font-medium">Today at 12:00 PM</span> </div>
-                        {msg.content && (
-                            msg.content.startsWith("http") && (msg.content.includes("tenor") || msg.content.includes("klipy")) ? 
-                            <img src={msg.content} className="rounded-2xl max-w-sm border border-white/10 shadow-xl" /> :
-                            <p className="text-zinc-200 text-[15px] leading-relaxed font-normal bg-white/5 inline-block px-5 py-2.5 rounded-3xl rounded-tl-none border border-white/5 shadow-sm">{msg.content}</p>
-                        )}
-                        {msg.file_url && <img src={msg.file_url} alt="attachment" className="mt-3 max-w-[400px] max-h-[400px] rounded-2xl border border-white/10 shadow-xl" />}
+                    <div key={i} className="flex gap-4">
+                      <UserAvatar src={msg.avatar_url} className="w-10 h-10 rounded-full cursor-pointer" onClick={() => viewUserProfile(msg.sender_id)} />
+                      <div>
+                        <div className="flex items-baseline gap-2"> <span className="font-bold text-zinc-200 cursor-pointer" onClick={() => viewUserProfile(msg.sender_id)}>{msg.sender_name}</span> <span className="text-xs text-zinc-500">Today</span> </div>
+                        {msg.content && (msg.content.startsWith("http") && (msg.content.includes("tenor") || msg.content.includes("klipy")) ? <img src={msg.content} className="rounded-lg max-w-sm mt-2" /> : <p className="text-zinc-300">{msg.content}</p>)}
+                        {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-sm rounded-lg border border-white/10" />}
                       </div>
                     </div>
                   ))}
                 </div>
-                <div className="p-6 relative"> 
-                  {showGifPicker && <GifPicker onSelect={(url: string) => { sendMessage(null, url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}
-                  <div className="bg-white/5 border border-white/10 rounded-[28px] px-3 py-2 flex items-center gap-3 shadow-xl backdrop-blur-2xl relative z-20 ring-1 ring-white/5 hover:ring-white/10 transition-all"> 
-                    <div className="w-11 h-11 rounded-[20px] bg-white/5 hover:bg-white/10 flex items-center justify-center cursor-pointer text-white/50 hover:text-white transition-all ml-1" onClick={() => fileInputRef.current?.click()}> 
-                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> 
-                    </div> 
-                    <div className="w-11 h-11 rounded-[20px] bg-white/5 hover:bg-white/10 flex items-center justify-center cursor-pointer text-white/50 hover:text-white transition-all text-[10px] font-black tracking-wider" onClick={() => setShowGifPicker(!showGifPicker)}>GIF</div> 
+                <div className="p-6 bg-[#050505] relative"> 
+                  {showGifPicker && <GifPicker onSelect={(url:string) => { sendMessage(null, url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}
+                  <div className="bg-[#121212] border border-white/15 rounded-xl px-3 py-2 flex items-center gap-3"> 
+                    <div className="text-zinc-400 cursor-pointer text-xl" onClick={() => fileInputRef.current?.click()}>+</div> 
+                    <div className="bg-zinc-800 text-[10px] px-2 py-1 rounded cursor-pointer font-bold" onClick={() => setShowGifPicker(!showGifPicker)}>GIF</div> 
                     <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept="image/*" /> 
-                    <input className="bg-transparent flex-1 outline-none text-zinc-100 placeholder-white/30 font-medium px-2 text-[15px]" placeholder={`Message ${active.channel ? "#"+active.channel.name : "@"+active.friend.username}`} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage(message)} disabled={isUploading} /> 
+                    <input className="bg-transparent flex-1 outline-none text-zinc-200 placeholder-zinc-500" placeholder={`Message...`} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage(message)} disabled={isUploading} /> 
                   </div> 
                 </div>
               </>
             )}
           </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-white/20 gap-6"> 
-            <div className="w-24 h-24 rounded-[36px] bg-white/5 border border-white/5 flex items-center justify-center shadow-inner backdrop-blur-sm"> 
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-12 h-12 opacity-50"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.18.063-2.33.155-3.456.279M6 7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0124 7.5v11.25a2.25 2.25 0 01-2.25 2.25h-9.568a4.51 4.51 0 00-1.789.365L6 24V7.5z" /></svg> 
-            </div> 
-            <p className="font-medium tracking-wide text-sm opacity-50 uppercase">No Server Selected</p> 
-          </div>
+          <div className="flex-1 flex items-center justify-center text-zinc-500 font-bold uppercase tracking-widest">No Server Selected</div>
         )}
       </div>
 
-      {/* MEMBER LIST */}
+      {/* 4. MEMBER LIST (Layout Fix) */}
       {view === "servers" && active.server && (
-        <div className="w-[260px] rounded-[36px] bg-[#1a1a2e]/60 backdrop-blur-2xl border border-white/5 flex flex-col shadow-2xl flex-shrink-0 overflow-hidden">
-          <div className="h-20 flex items-center px-6 font-bold text-white/30 text-[11px] uppercase tracking-widest border-b border-white/5 bg-white/[0.02]">
-            Members — {serverMembers.length}
-          </div>
-          <div className="flex-1 p-5 overflow-y-auto custom-scrollbar">
-             <div className="grid grid-cols-2 gap-2 mb-6">
-                <button onClick={inviteUser} className="bg-white/5 hover:bg-white/10 text-white/70 text-xs font-bold py-3 rounded-xl transition-all border border-white/5">Invite</button>
-                <button onClick={leaveServer} className="bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold py-3 rounded-xl transition-all border border-red-500/10">Leave</button>
+        <div className="w-[240px] bg-[#111111] flex flex-col border-l border-white/10 flex-shrink-0">
+          <div className="h-16 flex items-center px-6 font-bold text-zinc-500 text-xs uppercase tracking-widest border-b border-white/10">Members — {serverMembers.length}</div>
+          <div className="flex-1 p-4 overflow-y-auto">
+             <div className="flex gap-2 mb-4">
+                <button onClick={inviteUser} className="flex-1 bg-zinc-800 text-xs py-2 rounded">Invite</button>
+                <button onClick={leaveServer} className="flex-1 bg-red-900/20 text-red-400 text-xs py-2 rounded">Leave</button>
              </div>
-             
-             {serverMembers.map(member => (
-               <div key={member.id} className="flex items-center gap-3 mb-2 p-2.5 rounded-2xl hover:bg-white/5 group transition-colors cursor-pointer" onClick={() => viewUserProfile(member.id)}>
-                 <UserAvatar src={member.avatar_url} className="w-10 h-10 rounded-full object-cover shadow-sm bg-black/40" />
-                 <div className="flex-1 min-w-0"> 
-                    <div className={`font-bold text-[13px] flex items-center gap-1.5 ${member.id === active.server.owner_id ? "text-yellow-400" : member.is_admin ? "text-emerald-400" : "text-indigo-200"}`}> 
-                        <span className="truncate">{member.username}</span> 
-                        {member.id === active.server.owner_id && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" /></svg>} 
-                    </div> 
-                    <div className="text-[10px] text-white/30 font-medium">#{member.discriminator}</div> 
-                 </div>
+             {serverMembers.map(m => (
+               <div key={m.id} className="flex items-center gap-3 mb-2 p-2 rounded hover:bg-zinc-800 cursor-pointer" onClick={() => viewUserProfile(m.id)}>
+                 <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full" />
+                 <div><div className={`text-sm font-bold ${m.id === active.server.owner_id ? "text-yellow-500" : "text-zinc-300"}`}>{m.username}</div><div className="text-[10px] text-zinc-500">#{m.discriminator}</div></div>
                </div>
              ))}
           </div>
         </div>
       )}
 
-      {/* ⚙️ SETTINGS MODAL (Glass) */}
+      {/* MODALS */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl animate-fade-in">
-          <div className="bg-[#0f0f13]/80 w-[440px] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden animate-scale-up ring-1 ring-white/10 backdrop-blur-2xl">
-            <div className="p-8 border-b border-white/5 flex justify-between items-center bg-white/[0.02]"> 
-                <h2 className="text-xl font-bold text-white tracking-tight">Edit Profile</h2> 
-                <button onClick={() => setShowSettings(false)} className="w-8 h-8 rounded-full bg-white/5 flex items-center justify-center text-white/40 hover:text-white transition-colors">✕</button> 
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50">
+          <div className="bg-[#18181b] w-96 rounded-xl border border-white/10 p-6 space-y-4">
+            <h2 className="text-xl font-bold text-white">Edit Profile</h2>
+            <div className="flex justify-center" onClick={() => avatarInputRef.current?.click()}>
+                 {newAvatar ? <img src={URL.createObjectURL(newAvatar)} className="w-20 h-20 rounded-full object-cover border-2 border-blue-500" /> : <UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full border-2 border-zinc-700" />}
+                 <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && setNewAvatar(e.target.files[0])} />
             </div>
-            
-            <div className="p-10 flex flex-col gap-8">
-              {/* Avatar Upload Section */}
-              <div className="flex flex-col items-center gap-6">
-                <div onClick={() => avatarInputRef.current?.click()} className="relative group cursor-pointer"> 
-                    {newAvatar ? <img src={URL.createObjectURL(newAvatar)} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" /> : <UserAvatar src={user.avatar_url} className="w-32 h-32 rounded-full object-cover border-4 border-white/10 group-hover:border-cyan-500 transition-all shadow-xl" />} 
-                </div> 
-                <input type="file" ref={avatarInputRef} className="hidden" accept="image/*" onChange={(e) => e.target.files && setNewAvatar(e.target.files[0])} /> 
-              </div>
-
-              {/* Input Fields */}
-              <div className="space-y-5">
-                <div className="flex flex-col gap-2"> 
-                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">Username</label> 
-                    <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium backdrop-blur-sm" /> 
-                </div>
-
-                {/* ✅ NEW RINGTONE INPUT ADDED HERE */}
-                <div className="flex flex-col gap-2"> 
-                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">Ringtone URL</label> 
-                    <input value={ringtoneUrl} onChange={(e) => setRingtoneUrl(e.target.value)} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all font-medium backdrop-blur-sm" placeholder="Paste MP3 URL here..." /> 
-                </div>
-
-                <div className="flex flex-col gap-2"> 
-                    <label className="text-[11px] font-bold text-white/30 uppercase tracking-widest ml-1">About Me</label> 
-                    <textarea value={newBio} onChange={(e) => setNewBio(e.target.value)} rows={3} className="bg-black/20 border border-white/10 text-white p-4 rounded-2xl focus:outline-none focus:ring-1 focus:ring-cyan-500/50 transition-all resize-none font-medium backdrop-blur-sm" placeholder="Write something..." /> 
-                </div>
-              </div>
-            </div>
-
-            <div className="p-8 bg-black/20 border-t border-white/5 flex justify-end gap-3"> 
-                <button onClick={() => setShowSettings(false)} className="px-6 py-3 rounded-xl text-xs font-bold hover:bg-white/5 transition-colors text-white/40 hover:text-white">CANCEL</button> 
-                <button onClick={handleUpdateProfile} className="px-8 py-3 bg-white text-black hover:bg-zinc-200 rounded-xl text-xs font-bold shadow-lg transition-all active:scale-95">SAVE CHANGES</button> 
-            </div>
+            <input value={newUsername} onChange={(e) => setNewUsername(e.target.value)} className="w-full bg-black p-3 rounded border border-white/10 text-white" />
+            <textarea value={newBio} onChange={(e) => setNewBio(e.target.value)} rows={3} className="w-full bg-black p-3 rounded border border-white/10 text-white" />
+            <div className="flex justify-end gap-2"> <button onClick={() => setShowSettings(false)} className="px-4 py-2 rounded text-xs bg-zinc-800">Cancel</button> <button onClick={handleUpdateProfile} className="px-4 py-2 rounded text-xs bg-white text-black font-bold">Save</button> </div>
           </div>
         </div>
       )}
-
-      {/* 👤 USER PROFILE MODAL (Glass) */}
       {viewingProfile && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl animate-fade-in" onClick={() => setViewingProfile(null)}>
-          <div className="bg-[#121212]/90 w-[380px] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden animate-scale-up ring-1 ring-white/10 backdrop-blur-2xl" onClick={e => e.stopPropagation()}>
-            <div className="h-32 bg-gradient-to-tr from-cyan-600 to-blue-600 relative"> <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 p-2 bg-[#121212] rounded-full"> <UserAvatar src={viewingProfile.avatar_url} className="w-28 h-28 rounded-full object-cover border-4 border-[#121212]" /> </div> </div>
-            <div className="pt-16 pb-10 px-8 text-center"> <h2 className="text-2xl font-bold text-white tracking-tight">{viewingProfile.username}</h2> <p className="text-white/40 text-xs font-bold tracking-widest mt-1 uppercase">#{viewingProfile.discriminator}</p> <div className="mt-8 bg-white/5 p-6 rounded-3xl border border-white/5 backdrop-blur-sm"> <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">About</h3> <p className="text-zinc-300 text-sm leading-relaxed font-normal"> {viewingProfile.bio || "No bio yet."} </p> </div> </div>
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setViewingProfile(null)}>
+          <div className="bg-[#18181b] w-80 rounded-xl border border-white/10 p-6 text-center" onClick={e=>e.stopPropagation()}>
+            <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mx-auto mb-4 border-4 border-zinc-800" />
+            <h2 className="text-xl font-bold">{viewingProfile.username}</h2>
+            <p className="text-zinc-500 text-xs">#{viewingProfile.discriminator}</p>
+            <div className="mt-4 bg-black/50 p-4 rounded text-sm text-zinc-300">{viewingProfile.bio || "No bio."}</div>
           </div>
         </div>
       )}
-
     </div>
   );
 }
 
-// 🔥 INTELLIGENT MEDIA PLAYER (Fixed for Audio-Only Calls)
+// 🔥 PLAYER (Fixed: Refresh on swap)
 const MediaPlayer = ({ peer, userInfo, onMaximize }: any) => {
   const ref = useRef<HTMLVideoElement>(null);
   const [hasVideo, setHasVideo] = useState(false);
 
   useEffect(() => {
-    // Listen for the stream
     peer.on("stream", (stream: MediaStream) => {
-        const videoTracks = stream.getVideoTracks();
-        const hasVideoTrack = videoTracks.length > 0 && videoTracks[0].enabled;
-        
-        setHasVideo(hasVideoTrack);
-
-        if (ref.current) {
-            ref.current.srcObject = stream;
-            ref.current.muted = false; // Remote stream should typically be audible
-            ref.current.play().catch(e => console.error("Autoplay error:", e));
-        }
-
-        // Listen for track changes (e.g. user turns off camera during call)
-        if (hasVideoTrack) {
-            videoTracks[0].onmute = () => setHasVideo(false);
-            videoTracks[0].onunmute = () => setHasVideo(true);
-        }
+        if (ref.current) { ref.current.srcObject = stream; ref.current.play().catch(()=>{}); }
+        setHasVideo(stream.getVideoTracks().length > 0);
+        const vidTrack = stream.getVideoTracks()[0];
+        if (vidTrack) vidTrack.onunmute = () => { if(ref.current) { ref.current.srcObject = stream; ref.current.play(); }};
+        stream.onaddtrack = () => setHasVideo(stream.getVideoTracks().length > 0);
     });
   }, [peer]);
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center bg-black/40 overflow-hidden group">
-        {/* Only show video element if we actually have video */}
-        <video 
-            ref={ref} 
-            autoPlay 
-            playsInline 
-            className={`absolute inset-0 w-full h-full object-contain bg-black transition-opacity duration-300 ${hasVideo ? "opacity-100 z-10" : "opacity-0 z-0"}`} 
-        />
-
-        {/* Show Avatar if NO video */}
-        {!hasVideo && (
-            <div className="z-20 flex flex-col items-center animate-fade-in">
-                <UserAvatar 
-                    src={userInfo?.avatar_url} 
-                    className="w-28 h-28 rounded-[40px] object-cover border-4 border-white/5 mb-6 shadow-2xl" 
-                />
-                <span className="text-white font-semibold text-xl tracking-tight">
-                    {userInfo?.username || "Connecting..."}
-                </span> 
-                {/* Audio Active Indicator */}
-                <div className="mt-4 flex gap-2 items-center px-3 py-1 bg-white/10 rounded-full">
-                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"/>
-                    <span className="text-[10px] text-white/50 font-bold uppercase tracking-widest">Audio Only</span>
-                </div>
-            </div>
-        )}
-        
-        {/* Fullscreen Button (Only if video exists) */}
-        {hasVideo && (
-             <div className="absolute top-4 right-4 z-30 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                <button 
-                    onClick={() => onMaximize(ref.current?.srcObject)} 
-                    className="bg-black/60 hover:bg-cyan-600 text-white p-2.5 rounded-xl backdrop-blur-md border border-white/20 shadow-xl transition-all active:scale-95"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg>
-                </button>
+    <div className="relative w-full h-full bg-[#111] rounded-xl overflow-hidden group border border-white/10 flex items-center justify-center">
+        {hasVideo ? (
+            <>
+            <video ref={ref} autoPlay playsInline className="w-full h-full object-contain bg-black" />
+            <button onClick={() => onMaximize(ref.current?.srcObject)} className="absolute top-2 right-2 bg-black/60 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">VIEW</button>
+            <div className="absolute bottom-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded">{userInfo?.username}</div>
+            </>
+        ) : (
+            <div className="flex flex-col items-center">
+                <UserAvatar src={userInfo?.avatar_url} className="w-20 h-20 rounded-full border-4 border-blue-900/50 mb-2" />
+                <span className="font-bold">{userInfo?.username}</span>
             </div>
         )}
     </div>

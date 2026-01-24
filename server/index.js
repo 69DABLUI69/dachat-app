@@ -368,5 +368,6 @@ io.on("connection", (socket) => {
   });
 });
 
-const PORT = process.env.PORT || 3001;
+// Use the port Render assigns, or 3001 locally
+const PORT = process.env.PORT || 3001; 
 server.listen(PORT, () => console.log(`Server running on ${PORT}`));
