@@ -3,371 +3,277 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const { Pool } = require("pg");
-const bcrypt = require("bcrypt");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-const ytdl = require('ytdl-core'); 
 
 const app = express();
 
-// 🔥 CRITICAL CORS SETUP 🔥
-const allowedOrigins = [
-  "https://dachat-app.vercel.app", 
-  "http://localhost:3000"
-];
-
-const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    // Check if origin is in the allowed list
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log("Blocked by CORS:", origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  methods: ["GET", "POST"],
-  credentials: true
-};
-
-app.use(cors(corsOptions));
+// 1. MIDDLEWARE
+app.use(cors());
 app.use(express.json());
 
-// ⚠️ PASTE YOUR DB & SUPABASE INFO HERE ⚠️
-const connectionString = "postgresql://postgres.mgrjnnhqsadsquupqkgt:Skibidibibi69@aws-1-eu-west-1.pooler.supabase.com:6543/postgres";
-const SUPABASE_URL = "https://mgrjnnhqsadsquupqkgt.supabase.co"; 
-const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1ncmpubmhxc2Fkc3F1dXBxa2d0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2ODk4OTM1MCwiZXhwIjoyMDg0NTY1MzUwfQ.0iAtrnwhtCn02bgeGBR9TaEJDKqlNRQzAGUnsAKEkkc"; 
+// 2. SUPABASE CONFIG
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
 
-const pool = new Pool({ connectionString, ssl: { rejectUnauthorized: false } });
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// 3. SOCKET SERVER SETUP
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: "*",
+    methods: ["GET", "POST"]
+  }
+});
+
+// 4. FILE UPLOAD CONFIG
 const upload = multer({ storage: multer.memoryStorage() });
 
-const server = http.createServer(app);
+// --- REST API ROUTES ---
 
-// 🔥 SOCKET.IO CORS SETUP 🔥
-const io = new Server(server, { 
-  cors: { 
-    origin: allowedOrigins,
-    methods: ["GET", "POST"],
-    credentials: true
-  } 
-});
-
-// --- 🎵 YOUTUBE RINGTONE STREAMER ---
-app.get("/stream-audio", async (req, res) => {
-    const videoURL = req.query.url;
-    if (!videoURL) return res.status(400).send("No URL provided");
-
-    try {
-        if (!ytdl.validateURL(videoURL)) {
-            return res.status(400).send("Invalid YouTube URL");
-        }
-        res.header("Content-Type", "audio/mpeg");
-        ytdl(videoURL, { filter: 'audioonly', quality: 'highestaudio' }).pipe(res);
-    } catch (err) {
-        console.error("Stream Error:", err.message);
-        res.status(500).send("Failed to stream audio");
-    }
-});
-
-// --- AUTH & API ---
+// Auth: Register
 app.post("/register", async (req, res) => {
   const { username, password } = req.body;
-  try {
-    const hash = await bcrypt.hash(password, 10);
-    const result = await pool.query("INSERT INTO users (username, password_hash, discriminator) VALUES ($1, $2, $3) RETURNING *", [username, hash, Math.floor(1000 + Math.random() * 9000)]);
-    res.json({ success: true, user: result.rows[0] });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  const { data: existing } = await supabase.from("users").select("*").eq("username", username).single();
+  if (existing) return res.json({ success: false, message: "Username taken" });
+
+  const avatar_url = `https://api.dicebear.com/7.x/avataaars/svg?seed=${username}`;
+  const { data, error } = await supabase
+    .from("users")
+    .insert([{ username, password, discriminator: Math.floor(1000 + Math.random() * 9000), avatar_url }])
+    .select()
+    .single();
+
+  if (error) return res.json({ success: false, message: error.message });
+  res.json({ success: true, user: data });
 });
 
+// Auth: Login
 app.post("/login", async (req, res) => {
   const { username, password } = req.body;
-  try {
-    const result = await pool.query("SELECT * FROM users WHERE username = $1", [username]);
-    if (result.rows.length === 0) return res.status(404).json({ success: false, message: "User not found" });
-    const user = result.rows[0];
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (match) res.json({ success: true, user });
-    else res.status(401).json({ success: false, message: "Invalid password" });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  const { data: user, error } = await supabase
+    .from("users")
+    .select("*")
+    .eq("username", username)
+    .eq("password", password)
+    .single();
+
+  if (error || !user) return res.json({ success: false, message: "Invalid credentials" });
+  res.json({ success: true, user });
 });
 
-app.get("/my-servers/:id", async (req, res) => {
-  const result = await pool.query(`SELECT s.* FROM servers s JOIN server_members sm ON s.id = sm.server_id WHERE sm.user_id = $1`, [req.params.id]);
-  res.json(result.rows);
+// Get My Servers
+app.get("/my-servers/:userId", async (req, res) => {
+  const { userId } = req.params;
+  const { data: members } = await supabase.from("members").select("server_id").eq("user_id", userId);
+  if (!members || members.length === 0) return res.json([]);
+  
+  const serverIds = members.map(m => m.server_id);
+  const { data: servers } = await supabase.from("servers").select("*").in("id", serverIds);
+  res.json(servers || []);
 });
 
-app.get("/my-friends/:id", async (req, res) => {
-  const result = await pool.query(`SELECT u.id, u.username, u.avatar_url, u.discriminator FROM friends f JOIN users u ON (CASE WHEN f.user_id_1 = $1 THEN f.user_id_2 ELSE f.user_id_1 END) = u.id WHERE $1 IN (f.user_id_1, f.user_id_2)`, [req.params.id]);
-  res.json(result.rows);
+// Get My Friends
+app.get("/my-friends/:userId", async (req, res) => {
+  const { data: users } = await supabase.from("users").select("*").neq("id", req.params.userId).limit(10);
+  res.json(users || []);
 });
 
-app.get("/servers/:id/channels", async (req, res) => {
-  const result = await pool.query("SELECT * FROM channels WHERE server_id = $1 ORDER BY id ASC", [req.params.id]);
-  res.json(result.rows);
-});
-
-app.get("/servers/:id/members", async (req, res) => {
-  const result = await pool.query(`SELECT u.id, u.username, u.avatar_url, u.discriminator, sm.is_admin FROM server_members sm JOIN users u ON sm.user_id = u.id WHERE sm.server_id = $1`, [req.params.id]);
-  res.json(result.rows);
-});
-
+// Create Server
 app.post("/create-server", async (req, res) => {
   const { name, ownerId } = req.body;
-  try {
-    const serverRes = await pool.query("INSERT INTO servers (name, owner_id) VALUES ($1, $2) RETURNING *", [name, ownerId]);
-    const server = serverRes.rows[0];
-    await pool.query("INSERT INTO server_members (server_id, user_id, is_admin) VALUES ($1, $2, true)", [server.id, ownerId]);
-    await pool.query("INSERT INTO channels (server_id, name, type) VALUES ($1, 'general', 'text')", [server.id]);
-    await pool.query("INSERT INTO channels (server_id, name, type) VALUES ($1, 'General Voice', 'voice')", [server.id]);
-    res.json({ success: true, server });
-  } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  const { data: server, error } = await supabase.from("servers").insert([{ name, owner_id: ownerId }]).select().single();
+  if (error) return res.json({ success: false });
+
+  await supabase.from("members").insert([{ user_id: ownerId, server_id: server.id, is_admin: true }]);
+  await supabase.from("channels").insert([
+    { server_id: server.id, name: "general", type: "text" },
+    { server_id: server.id, name: "voice-chat", type: "voice" }
+  ]);
+  
+  res.json({ success: true, server });
 });
 
+// Create Channel
 app.post("/create-channel", async (req, res) => {
   const { serverId, name, type } = req.body;
-  await pool.query("INSERT INTO channels (server_id, name, type) VALUES ($1, $2, $3)", [serverId, name, type]);
+  const { data } = await supabase.from("channels").insert([{ server_id: serverId, name, type }]).select().single();
+  res.json({ success: true, channel: data });
+});
+
+// Get Server Channels
+app.get("/servers/:id/channels", async (req, res) => {
+  const { data } = await supabase.from("channels").select("*").eq("server_id", req.params.id);
+  res.json(data || []);
+});
+
+// Get Server Members
+app.get("/servers/:id/members", async (req, res) => {
+  const { data: members } = await supabase.from("members").select("is_admin, users(*)").eq("server_id", req.params.id);
+  const formatted = members.map(m => ({ ...m.users, is_admin: m.is_admin }));
+  res.json(formatted || []);
+});
+
+// Get User Profile
+app.get("/users/:id", async (req, res) => {
+  const { data } = await supabase.from("users").select("*").eq("id", req.params.id).single();
+  res.json({ success: true, user: data });
+});
+
+// Update Profile
+app.post("/update-profile", async (req, res) => {
+  const { userId, username, avatarUrl, bio } = req.body;
+  const { data, error } = await supabase.from("users").update({ username, avatar_url: avatarUrl, bio }).eq("id", userId).select().single();
+  if(error) return res.json({ success: false });
+  io.emit("user_updated", { userId });
+  res.json({ success: true, user: data });
+});
+
+// Invite User
+app.post("/servers/invite", async (req, res) => {
+  const { serverId, userString } = req.body; 
+  const { data: user } = await supabase.from("users").select("*").ilike("username", userString).single();
+  if (!user) return res.json({ success: false, message: "User not found" });
+
+  const { data: exists } = await supabase.from("members").select("*").eq("server_id", serverId).eq("user_id", user.id).single();
+  if (exists) return res.json({ success: false, message: "Already a member" });
+
+  await supabase.from("members").insert([{ server_id: serverId, user_id: user.id }]);
+  io.emit("new_server_invite", { userId: user.id, serverId });
   res.json({ success: true });
 });
 
-app.post("/servers/invite", async (req, res) => {
-  const { serverId, userString } = req.body;
-  const [username, discriminator] = userString.split("#");
-  if (!username || !discriminator) return res.json({ success: false, message: "Format: Name#1234" });
-  const userRes = await pool.query("SELECT id FROM users WHERE username = $1 AND discriminator = $2", [username, discriminator]);
-  if (userRes.rows.length === 0) return res.json({ success: false, message: "User not found" });
-  const userId = userRes.rows[0].id;
-  try {
-      await pool.query("INSERT INTO server_members (server_id, user_id) VALUES ($1, $2)", [serverId, userId]);
-      const userSocket = Object.keys(socketMapping).find(key => String(socketMapping[key].userId) === String(userId));
-      if (userSocket) io.to(userSocket).emit("new_server_invite", { serverId });
-      res.json({ success: true });
-  } catch (err) { res.json({ success: false, message: "User already in server" }); }
+// Leave Server
+app.post("/servers/leave", async (req, res) => {
+  const { serverId, userId } = req.body;
+  await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", userId);
+  io.emit("server_update", { serverId });
+  res.json({ success: true });
 });
 
-app.post("/add-friend", async (req, res) => {
-    const { myId, friendString } = req.body;
-    const [username, discriminator] = friendString.split("#");
-    const friendRes = await pool.query("SELECT id FROM users WHERE username = $1 AND discriminator = $2", [username, discriminator]);
-    if (friendRes.rows.length === 0) return res.json({ success: false, message: "User not found" });
-    const friendId = friendRes.rows[0].id;
-    try {
-        await pool.query("INSERT INTO friends (user_id_1, user_id_2) VALUES ($1, $2)", [Math.min(myId, friendId), Math.max(myId, friendId)]);
-        const friendSocket = Object.keys(socketMapping).find(key => String(socketMapping[key].userId) === String(friendId));
-        if(friendSocket) io.to(friendSocket).emit("user_updated");
-        res.json({ success: true });
-    } catch { res.json({ success: false, message: "Already friends" }); }
-});
-
+// File Upload
 app.post("/upload", upload.single("file"), async (req, res) => {
-    try {
-        const file = req.file;
-        const fileName = `${Date.now()}_${file.originalname}`;
-        const { data, error } = await supabase.storage.from("uploads").upload(fileName, file.buffer, { contentType: file.mimetype });
-        if (error) throw error;
-        const { data: { publicUrl } } = supabase.storage.from("uploads").getPublicUrl(fileName);
-        res.json({ success: true, fileUrl: publicUrl });
-    } catch (err) { res.status(500).json({ success: false, message: err.message }); }
+  if (!req.file) return res.status(400).json({ success: false });
+  const fileName = `${Date.now()}_${req.file.originalname}`;
+  const { data, error } = await supabase.storage.from("uploads").upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
+  if (error) return res.json({ success: false });
+  const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(fileName);
+  res.json({ success: true, fileUrl: publicData.publicUrl });
 });
 
-app.post("/update-profile", async (req, res) => {
-    const { userId, username, avatarUrl, bio } = req.body;
-    try {
-        const result = await pool.query("UPDATE users SET username = $1, avatar_url = $2, bio = $3 WHERE id = $4 RETURNING *", [username, avatarUrl, bio, userId]);
-        io.emit("user_updated");
-        res.json({ success: true, user: result.rows[0] });
-    } catch (e) { res.status(500).json({ success: false }); }
-});
 
-app.get("/users/:id", async (req, res) => {
-    try {
-        const result = await pool.query("SELECT id, username, discriminator, avatar_url, bio FROM users WHERE id = $1", [req.params.id]);
-        res.json({ success: true, user: result.rows[0] });
-    } catch(e) { res.status(500).json({ success: false }); }
-});
-
-// --- SOCKET.IO LOGIC ---
-const voiceRooms = {}; // { roomId: [{ socketId, userData }] }
-const socketMapping = {}; // { socketId: { userId, roomId } }
-const roomStates = {}; // { channelId: Set(userIds) }
+// --- SOCKET.IO (REAL-TIME + DATABASE SAVING) ---
+let voiceRooms = {}; 
+let socketToUser = {}; 
 
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
 
   socket.on("setup", (userId) => {
-    socketMapping[socket.id] = { userId, roomId: null };
-    console.log(`Setup complete for user ${userId} on socket ${socket.id}`);
+    socket.join(userId);
   });
 
-  socket.on("join_room", ({ roomId }) => {
+  // 1. JOIN ROOM & LOAD HISTORY
+  socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
-  });
 
-  socket.on("send_message", async (payload) => {
-    const { content, senderId, senderName, channelId, recipientId, fileUrl } = payload;
-    let roomId = channelId ? channelId.toString() : `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}`;
-    
-    // In production, insert into DB here
-    const msg = { content, sender_id: senderId, sender_name: senderName, file_url: fileUrl, created_at: new Date() };
-    const userRes = await pool.query("SELECT avatar_url FROM users WHERE id = $1", [senderId]);
-    msg.avatar_url = userRes.rows[0]?.avatar_url;
-
-    io.to(roomId).emit("receive_message", msg);
-  });
-
-  // --- WEBRTC SIGNALING (VOICE/VIDEO) ---
-  socket.on("join_voice", ({ roomId, userData }) => {
-    if (socketMapping[socket.id]) socketMapping[socket.id].roomId = roomId;
-    
-    // UI State Update
-    if (!roomStates[roomId]) roomStates[roomId] = new Set();
-    roomStates[roomId].add(userData.id);
-
-    // Add to Voice Room
-    if (voiceRooms[roomId]) {
-      // Remove any ghost instances of this socket if they exist
-      voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
-      voiceRooms[roomId].push({ socketId: socket.id, userData });
+    // Determine if Channel or DM
+    if (roomId.toString().startsWith("dm-")) {
+        // DM Logic: Fetch messages between these two users
+        const parts = roomId.split("-"); // dm-ID1-ID2
+        if(parts.length >= 3) {
+            const u1 = parts[1];
+            const u2 = parts[2];
+            const { data } = await supabase
+                .from("messages")
+                .select("*")
+                .or(`and(sender_id.eq.${u1},recipient_id.eq.${u2}),and(sender_id.eq.${u2},recipient_id.eq.${u1})`)
+                .order("created_at", { ascending: true });
+            socket.emit("load_messages", data || []);
+        }
     } else {
-      voiceRooms[roomId] = [{ socketId: socket.id, userData }];
+        // Channel Logic: Fetch messages by channel_id
+        const { data } = await supabase
+            .from("messages")
+            .select("*")
+            .eq("channel_id", roomId)
+            .order("created_at", { ascending: true });
+        socket.emit("load_messages", data || []);
     }
-
-    // Get others in the room to initiate connections
-    const otherUsers = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
-    socket.emit("all_users", otherUsers); 
-
-    // Update UI for everyone
-    io.emit("voice_state_update", { channelId: roomId, users: Array.from(roomStates[roomId]) });
   });
 
-  socket.on("sending_signal", payload => {
-    io.to(payload.userToSignal).emit("user_joined", { 
-      signal: payload.signal, 
-      callerID: payload.callerID, 
-      userData: payload.userData 
-    });
+  // 2. SEND MESSAGE & SAVE TO DB
+  socket.on("send_message", async (data) => {
+    // Determine Target Room
+    let room = data.channelId ? data.channelId.toString() : data.recipientId ? `dm-${[data.senderId, data.recipientId].sort((a,b)=>a-b).join('-')}` : null;
+    
+    // Broadcast Real-time
+    if (room) io.to(room).emit("receive_message", { ...data, id: Date.now() }); // Temporary ID for instant UI update
+
+    // Save to Database
+    const { content, senderId, senderName, fileUrl, channelId, recipientId } = data;
+    try {
+        await supabase.from("messages").insert([{
+            content,
+            sender_id: senderId,
+            sender_name: senderName,
+            file_url: fileUrl,
+            channel_id: channelId || null,
+            recipient_id: recipientId || null
+        }]);
+    } catch (err) {
+        console.error("Error saving message:", err);
+    }
   });
 
-  socket.on("returning_signal", payload => {
+  // --- VOICE LOGIC ---
+  socket.on("join_voice", ({ roomId, userData }) => {
+    if (!voiceRooms[roomId]) voiceRooms[roomId] = [];
+    voiceRooms[roomId].push({ socketId: socket.id, userData });
+    socketToUser[socket.id] = { roomId, userData };
+    socket.join(roomId);
+
+    const usersInRoom = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
+    socket.emit("all_users", usersInRoom);
+
+    const allUsersInRoomIds = voiceRooms[roomId].map(u => u.userData.id);
+    io.emit("voice_state_update", { channelId: roomId, users: allUsersInRoomIds });
+  });
+
+  socket.on("sending_signal", (payload) => {
+    io.to(payload.userToSignal).emit("user_joined", { signal: payload.signal, callerID: payload.callerID, userData: payload.userData });
+  });
+
+  socket.on("returning_signal", (payload) => {
     io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id });
   });
 
-  // --- CALLING SYSTEM (With Debugging) ---
-  socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
-    console.log("-----------------------------------------------");
-    console.log(`[CALL STARTED] By ${fromUser.username} (ID: ${fromUser.id}) -> To ID: ${userToCall}`);
-    
-    // Debug: Print who is currently online in memory
-    console.log("Current Online Users (Socket Mapping):");
-    Object.keys(socketMapping).forEach(sockId => {
-        console.log(` - Socket: ${sockId} is User ID: ${socketMapping[sockId].userId}`);
-    });
-
-    // 1. Find all sockets that belong to the recipient
-    const recipientSockets = Object.keys(socketMapping).filter(key => 
-      String(socketMapping[key].userId) === String(userToCall)
-    );
-
-    console.log(`Found ${recipientSockets.length} sockets for User ${userToCall}`);
-
-    if (recipientSockets.length > 0) {
-      console.log(`[RINGING] Sending 'incoming_call' event to ${recipientSockets.length} sockets.`);
-      
-      recipientSockets.forEach(socketId => {
-          io.to(socketId).emit("incoming_call", { from: fromUser, roomId });
-      });
-    } else {
-      console.log(`[FAILURE] User ID ${userToCall} is NOT in the socket mapping.`);
-    }
-    console.log("-----------------------------------------------");
-  });
-
-  // --- FIXED ANSWER CALL LOGIC ---
-  socket.on("answer_call", ({ to, roomId }) => {
-    console.log("-----------------------------------------------");
-    console.log(`[CALL ANSWERED] In Room: ${roomId}`);
-    console.log(` - Recipient (Answering): ${socket.id}`);
-    
-    if (!to || !to.id) {
-        console.error("❌ ERROR: 'to' user object is invalid or missing ID.");
-        return;
-    }
-
-    const targetId = String(to.id);
-
-    // Find the caller in our active socket list
-    const callerSockets = Object.keys(socketMapping).filter(key => 
-        String(socketMapping[key].userId) === targetId
-    );
-
-    console.log(` - Found ${callerSockets.length} socket(s) for Original Caller (ID: ${targetId})`);
-
-    if (callerSockets.length > 0) {
-        callerSockets.forEach(socketId => {
-            console.log(`   -> 🟢 Sending 'call_accepted' to ${socketId}`);
-            io.to(socketId).emit("call_accepted", { roomId });
-        });
-    } else {
-        console.warn(`⚠️ FAILURE: Original caller (ID ${targetId}) seems offline or disconnected.`);
-    }
-    console.log("-----------------------------------------------");
-  });
-
-  socket.on("reject_call", ({ to }) => {
-    const callerSockets = Object.keys(socketMapping).filter(key => 
-        String(socketMapping[key].userId) === String(to.id)
-    );
-    callerSockets.forEach(socketId => io.to(socketId).emit("call_rejected"));
-  });
-
-  // --- DISCONNECT HANDLING (FIXED) ---
-  const handleLeaveRoom = () => {
-    const info = socketMapping[socket.id];
-    
-    // Only proceed if we know who this socket is AND they are actually in a room
-    if (info && info.roomId) {
-      const { roomId, userId } = info;
-
-      if (voiceRooms[roomId]) {
-        // 1. Remove user from the memory list for that room
-        voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
-        
-        // 2. Tell everyone else in the room to remove this peer (Kill the Ghost)
-        io.to(roomId).emit("user_left", socket.id);
-
-        // 3. Update the visual "Who is in this channel" state
-        const stillInRoom = voiceRooms[roomId]?.some(u => String(u.userData.id) === String(userId));
-        if (!stillInRoom && roomStates[roomId]) {
-            roomStates[roomId].delete(userId);
-            io.emit("voice_state_update", { channelId: roomId, users: Array.from(roomStates[roomId]) });
-        }
-      }
-      
-      // ✅ CRITICAL FIX: Just clear the room ID, do NOT delete the user from the map!
-      if (socketMapping[socket.id]) {
-        socketMapping[socket.id].roomId = null;
-      }
-    }
-  };
-
-  // When user clicks "Leave Call" button
   socket.on("leave_voice", () => {
-      handleLeaveRoom();
-      console.log(`User ${socket.id} left voice (Still Online)`);
+    const info = socketToUser[socket.id];
+    if (info) {
+        const { roomId } = info;
+        if (voiceRooms[roomId]) {
+            voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
+            const allUsersInRoomIds = voiceRooms[roomId].map(u => u.userData.id);
+            io.emit("voice_state_update", { channelId: roomId, users: allUsersInRoomIds });
+        }
+    }
+    delete socketToUser[socket.id];
   });
 
-  // When user closes the tab
   socket.on("disconnect", () => {
-      handleLeaveRoom(); // Remove from rooms first
-      delete socketMapping[socket.id]; // THEN remove from online list
-      console.log("User Disconnected (Offline):", socket.id);
+    const info = socketToUser[socket.id];
+    if (info) {
+        const { roomId } = info;
+        if (voiceRooms[roomId]) {
+            voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
+            const allUsersInRoomIds = voiceRooms[roomId].map(u => u.userData.id);
+            io.emit("voice_state_update", { channelId: roomId, users: allUsersInRoomIds });
+        }
+    }
+    delete socketToUser[socket.id];
   });
 });
 
-// Use the port Render assigns, or 3001 locally
-const PORT = process.env.PORT || 3001; 
-server.listen(PORT, () => console.log(`Server running on ${PORT}`));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`SERVER RUNNING ON PORT ${PORT}`);
+});
