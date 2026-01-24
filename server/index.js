@@ -137,15 +137,10 @@ app.post("/decline-request", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-// ✅ NEW: REMOVE FRIEND ROUTE
+// Remove Friend
 app.post("/remove-friend", safeRoute(async (req, res) => {
   const { myId, friendId } = req.body;
-  // Delete the friendship in both directions using explicit OR logic
-  const { error } = await supabase
-    .from("friends")
-    .delete()
-    .or(`and(user_id.eq.${myId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${myId})`);
-
+  const { error } = await supabase.from("friends").delete().or(`and(user_id.eq.${myId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${myId})`);
   if (error) return res.json({ success: false, message: error.message });
   res.json({ success: true });
 }));
@@ -246,6 +241,11 @@ io.on("connection", (socket) => {
     const msg = { ...data, id: Date.now(), created_at: new Date().toISOString() };
     if (room) io.to(room).emit("receive_message", msg);
     try { await supabase.from("messages").insert([{ content, sender_id: senderId, sender_name: senderName, file_url: fileUrl, avatar_url, channel_id: channelId || null, recipient_id: recipientId || null }]); } catch (err) {}
+  });
+
+  // ✅ NEW: START CALL EVENT (Notifies specific user)
+  socket.on("start_call", ({ senderId, recipientId, roomId, senderName, avatarUrl }) => {
+    io.to(recipientId.toString()).emit("incoming_call", { senderId, senderName, avatarUrl, roomId });
   });
 
   socket.on("join_voice", ({ roomId, userData }) => {
