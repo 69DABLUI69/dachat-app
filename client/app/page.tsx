@@ -129,6 +129,16 @@ export default function DaChat() {
     setTagline(lines[Math.floor(Math.random() * lines.length)]);
   }, []);
 
+  // --- HELPER FOR YOUTUBE RINGTONES ---
+  const getProcessedRingtone = (url: string) => {
+    if (!url) return "";
+    if (url.includes("youtube.com") || url.includes("youtu.be")) {
+        // Route through our new backend converter
+        return `${BACKEND_URL}/stream-audio?url=${encodeURIComponent(url)}`;
+    }
+    return url; // Return as-is if it's a normal MP3 file
+  };
+
   // --- AUTH & DATA FETCHING ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
@@ -196,15 +206,26 @@ export default function DaChat() {
     socket.emit("start_call", { userToCall: active.friend.id, fromUser: user, roomId });
   };
 
-  const acceptCall = () => {
+const acceptCall = () => {
     if (!incomingCall) return;
+
+    // 1. 🔄 Switch view to the person calling so you see the video
+    setView("dms");
+    selectFriend(incomingCall.from);
+
+    // 2. Stop Ringtone
     if (ringtoneAudioRef.current) {
         ringtoneAudioRef.current.pause();
         ringtoneAudioRef.current.currentTime = 0;
     }
+
+    // 3. Connect Logic
+    const callRoomId = incomingCall.roomId;
+    const caller = incomingCall.from;
+
     setIncomingCall(null);
-    socket.emit("answer_call", { to: incomingCall.from, roomId: incomingCall.roomId });
-    joinVoiceRoom(incomingCall.roomId); // Join immediately
+    socket.emit("answer_call", { to: caller, roomId: callRoomId });
+    joinVoiceRoom(callRoomId); 
   };
 
   const declineCall = () => {
@@ -257,8 +278,6 @@ export default function DaChat() {
         socket.off("receive_message"); 
     }; 
   }, [user]);
-
-  // ... inside page.tsx ...
 
   const joinVoiceRoom = (roomId: string) => {
     if (!user) return;
@@ -467,7 +486,7 @@ export default function DaChat() {
 
   return (
     <div className="flex h-screen bg-[#0f0f13] bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-purple-900/40 via-[#0f0f13] to-[#050505] text-white font-sans overflow-hidden p-2 gap-2 relative">
-      <audio ref={ringtoneAudioRef} src={ringtoneUrl} loop={true} className="hidden" />
+      <audio ref={ringtoneAudioRef} src={getProcessedRingtone(ringtoneUrl)} loop={true} className="hidden" />
 
       {/* 📞 INCOMING CALL */}
       {incomingCall && (
@@ -566,6 +585,7 @@ export default function DaChat() {
               <UserAvatar src={user.avatar_url} className="w-10 h-10 rounded-full object-cover bg-black/40" />
               <div className="text-sm overflow-hidden"> <div className="font-bold text-white truncate text-[13px]">{user.username}</div> <div className="text-[10px] text-white/40 font-medium">#{user.discriminator}</div> </div>
             </div>
+            <div className="text-white/30 group-hover:text-white/70 transition-colors"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 11-3 0m3 0a1.5 1.5 0 10-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 01-3 0m3 0a1.5 1.5 0 00-3 0m-9.75 0h9.75" /></svg> </div>
           </div>
         </div>
       </div>
@@ -579,10 +599,19 @@ export default function DaChat() {
                 <span className="text-white/20 text-2xl font-light">{active.channel ? (active.channel.type==='voice'? <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" /></svg> : '#') : "@"}</span>
                 <span className="font-bold text-white text-lg tracking-wide drop-shadow-md">{active.channel ? active.channel.name : active.friend.username}</span>
               </div>
-              {!active.channel && active.friend && !inCall && (
+              {!active.channel && active.friend && (
                 <div onClick={startDMCall} className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white p-3.5 rounded-full cursor-pointer transition-all shadow-lg shadow-green-900/40 backdrop-blur-md"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 4.5v2.25z" /></svg> </div>
               )}
             </div>
+
+            {maximizedContent && (
+                <div className="absolute inset-0 bg-[#000000]/80 z-50 flex items-center justify-center animate-scale-up backdrop-blur-3xl">
+                    <button onClick={() => setMaximizedContent(null)} className="absolute top-8 right-8 bg-white/10 hover:bg-white/20 text-white p-4 rounded-full z-50 border border-white/10 transition-all"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg> </button>
+                    <div className="w-full h-full p-12 flex items-center justify-center">
+                        <video ref={node => { if(node) { node.srcObject = maximizedContent.stream; node.muted = (maximizedContent.type === 'local'); node.play().catch(() => {}); } }} autoPlay playsInline className="w-full h-full object-contain rounded-[40px] shadow-2xl border border-white/10 bg-black/50" />
+                    </div>
+                </div>
+            )}
 
             {inCall ? (
               <div className="flex-1 flex flex-col items-center justify-center relative p-8">
@@ -590,16 +619,34 @@ export default function DaChat() {
                   {/* MY VIDEO */}
                   <div className="bg-black/30 rounded-[40px] flex flex-col items-center justify-center relative overflow-hidden border border-white/5 shadow-2xl group backdrop-blur-md ring-1 ring-white/5"> 
                     <div className="w-full h-full absolute inset-0 flex items-center justify-center">
-                        <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain bg-black" />
+                        {isScreenSharing ? (
+                            <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain bg-black" />
+                        ) : (
+                            <div className="flex flex-col items-center">
+                                <UserAvatar src={user.avatar_url} className="w-28 h-28 rounded-[40px] object-cover border-4 border-white/5 mb-6 shadow-2xl" />
+                                <span className="text-white font-bold text-xl tracking-tight">{user.username} (You)</span> 
+                                <div className="flex items-center gap-2 mt-3 px-4 py-1.5 bg-green-500/20 rounded-full border border-green-500/20 backdrop-blur-md">
+                                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                                    <span className="text-green-400 text-[10px] font-bold tracking-widest uppercase">Live</span> 
+                                </div>
+                            </div>
+                        )}
                     </div>
+                    {isScreenSharing && (
+                        <>
+                            <div className="absolute top-6 right-6 bg-red-500 hover:bg-red-400 text-white px-5 py-2.5 rounded-xl text-xs font-bold cursor-pointer shadow-lg z-10 transition-all tracking-wide border border-red-400/20 backdrop-blur-md" onClick={() => stopScreenShare()}>STOP SHARING</div>
+                            <div onClick={() => setMaximizedContent({ stream: myVideoRef.current!.srcObject as MediaStream, type: 'local' })} className="absolute top-6 left-6 bg-black/50 hover:bg-black/80 text-white p-3 rounded-xl opacity-0 group-hover:opacity-100 transition-all cursor-pointer border border-white/10 backdrop-blur-md z-10"> <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" /></svg> </div>
+                        </>
+                    )}
                   </div>
-                  {/* REMOTE VIDEOS */}
+                  
                   {peers.map((p, i) => ( 
                     <div key={i} className="bg-black/30 rounded-[40px] flex flex-col items-center justify-center border border-white/5 relative overflow-hidden group shadow-2xl backdrop-blur-md ring-1 ring-white/5"> 
                       <MediaPlayer peer={p.peer} userInfo={p.info} onMaximize={(stream: MediaStream) => setMaximizedContent({ stream, type: 'remote' })} />
                     </div> 
                   ))}
                 </div>
+                
                 <div className="absolute bottom-10 flex gap-4 p-4 bg-black/50 border border-white/10 rounded-[32px] shadow-[0_20px_50px_rgba(0,0,0,0.5)] backdrop-blur-xl z-50 ring-1 ring-white/10">
                     <button onClick={startScreenShare} className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isScreenSharing ? "bg-white/5 text-white/30 cursor-not-allowed" : "bg-white/10 hover:bg-white/20 text-white"}`} disabled={isScreenSharing}>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" /></svg>
@@ -616,14 +663,19 @@ export default function DaChat() {
                     <div key={i} className="flex gap-4 group animate-fade-in-up">
                       <UserAvatar src={msg.avatar_url} className="w-12 h-12 rounded-full object-cover shadow-lg cursor-pointer hover:opacity-80 transition-opacity border border-white/5" />
                       <div className="flex-1">
-                        <div className="flex items-baseline gap-3 mb-1"> <span className={`font-bold text-[15px] cursor-pointer hover:underline ${msg.sender_id === user.id ? "text-cyan-400" : "text-indigo-200"}`} onClick={() => viewUserProfile(msg.sender_id)}>{msg.sender_name}</span> </div>
-                        {msg.content && <p className="text-zinc-200 text-[15px] leading-relaxed font-normal bg-white/5 inline-block px-5 py-2.5 rounded-3xl rounded-tl-none border border-white/5 shadow-sm">{msg.content}</p>}
+                        <div className="flex items-baseline gap-3 mb-1"> <span className={`font-bold text-[15px] cursor-pointer hover:underline ${msg.sender_id === user.id ? "text-cyan-400" : "text-indigo-200"}`} onClick={() => viewUserProfile(msg.sender_id)}>{msg.sender_name}</span> <span className="text-[11px] text-white/30 font-medium">Today at 12:00 PM</span> </div>
+                        {msg.content && (
+                            msg.content.startsWith("http") && (msg.content.includes("tenor") || msg.content.includes("klipy")) ? 
+                            <img src={msg.content} className="rounded-2xl max-w-sm border border-white/10 shadow-xl" /> :
+                            <p className="text-zinc-200 text-[15px] leading-relaxed font-normal bg-white/5 inline-block px-5 py-2.5 rounded-3xl rounded-tl-none border border-white/5 shadow-sm">{msg.content}</p>
+                        )}
                         {msg.file_url && <img src={msg.file_url} alt="attachment" className="mt-3 max-w-[400px] max-h-[400px] rounded-2xl border border-white/10 shadow-xl" />}
                       </div>
                     </div>
                   ))}
                 </div>
                 <div className="p-6 relative"> 
+                  {showGifPicker && <GifPicker onSelect={(url: string) => { sendMessage(null, url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}
                   <div className="bg-white/5 border border-white/10 rounded-[28px] px-3 py-2 flex items-center gap-3 shadow-xl backdrop-blur-2xl relative z-20 ring-1 ring-white/5 hover:ring-white/10 transition-all"> 
                     <div className="w-11 h-11 rounded-[20px] bg-white/5 hover:bg-white/10 flex items-center justify-center cursor-pointer text-white/50 hover:text-white transition-all ml-1" onClick={() => fileInputRef.current?.click()}> 
                       <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" /></svg> 
@@ -632,14 +684,16 @@ export default function DaChat() {
                     <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} accept="image/*" /> 
                     <input className="bg-transparent flex-1 outline-none text-zinc-100 placeholder-white/30 font-medium px-2 text-[15px]" placeholder={`Message ${active.channel ? "#"+active.channel.name : "@"+active.friend.username}`} value={message} onChange={e => setMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && sendMessage(message)} disabled={isUploading} /> 
                   </div> 
-                  {showGifPicker && <GifPicker onSelect={(url: string) => { sendMessage(null, url); setShowGifPicker(false); }} onClose={() => setShowGifPicker(false)} />}
                 </div>
               </>
             )}
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-white/20 gap-6"> 
-             <p className="font-medium tracking-wide text-sm opacity-50 uppercase">No Server Selected</p> 
+            <div className="w-24 h-24 rounded-[36px] bg-white/5 border border-white/5 flex items-center justify-center shadow-inner backdrop-blur-sm"> 
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1} stroke="currentColor" className="w-12 h-12 opacity-50"><path strokeLinecap="round" strokeLinejoin="round" d="M20.25 8.511c.884.284 1.5 1.128 1.5 2.097v4.286c0 1.136-.847 2.1-1.98 2.193-.34.027-.68.052-1.02.072v3.091l-3-3c-1.354 0-2.694-.055-4.02-.163a2.115 2.115 0 01-.825-.242m9.345-8.334a2.126 2.126 0 00-.476-.095 48.64 48.64 0 00-8.048 0c-1.18.063-2.33.155-3.456.279M6 7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0124 7.5v11.25a2.25 2.25 0 01-2.25 2.25h-9.568a4.51 4.51 0 00-1.789.365L6 24V7.5z" /></svg> 
+            </div> 
+            <p className="font-medium tracking-wide text-sm opacity-50 uppercase">No Server Selected</p> 
           </div>
         )}
       </div>
@@ -662,7 +716,9 @@ export default function DaChat() {
                  <div className="flex-1 min-w-0"> 
                     <div className={`font-bold text-[13px] flex items-center gap-1.5 ${member.id === active.server.owner_id ? "text-yellow-400" : member.is_admin ? "text-emerald-400" : "text-indigo-200"}`}> 
                         <span className="truncate">{member.username}</span> 
+                        {member.id === active.server.owner_id && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3"><path fillRule="evenodd" d="M10.788 3.21c.448-1.077 1.976-1.077 2.424 0l2.082 5.007 5.404.433c1.164.093 1.636 1.545.749 2.305l-4.117 3.527 1.257 5.273c.271 1.136-.964 2.033-1.96 1.425L12 18.354 7.373 21.18c-.996.608-2.231-.29-1.96-1.425l1.257-5.273-4.117-3.527c-.887-.76-.415-2.212.749-2.305l5.404-.433 2.082-5.006z" clipRule="evenodd" /></svg>} 
                     </div> 
+                    <div className="text-[10px] text-white/30 font-medium">#{member.discriminator}</div> 
                  </div>
                </div>
              ))}
@@ -670,8 +726,7 @@ export default function DaChat() {
         </div>
       )}
 
-      {/* SETTINGS */}
-{/* ⚙️ SETTINGS MODAL (Glass) */}
+      {/* ⚙️ SETTINGS MODAL (Glass) */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl animate-fade-in">
           <div className="bg-[#0f0f13]/80 w-[440px] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden animate-scale-up ring-1 ring-white/10 backdrop-blur-2xl">
@@ -716,6 +771,17 @@ export default function DaChat() {
           </div>
         </div>
       )}
+
+      {/* 👤 USER PROFILE MODAL (Glass) */}
+      {viewingProfile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xl animate-fade-in" onClick={() => setViewingProfile(null)}>
+          <div className="bg-[#121212]/90 w-[380px] rounded-[40px] border border-white/10 shadow-2xl overflow-hidden animate-scale-up ring-1 ring-white/10 backdrop-blur-2xl" onClick={e => e.stopPropagation()}>
+            <div className="h-32 bg-gradient-to-tr from-cyan-600 to-blue-600 relative"> <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 p-2 bg-[#121212] rounded-full"> <UserAvatar src={viewingProfile.avatar_url} className="w-28 h-28 rounded-full object-cover border-4 border-[#121212]" /> </div> </div>
+            <div className="pt-16 pb-10 px-8 text-center"> <h2 className="text-2xl font-bold text-white tracking-tight">{viewingProfile.username}</h2> <p className="text-white/40 text-xs font-bold tracking-widest mt-1 uppercase">#{viewingProfile.discriminator}</p> <div className="mt-8 bg-white/5 p-6 rounded-3xl border border-white/5 backdrop-blur-sm"> <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">About</h3> <p className="text-zinc-300 text-sm leading-relaxed font-normal"> {viewingProfile.bio || "No bio yet."} </p> </div> </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
