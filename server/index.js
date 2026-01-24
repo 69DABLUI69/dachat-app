@@ -30,13 +30,13 @@ const io = new Server(server, {
   }
 });
 
-// 4. FILE UPLOAD CONFIG (Added 5MB limit)
+// 4. FILE UPLOAD CONFIG (5MB limit)
 const upload = multer({ 
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 } 
 });
 
-// --- HELPER: SAFE ROUTE WRAPPER (Prevents Server Crashes) ---
+// --- HELPER: SAFE ROUTE WRAPPER ---
 const safeRoute = (handler) => async (req, res, next) => {
   try {
     await handler(req, res, next);
@@ -68,17 +68,9 @@ app.post("/register", safeRoute(async (req, res) => {
 // Auth: Login
 app.post("/login", safeRoute(async (req, res) => {
   const { username, password } = req.body;
-  
-  const { data: user, error } = await supabase
-    .from("users")
-    .select("*")
-    .eq("username", username)
-    .eq("password", password)
-    .maybeSingle(); 
-
+  const { data: user, error } = await supabase.from("users").select("*").eq("username", username).eq("password", password).maybeSingle(); 
   if (error) return res.json({ success: false, message: "Database error" });
   if (!user) return res.json({ success: false, message: "Invalid credentials" });
-
   res.json({ success: true, user });
 }));
 
@@ -86,174 +78,128 @@ app.post("/login", safeRoute(async (req, res) => {
 app.get("/my-servers/:userId", safeRoute(async (req, res) => {
   const { userId } = req.params;
   const { data: members } = await supabase.from("members").select("server_id").eq("user_id", userId);
-  
   if (!members || members.length === 0) return res.json([]);
-  
   const serverIds = members.map(m => m.server_id);
   const { data: servers } = await supabase.from("servers").select("*").in("id", serverIds);
   res.json(servers || []);
 }));
 
-// 1. GET REAL FRIENDS
+// Get Friends
 app.get("/my-friends/:userId", safeRoute(async (req, res) => {
   const { userId } = req.params;
-  
-  // Get all rows where I am the 'user_id'
   const { data: friendRows } = await supabase.from("friends").select("friend_id").eq("user_id", userId);
-  
   if (!friendRows || friendRows.length === 0) return res.json([]);
-
-  // Extract the IDs of my friends
   const friendIds = friendRows.map(row => row.friend_id);
-
-  // Fetch the actual user profiles for those IDs
   const { data: friends } = await supabase.from("users").select("*").in("id", friendIds);
-  
   res.json(friends || []);
 }));
 
-// A. SEND FRIEND REQUEST
+// Send Request
 app.post("/send-request", safeRoute(async (req, res) => {
   const { myId, usernameToAdd } = req.body;
-
-  // 1. Find target user
   const { data: target } = await supabase.from("users").select("*").eq("username", usernameToAdd).maybeSingle();
   if (!target) return res.json({ success: false, message: "User not found" });
   if (target.id === myId) return res.json({ success: false, message: "Cannot add yourself" });
 
-  // 2. Check if already friends
   const { data: isFriend } = await supabase.from("friends").select("*").eq("user_id", myId).eq("friend_id", target.id).maybeSingle();
   if (isFriend) return res.json({ success: false, message: "Already friends" });
 
-  // 3. Check if request already sent
   const { data: existing } = await supabase.from("friend_requests").select("*").eq("sender_id", myId).eq("receiver_id", target.id).maybeSingle();
   if (existing) return res.json({ success: false, message: "Request already sent" });
 
-  // 4. Create Request
   await supabase.from("friend_requests").insert([{ sender_id: myId, receiver_id: target.id }]);
-  
-  // Notify the receiver immediately
   io.emit("new_friend_request", { toUserId: target.id });
-
   res.json({ success: true, message: "Request sent!" });
 }));
 
-// B. GET MY REQUESTS (Incoming)
+// Get Requests
 app.get("/my-requests/:userId", safeRoute(async (req, res) => {
   const { userId } = req.params;
-  
-  // Get requests where I am the receiver
   const { data: requests } = await supabase.from("friend_requests").select("id, sender_id").eq("receiver_id", userId);
-  
   if (!requests || requests.length === 0) return res.json([]);
-
-  // Fetch profiles of people who sent the requests
   const senderIds = requests.map(r => r.sender_id);
   const { data: senders } = await supabase.from("users").select("*").in("id", senderIds);
-
   res.json(senders || []);
 }));
 
-// C. ACCEPT REQUEST
+// Accept Request
 app.post("/accept-request", safeRoute(async (req, res) => {
   const { myId, senderId } = req.body;
-
-  // 1. Create Friendship (Bi-directional)
-  await supabase.from("friends").insert([
-    { user_id: myId, friend_id: senderId },
-    { user_id: senderId, friend_id: myId }
-  ]);
-
-  // 2. Delete the Request
+  await supabase.from("friends").insert([ { user_id: myId, friend_id: senderId }, { user_id: senderId, friend_id: myId } ]);
   await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
-
   res.json({ success: true });
 }));
 
-// D. DECLINE REQUEST
+// Decline Request
 app.post("/decline-request", safeRoute(async (req, res) => {
   const { myId, senderId } = req.body;
   await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
   res.json({ success: true });
 }));
 
-// Create Server
+// ✅ NEW: REMOVE FRIEND ROUTE
+app.post("/remove-friend", safeRoute(async (req, res) => {
+  const { myId, friendId } = req.body;
+  // Delete the friendship in both directions using explicit OR logic
+  const { error } = await supabase
+    .from("friends")
+    .delete()
+    .or(`and(user_id.eq.${myId},friend_id.eq.${friendId}),and(user_id.eq.${friendId},friend_id.eq.${myId})`);
+
+  if (error) return res.json({ success: false, message: error.message });
+  res.json({ success: true });
+}));
+
+// Server Routes
 app.post("/create-server", safeRoute(async (req, res) => {
   const { name, ownerId } = req.body;
-  const { data: server, error } = await supabase.from("servers").insert([{ name, owner_id: ownerId }]).select().single();
-  if (error) return res.json({ success: false, message: error.message });
-
+  const { data: server } = await supabase.from("servers").insert([{ name, owner_id: ownerId }]).select().single();
   await supabase.from("members").insert([{ user_id: ownerId, server_id: server.id, is_admin: true }]);
-  await supabase.from("channels").insert([
-    { server_id: server.id, name: "general", type: "text" },
-    { server_id: server.id, name: "voice-chat", type: "voice" }
-  ]);
-  
+  await supabase.from("channels").insert([ { server_id: server.id, name: "general", type: "text" }, { server_id: server.id, name: "voice-chat", type: "voice" } ]);
   res.json({ success: true, server });
 }));
 
-// Create Channel
 app.post("/create-channel", safeRoute(async (req, res) => {
   const { serverId, name, type } = req.body;
   const { data } = await supabase.from("channels").insert([{ server_id: serverId, name, type }]).select().single();
   res.json({ success: true, channel: data });
 }));
 
-// Get Server Channels
 app.get("/servers/:id/channels", safeRoute(async (req, res) => {
   const { data } = await supabase.from("channels").select("*").eq("server_id", req.params.id);
   res.json(data || []);
 }));
 
-// Get Server Members
 app.get("/servers/:id/members", safeRoute(async (req, res) => {
   const { data: members } = await supabase.from("members").select("is_admin, users(*)").eq("server_id", req.params.id);
-  const formatted = members.map(m => ({ ...m.users, is_admin: m.is_admin }));
-  res.json(formatted || []);
+  res.json(members.map(m => ({ ...m.users, is_admin: m.is_admin })) || []);
 }));
 
-// Get User Profile
+// User Profile
 app.get("/users/:id", safeRoute(async (req, res) => {
   const { data } = await supabase.from("users").select("*").eq("id", req.params.id).single();
   res.json({ success: true, user: data });
 }));
 
-// Update Profile
 app.post("/update-profile", safeRoute(async (req, res) => {
   const { userId, username, avatarUrl, bio } = req.body;
-  
-  const { data, error } = await supabase
-    .from("users")
-    .update({ username, avatar_url: avatarUrl, bio })
-    .eq("id", userId)
-    .select()
-    .single();
-
-  if(error) {
-    console.error("Update Profile Error:", error.message);
-    return res.json({ success: false, message: error.message });
-  }
-
+  const { data, error } = await supabase.from("users").update({ username, avatar_url: avatarUrl, bio }).eq("id", userId).select().single();
+  if(error) return res.json({ success: false, message: error.message });
   io.emit("user_updated", { userId });
   res.json({ success: true, user: data });
 }));
 
-// Invite User
 app.post("/servers/invite", safeRoute(async (req, res) => {
   const { serverId, userString } = req.body; 
-  // Allow searching by exact username for now
   const { data: user } = await supabase.from("users").select("*").eq("username", userString).maybeSingle();
-  if (!user) return res.json({ success: false, message: "User not found (Must be exact match)" });
-
+  if (!user) return res.json({ success: false, message: "User not found" });
   const { data: exists } = await supabase.from("members").select("*").eq("server_id", serverId).eq("user_id", user.id).maybeSingle();
   if (exists) return res.json({ success: false, message: "Already a member" });
-
   await supabase.from("members").insert([{ server_id: serverId, user_id: user.id }]);
   io.emit("new_server_invite", { userId: user.id, serverId });
   res.json({ success: true });
 }));
 
-// Leave Server
 app.post("/servers/leave", safeRoute(async (req, res) => {
   const { serverId, userId } = req.body;
   await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", userId);
@@ -261,119 +207,60 @@ app.post("/servers/leave", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-// File Upload
 app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false });
-  // Sanitize filename
-  const sanitizedName = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_");
-  const fileName = `${Date.now()}_${sanitizedName}`;
-  
-  const { error } = await supabase.storage.from("uploads").upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
-  if (error) {
-    console.error("Supabase Storage Error:", error);
-    return res.json({ success: false, message: "Upload failed" });
-  }
-  
-  const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(fileName);
-  res.json({ success: true, fileUrl: publicData.publicUrl });
+  const fileName = `${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+  await supabase.storage.from("uploads").upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
+  const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
+  res.json({ success: true, fileUrl: data.publicUrl });
 }));
 
-
-// --- SOCKET.IO (REAL-TIME) ---
+// --- SOCKET.IO ---
 let voiceRooms = {}; 
 let socketToUser = {}; 
 
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
+  socket.on("setup", (userId) => { if(userId) socket.join(userId.toString()); });
 
-  socket.on("setup", (userId) => {
-    // Ensure userId is a string for room consistency
-    if(userId) socket.join(userId.toString());
-  });
-
-  // 1. JOIN ROOM & LOAD MESSAGES
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
-
     try {
       if (roomId.toString().startsWith("dm-")) {
           const parts = roomId.split("-");
           if(parts.length >= 3) {
-              const u1 = parts[1];
-              const u2 = parts[2];
-              
-              const { data } = await supabase
-                  .from("messages")
-                  .select("*")
-                  // Use raw filter string for complicated OR logic
-                  .or(`and(sender_id.eq.${u1},recipient_id.eq.${u2}),and(sender_id.eq.${u2},recipient_id.eq.${u1})`)
-                  .order("created_at", { ascending: true });
+              const u1 = parts[1]; const u2 = parts[2];
+              const { data } = await supabase.from("messages").select("*").or(`and(sender_id.eq.${u1},recipient_id.eq.${u2}),and(sender_id.eq.${u2},recipient_id.eq.${u1})`).order("created_at", { ascending: true });
               socket.emit("load_messages", data || []);
           }
       } else {
-          const { data } = await supabase
-              .from("messages")
-              .select("*")
-              .eq("channel_id", roomId)
-              .order("created_at", { ascending: true });
+          const { data } = await supabase.from("messages").select("*").eq("channel_id", roomId).order("created_at", { ascending: true });
           socket.emit("load_messages", data || []);
       }
-    } catch (err) {
-      console.error("Message Fetch Error:", err);
-    }
+    } catch (err) { console.error("Msg Error:", err); }
   });
 
-  // 2. SEND MESSAGE & SAVE
   socket.on("send_message", async (data) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url } = data;
-    
-    // Determine Room
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
-    
-    // Broadcast immediately (Optimistic UI)
-    const messagePayload = { ...data, id: Date.now(), created_at: new Date().toISOString() };
-    if (room) io.to(room).emit("receive_message", messagePayload);
-
-    // Save DB
-    try {
-        await supabase.from("messages").insert([{
-            content,
-            sender_id: senderId,
-            sender_name: senderName,
-            file_url: fileUrl,
-            avatar_url: avatar_url, // Save avatar snapshot
-            channel_id: channelId || null,
-            recipient_id: recipientId || null
-        }]);
-    } catch (err) { console.error("DB Save Error:", err); }
+    const msg = { ...data, id: Date.now(), created_at: new Date().toISOString() };
+    if (room) io.to(room).emit("receive_message", msg);
+    try { await supabase.from("messages").insert([{ content, sender_id: senderId, sender_name: senderName, file_url: fileUrl, avatar_url, channel_id: channelId || null, recipient_id: recipientId || null }]); } catch (err) {}
   });
 
-  // --- VOICE LOGIC ---
   socket.on("join_voice", ({ roomId, userData }) => {
     const rId = roomId.toString();
     if (!voiceRooms[rId]) voiceRooms[rId] = [];
-    
-    // Prevent duplicate entries
     voiceRooms[rId] = voiceRooms[rId].filter(u => u.socketId !== socket.id);
     voiceRooms[rId].push({ socketId: socket.id, userData });
-    
     socketToUser[socket.id] = { roomId: rId, userData };
     socket.join(rId);
-
-    const usersInRoom = voiceRooms[rId].filter(u => u.socketId !== socket.id);
-    socket.emit("all_users", usersInRoom);
-
-    const allUsersInRoomIds = voiceRooms[rId].map(u => u.userData.id);
-    io.emit("voice_state_update", { channelId: rId, users: allUsersInRoomIds });
+    socket.emit("all_users", voiceRooms[rId].filter(u => u.socketId !== socket.id));
+    io.emit("voice_state_update", { channelId: rId, users: voiceRooms[rId].map(u => u.userData.id) });
   });
 
-  socket.on("sending_signal", (payload) => {
-    io.to(payload.userToSignal).emit("user_joined", { signal: payload.signal, callerID: payload.callerID, userData: payload.userData });
-  });
-
-  socket.on("returning_signal", (payload) => {
-    io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id });
-  });
+  socket.on("sending_signal", (p) => io.to(p.userToSignal).emit("user_joined", { signal: p.signal, callerID: p.callerID, userData: p.userData }));
+  socket.on("returning_signal", (p) => io.to(p.callerID).emit("receiving_returned_signal", { signal: p.signal, id: socket.id }));
 
   const handleLeave = () => {
     const info = socketToUser[socket.id];
@@ -381,20 +268,14 @@ io.on("connection", (socket) => {
         const { roomId } = info;
         if (voiceRooms[roomId]) {
             voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
-            const allUsersInRoomIds = voiceRooms[roomId].map(u => u.userData.id);
-            io.emit("voice_state_update", { channelId: roomId, users: allUsersInRoomIds });
-            
-            // Clean up empty rooms to save memory
+            io.emit("voice_state_update", { channelId: roomId, users: voiceRooms[roomId].map(u => u.userData.id) });
             if(voiceRooms[roomId].length === 0) delete voiceRooms[roomId];
         }
     }
     delete socketToUser[socket.id];
   };
-
   socket.on("leave_voice", handleLeave);
   socket.on("disconnect", handleLeave);
 });
 
-server.listen(PORT, () => {
-  console.log(`✅ SERVER RUNNING ON PORT ${PORT}`);
-});
+server.listen(PORT, () => { console.log(`✅ SERVER RUNNING ON PORT ${PORT}`); });

@@ -61,12 +61,10 @@ export default function DaChat() {
   const [servers, setServers] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
-  // ✅ NEW: Requests State
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
 
   const [view, setView] = useState("dms");
-  // ✅ UPDATED: Added 'pendingRequest' to active state
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
   
   const [message, setMessage] = useState("");
@@ -104,7 +102,7 @@ export default function DaChat() {
         setUser(data.user);
         fetchServers(data.user.id);
         fetchFriends(data.user.id);
-        fetchRequests(data.user.id); // ✅ Fetch requests on login
+        fetchRequests(data.user.id);
         socket.emit("setup", data.user.id);
       } else setError(data.message || "Auth failed");
     } catch { setError("Connection failed"); }
@@ -112,7 +110,6 @@ export default function DaChat() {
 
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
-  // ✅ NEW: Fetch Requests
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
 
   const selectServer = async (server: any) => {
@@ -139,26 +136,56 @@ export default function DaChat() {
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-  // ✅ NEW: Select Pending Request
   const selectRequest = (requestUser: any) => {
      setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null }));
   };
 
-  // ✅ NEW: Handle Accept
+  const sendFriendRequest = async () => { 
+      const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; 
+      try { const res = await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); const data = await res.json(); alert(data.message); } catch { alert("Error"); }
+  };
+
   const handleAcceptRequest = async () => {
       if(!active.pendingRequest) return;
       await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
       fetchFriends(user.id);
       fetchRequests(user.id);
-      selectFriend(active.pendingRequest); // Go straight to chat
+      selectFriend(active.pendingRequest);
   };
 
-  // ✅ NEW: Handle Decline
   const handleDeclineRequest = async () => {
       if(!active.pendingRequest) return;
       await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
       fetchRequests(user.id);
       setActive({...active, pendingRequest: null});
+  };
+
+  // ✅ NEW: HANDLE REMOVE FRIEND
+  const handleRemoveFriend = async () => {
+      if (!viewingProfile) return;
+      if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return;
+
+      try {
+          const res = await fetch(`${BACKEND_URL}/remove-friend`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id })
+          });
+          const data = await res.json();
+          if (data.success) {
+              alert("Friend removed.");
+              setViewingProfile(null); // Close modal
+              fetchFriends(user.id); // Refresh list
+              if(active.friend?.id === viewingProfile.id) {
+                  // If chatting with them, go back to home
+                  setActive({ ...active, friend: null });
+              }
+          } else {
+              alert(data.message || "Failed to remove friend.");
+          }
+      } catch (e) {
+          alert("Server error.");
+      }
   };
 
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
@@ -193,12 +220,6 @@ export default function DaChat() {
 
   const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); }};
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); }};
-  
-  // ✅ UPDATED: Send Request instead of instant add
-  const sendFriendRequest = async () => { 
-      const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; 
-      try { const res = await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); const data = await res.json(); alert(data.message); } catch { alert("Error"); }
-  };
 
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return; socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
@@ -220,7 +241,6 @@ export default function DaChat() {
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       socket.on("user_updated", ({ userId }) => { if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); if (active.server) fetchServers(user.id); fetchFriends(user.id); });
-      // ✅ NEW: Listen for requests in real-time
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); }; 
   }, [user, viewingProfile, active.server]);
@@ -266,7 +286,7 @@ export default function DaChat() {
                     </>
                 ) : (
                     <>
-                        {/* ✅ NEW: REQUESTS SECTION */}
+                        {/* REQUESTS SECTION */}
                         <div className="flex justify-between items-center px-4 py-4 text-[11px] font-bold text-white/40 uppercase tracking-widest"> <span>Requests</span> <button onClick={sendFriendRequest} className="text-lg hover:text-white transition-colors">+</button> </div>
                         {requests.length === 0 && <div className="text-xs text-white/20 text-center py-2">No pending requests</div>}
                         {requests.map(req => (
@@ -287,7 +307,7 @@ export default function DaChat() {
       {/* 3. CHAT OR REQUEST VIEW */}
       <div className="flex-1 h-screen relative z-10 p-4 pl-0 min-w-0">
          <GlassPanel className="w-full h-full rounded-[40px] flex flex-col relative overflow-hidden ring-1 ring-white/5">
-            {/* ✅ NEW: PENDING REQUEST UI */}
+            {/* PENDING REQUEST UI */}
             {active.pendingRequest ? (
                 <div className="flex-1 flex flex-col items-center justify-center p-10">
                     <UserAvatar src={active.pendingRequest.avatar_url} className="w-32 h-32 rounded-full border-4 border-white/10 mb-6" />
@@ -300,9 +320,9 @@ export default function DaChat() {
                 </div>
             ) : (active.channel || active.friend) ? (
                 <>
-                     {/* EXISTING CHAT HEADER */}
+                     {/* CHAT HEADER */}
                     <div className="h-20 border-b border-white/5 flex items-center justify-between px-8 bg-white/[0.02]"> <div className="flex items-center gap-4"> <span className="text-2xl text-white/30 font-light">@</span> <span className="text-lg font-bold tracking-wide cursor-pointer hover:underline" onClick={() => active.friend ? viewUserProfile(active.friend.id) : null}>{active.channel ? active.channel.name : active.friend?.username}</span> </div> {!active.channel && active.friend && ( <button onClick={() => { socket.emit("send_message", { content: "📞 Starting call...", senderId: user.id, recipientId: active.friend.id }); joinVoiceRoom(`dm-${[user.id, active.friend.id].sort().join('-')}-call`); }} className="w-10 h-10 rounded-full bg-green-500/20 text-green-400 hover:bg-green-500 hover:text-white flex items-center justify-center transition-all"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg> </button> )} </div>
-                    {/* EXISTING CHAT CONTENT OR CALL */}
+                    {/* CHAT CONTENT */}
                     {inCall ? (
                         <div className="flex-1 flex flex-col items-center justify-center relative p-8 gap-6">
                             <div className="grid grid-cols-2 gap-6 w-full h-full max-w-5xl">
@@ -349,10 +369,19 @@ export default function DaChat() {
                     <UserAvatar src={viewingProfile.avatar_url} className="w-32 h-32 rounded-full border-4 border-white/10 shadow-2xl mb-4" />
                     <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
                     <span className="text-white/40 text-sm mb-6">#{viewingProfile.discriminator || "0000"}</span>
-                    <div className="w-full bg-white/5 p-4 rounded-2xl border border-white/10">
+                    <div className="w-full bg-white/5 p-4 rounded-2xl border border-white/10 mb-6">
                         <h3 className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-2">About</h3>
                         <p className="text-white/80 text-sm leading-relaxed">{viewingProfile.bio || "No bio yet."}</p>
                     </div>
+                    {/* ✅ NEW: REMOVE FRIEND BUTTON */}
+                    {friends.some((f: any) => f.id === viewingProfile.id) && (
+                        <button 
+                            onClick={handleRemoveFriend} 
+                            className="w-full py-3 bg-red-600/10 border border-red-600/30 text-red-400 rounded-xl font-bold hover:bg-red-600/20 transition-all text-sm"
+                        >
+                            Remove Friend
+                        </button>
+                    )}
               </GlassPanel>
           </div>
       )}
