@@ -12,7 +12,6 @@ const ytdl = require('ytdl-core');
 const app = express();
 
 // 🔥 CRITICAL CORS SETUP 🔥
-// We explicitly allow your Vercel frontend and Localhost (for testing)
 const allowedOrigins = [
   "https://dachat-app.vercel.app", 
   "http://localhost:3000"
@@ -22,10 +21,12 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
+    
+    // Check if origin is in the allowed list
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
-      console.log("Blocked by CORS:", origin); // Debugging log
+      console.log("Blocked by CORS:", origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
@@ -367,4 +368,5 @@ io.on("connection", (socket) => {
   });
 });
 
-server.listen(3001, () => console.log("Server running on 3001"));
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => console.log(`Server running on ${PORT}`));
