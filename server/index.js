@@ -224,22 +224,38 @@ io.on("connection", (socket) => {
     io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id });
   });
 
-  // --- CALLING SYSTEM ---
+// --- CALLING SYSTEM (With Debugging) ---
   socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
-    console.log(`[CALL] ${fromUser.username} calling ${userToCall} in room ${roomId}`);
+    console.log("-----------------------------------------------");
+    console.log(`[CALL STARTED] By ${fromUser.username} (ID: ${fromUser.id}) -> To ID: ${userToCall}`);
     
-    // Find all sockets for the recipient (String conversion is critical)
+    // Debug: Print who is currently online in memory
+    console.log("Current Online Users (Socket Mapping):");
+    Object.keys(socketMapping).forEach(sockId => {
+        console.log(` - Socket: ${sockId} is User ID: ${socketMapping[sockId].userId}`);
+    });
+
+    // 1. Find all sockets that belong to the recipient
     const recipientSockets = Object.keys(socketMapping).filter(key => 
       String(socketMapping[key].userId) === String(userToCall)
     );
 
+    console.log(`Found ${recipientSockets.length} sockets for User ${userToCall}`);
+
     if (recipientSockets.length > 0) {
+      console.log(`[RINGING] Sending 'incoming_call' event to ${recipientSockets.length} sockets.`);
+      
       recipientSockets.forEach(socketId => {
           io.to(socketId).emit("incoming_call", { from: fromUser, roomId });
       });
     } else {
-        console.log("Recipient not found in socket mapping.");
+      console.log(`[FAILURE] User ID ${userToCall} is NOT in the socket mapping.`);
+      console.log("Possible causes:");
+      console.log("1. The user is not logged in.");
+      console.log("2. The user refreshed and didn't reconnect automatically.");
+      console.log("3. The user ID in the database doesn't match the one you are calling.");
     }
+    console.log("-----------------------------------------------");
   });
 
   socket.on("answer_call", ({ to, roomId }) => {

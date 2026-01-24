@@ -238,7 +238,7 @@ const acceptCall = () => {
     setIncomingCall(null);
   };
 
-  // --- WEBRTC & SOCKET SETUP ---
+// --- WEBRTC & SOCKET SETUP ---
   useEffect(() => {
     if (!user) return;
 
@@ -249,14 +249,19 @@ const acceptCall = () => {
     if (socket.connected) performHandshake();
     socket.on("connect", performHandshake);
 
+    // 👇 PASTE YOUR NEW CODE HERE (Replace the old incoming_call block) 👇
     socket.on("incoming_call", (data) => {
+        console.log("📞 INCOMING CALL RECEIVED:", data); // Check browser console for this!
         setIncomingCall(data);
+        
+        // Play sound if possible
         if (ringtoneAudioRef.current) {
             ringtoneAudioRef.current.loop = true;
             ringtoneAudioRef.current.currentTime = 0;
-            ringtoneAudioRef.current.play().catch(e => console.warn("Audio blocked", e));
+            ringtoneAudioRef.current.play().catch(e => console.warn("Audio blocked (Interact with page first)", e));
         }
     });
+    // 👆 END OF NEW CODE 👆
 
     socket.on("call_accepted", ({ roomId }) => {
         setIsCalling(false);
@@ -272,7 +277,7 @@ const acceptCall = () => {
     
     return () => { 
         socket.off("connect");
-        socket.off("incoming_call");
+        socket.off("incoming_call"); // Make sure this is still here in cleanup!
         socket.off("call_accepted");
         socket.off("call_rejected");
         socket.off("receive_message"); 
