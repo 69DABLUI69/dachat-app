@@ -11,7 +11,7 @@ if (typeof window !== 'undefined') {
 }
 
 // 🔑 CONFIG
-const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
+const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 // 🌐 DYNAMIC BACKEND URL
