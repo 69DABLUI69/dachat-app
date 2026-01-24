@@ -112,29 +112,69 @@ app.get("/my-friends/:userId", safeRoute(async (req, res) => {
   res.json(friends || []);
 }));
 
-// 2. ADD FRIEND ROUTE
-app.post("/add-friend", safeRoute(async (req, res) => {
+// A. SEND FRIEND REQUEST
+app.post("/send-request", safeRoute(async (req, res) => {
   const { myId, usernameToAdd } = req.body;
 
-  // A. Find the user you want to add
-  const { data: friendUser } = await supabase.from("users").select("*").eq("username", usernameToAdd).maybeSingle();
+  // 1. Find target user
+  const { data: target } = await supabase.from("users").select("*").eq("username", usernameToAdd).maybeSingle();
+  if (!target) return res.json({ success: false, message: "User not found" });
+  if (target.id === myId) return res.json({ success: false, message: "Cannot add yourself" });
+
+  // 2. Check if already friends
+  const { data: isFriend } = await supabase.from("friends").select("*").eq("user_id", myId).eq("friend_id", target.id).maybeSingle();
+  if (isFriend) return res.json({ success: false, message: "Already friends" });
+
+  // 3. Check if request already sent
+  const { data: existing } = await supabase.from("friend_requests").select("*").eq("sender_id", myId).eq("receiver_id", target.id).maybeSingle();
+  if (existing) return res.json({ success: false, message: "Request already sent" });
+
+  // 4. Create Request
+  await supabase.from("friend_requests").insert([{ sender_id: myId, receiver_id: target.id }]);
   
-  if (!friendUser) return res.json({ success: false, message: "User not found" });
-  if (friendUser.id === myId) return res.json({ success: false, message: "You cannot add yourself" });
+  // Notify the receiver immediately
+  io.emit("new_friend_request", { toUserId: target.id });
 
-  // B. Check if already friends
-  const { data: existing } = await supabase.from("friends").select("*").eq("user_id", myId).eq("friend_id", friendUser.id).maybeSingle();
-  if (existing) return res.json({ success: false, message: "Already friends" });
+  res.json({ success: true, message: "Request sent!" });
+}));
 
-  // C. Add friendship (Bi-directional: A->B and B->A)
-  const { error } = await supabase.from("friends").insert([
-    { user_id: myId, friend_id: friendUser.id },
-    { user_id: friendUser.id, friend_id: myId }
+// B. GET MY REQUESTS (Incoming)
+app.get("/my-requests/:userId", safeRoute(async (req, res) => {
+  const { userId } = req.params;
+  
+  // Get requests where I am the receiver
+  const { data: requests } = await supabase.from("friend_requests").select("id, sender_id").eq("receiver_id", userId);
+  
+  if (!requests || requests.length === 0) return res.json([]);
+
+  // Fetch profiles of people who sent the requests
+  const senderIds = requests.map(r => r.sender_id);
+  const { data: senders } = await supabase.from("users").select("*").in("id", senderIds);
+
+  res.json(senders || []);
+}));
+
+// C. ACCEPT REQUEST
+app.post("/accept-request", safeRoute(async (req, res) => {
+  const { myId, senderId } = req.body;
+
+  // 1. Create Friendship (Bi-directional)
+  await supabase.from("friends").insert([
+    { user_id: myId, friend_id: senderId },
+    { user_id: senderId, friend_id: myId }
   ]);
 
-  if (error) return res.json({ success: false, message: error.message });
+  // 2. Delete the Request
+  await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
 
-  res.json({ success: true, newFriend: friendUser });
+  res.json({ success: true });
+}));
+
+// D. DECLINE REQUEST
+app.post("/decline-request", safeRoute(async (req, res) => {
+  const { myId, senderId } = req.body;
+  await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
+  res.json({ success: true });
 }));
 
 // Create Server
