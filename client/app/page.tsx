@@ -15,6 +15,14 @@ const BACKEND_URL = "https://dachat-app.onrender.com";
 const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
+// ✅ CONFIG: Free Google STUN Servers (Fixes connection/audio issues)
+const PEER_CONFIG = {
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+        { urls: "stun:global.stun.twilio.com:3478" }
+    ]
+};
+
 // 🔌 SOCKET SINGLETON
 const socket: Socket = io(BACKEND_URL, { 
     autoConnect: false,
@@ -110,7 +118,6 @@ export default function DaChat() {
   
   // Voice & Video State
   const [inCall, setInCall] = useState(false);
-  // ✅ NEW: Incoming Call State
   const [incomingCall, setIncomingCall] = useState<any>(null);
   
   const [isScreenSharing, setIsScreenSharing] = useState(false);
@@ -129,12 +136,60 @@ export default function DaChat() {
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
 
-  // --- CONNECT ---
+  // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
+      
+      const handleConnect = () => {
+          console.log("Connected to server");
+          if (user) {
+              console.log("Re-registering user:", user.id);
+              socket.emit("setup", user.id);
+          }
+      };
+
+      socket.on("connect", handleConnect);
       socket.on("connect_error", (err) => console.error("Connection Error:", err));
-      return () => { socket.disconnect(); }; 
-  }, []);
+      
+      if (socket.connected && user) {
+          socket.emit("setup", user.id);
+      }
+
+      return () => { 
+          socket.off("connect", handleConnect);
+          socket.disconnect(); 
+      }; 
+  }, [user]); 
+
+  // --- 2. EVENT LISTENERS ---
+  useEffect(() => { 
+      socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
+      socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
+      socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
+      
+      socket.on("user_updated", ({ userId }) => { 
+          if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
+          if (active.server) fetchServers(user.id);
+          fetchFriends(user.id);
+      });
+      
+      socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
+      
+      // Incoming Call Listener
+      socket.on("incoming_call", (data) => {
+          console.log("Incoming call received", data);
+          setIncomingCall(data);
+      });
+      
+      return () => { 
+          socket.off("receive_message"); 
+          socket.off("load_messages"); 
+          socket.off("voice_state_update"); 
+          socket.off("user_updated"); 
+          socket.off("new_friend_request");
+          socket.off("incoming_call"); 
+      }; 
+  }, [user, viewingProfile, active.server]);
 
   // --- AUTH ---
   const handleAuth = async () => {
@@ -170,7 +225,6 @@ export default function DaChat() {
     const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     setChannels(await res.json());
     
-    // Auto-join first text channel
     const chData = await res.json();
     const textChannels = chData.filter((c: any) => c.type === 'text');
     if (textChannels.length > 0) joinChannel(textChannels[0]);
@@ -324,17 +378,11 @@ export default function DaChat() {
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, name, type }) }); selectServer(active.server); }};
 
   // --- VOICE & VIDEO LOGIC ---
-  
-  // ✅ NEW: Start a Call logic (Sends trigger)
   const startDMCall = () => {
       if (!active.friend) return;
       const ids = [user.id, active.friend.id].sort((a, b) => a - b);
       const roomId = `dm-call-${ids[0]}-${ids[1]}`;
-      
-      // Join self
       joinVoiceRoom(roomId);
-      
-      // Notify other
       socket.emit("start_call", { 
           senderId: user.id, 
           recipientId: active.friend.id, 
@@ -344,7 +392,6 @@ export default function DaChat() {
       });
   };
 
-  // ✅ NEW: Answer a call
   const answerCall = () => {
       if (incomingCall) {
           joinVoiceRoom(incomingCall.roomId);
@@ -355,7 +402,6 @@ export default function DaChat() {
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     
-    // Clean up old listeners
     socket.off("all_users");
     socket.off("user_joined");
     socket.off("receiving_returned_signal");
@@ -396,8 +442,9 @@ export default function DaChat() {
     });
   }, [user]);
 
+  // ✅ UPDATED: Add STUN Config
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
-    const peer = new Peer({ initiator: true, trickle: false, stream });
+    const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG });
     peer.on("signal", (signal: any) => {
         socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user });
     });
@@ -405,7 +452,7 @@ export default function DaChat() {
   };
 
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => {
-    const peer = new Peer({ initiator: false, trickle: false, stream });
+    const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG });
     peer.on("signal", (signal: any) => {
         socket.emit("returning_signal", { signal, callerID });
     });
@@ -459,60 +506,6 @@ export default function DaChat() {
     peersRef.current = [];
     socket.emit("leave_voice");
   };
-
-  // --- LISTENERS ---
-  useEffect(() => { 
-      socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
-      socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
-      socket.on("user_updated", ({ userId }) => { 
-          if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
-          if (active.server) fetchServers(user.id);
-          fetchFriends(user.id);
-      });
-      socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
-      
-      // ✅ NEW: Incoming Call Listener
-      socket.on("incoming_call", (data) => {
-          setIncomingCall(data);
-      });
-      
-      return () => { 
-          socket.off("receive_message"); 
-          socket.off("load_messages"); 
-          socket.off("voice_state_update"); 
-          socket.off("user_updated"); 
-          socket.off("new_friend_request");
-          socket.off("incoming_call"); 
-      }; 
-  }, [user, viewingProfile, active.server]);
-
-  // --- INIT & RECONNECTION LOGIC ---
-  useEffect(() => { 
-      socket.connect(); 
-      
-      // ✅ FIX: Re-join user room immediately upon connection/reconnection
-      const handleConnect = () => {
-          console.log("Connected to server");
-          if (user) {
-              console.log("Re-registering user:", user.id);
-              socket.emit("setup", user.id);
-          }
-      };
-
-      socket.on("connect", handleConnect);
-      socket.on("connect_error", (err) => console.error("Connection Error:", err));
-      
-      // If user exists but socket was already connected (race condition fix)
-      if (socket.connected && user) {
-          socket.emit("setup", user.id);
-      }
-
-      return () => { 
-          socket.off("connect", handleConnect);
-          socket.disconnect(); 
-      }; 
-  }, [user]); // ✅ Dependency on 'user' ensures this runs after login
 
   // 🌈 LOGIN SCREEN
   if (!user) return (
@@ -724,4 +717,30 @@ export default function DaChat() {
   );
 }
 
-const MediaPlayer = ({ peer }: any) => { const ref = useRef<HTMLVideoElement>(null); useEffect(() => { peer.on("stream", (stream: MediaStream) => { if (ref.current) ref.current.srcObject = stream; }); }, [peer]); return <video ref={ref} autoPlay playsInline className="w-full h-full object-cover" />; };
+// ✅ FIXED MEDIA PLAYER (Audio + Video)
+const MediaPlayer = ({ peer }: any) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    useEffect(() => {
+        peer.on("stream", (stream: MediaStream) => {
+            // Video (if available)
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.log("Video Play Error (Autoplay policy?)", e));
+            }
+            // Audio (Explicitly handled)
+            if (audioRef.current) {
+                audioRef.current.srcObject = stream;
+                audioRef.current.play().catch(e => console.log("Audio Play Error (Autoplay policy?)", e));
+            }
+        });
+    }, [peer]);
+
+    return (
+        <>
+            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
+            <audio ref={audioRef} autoPlay style={{ display: 'none' }} />
+        </>
+    );
+};
