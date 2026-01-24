@@ -28,9 +28,17 @@ const GlassPanel = ({ children, className, onClick }: any) => (
   </div>
 );
 
+// ✅ UPDATED AVATAR: Added key={src} to force GIF reload/loop
 const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) => {
   return src ? (
-    <img onClick={onClick} src={src} alt={alt || "User"} className={`${className} bg-black/20 object-cover cursor-pointer`} loading="lazy" />
+    <img 
+      key={src} 
+      onClick={onClick} 
+      src={src} 
+      alt={alt || "User"} 
+      className={`${className} bg-black/20 object-cover cursor-pointer`} 
+      loading="lazy" 
+    />
   ) : (
     <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}>
        <span className="text-[10px] text-white/40 font-bold">?</span>
@@ -57,7 +65,7 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   };
 
   return (
-    <GlassPanel className="absolute bottom-24 left-4 w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <GlassPanel className="absolute bottom-10 left-0 w-full h-[400px] rounded-[24px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300 ring-1 ring-white/20">
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
         <input 
             className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all"
@@ -115,6 +123,7 @@ export default function DaChat() {
   // Profile Viewing & Editing
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showProfileGifPicker, setShowProfileGifPicker] = useState(false); // ✅ NEW
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
 
@@ -211,12 +220,13 @@ export default function DaChat() {
   const openSettings = () => {
       setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url });
       setShowSettings(true);
+      setShowProfileGifPicker(false);
   };
 
   const saveProfile = async () => {
       let finalAvatarUrl = editForm.avatarUrl;
       
-      // 1. Upload new avatar if selected
+      // 1. Upload new avatar if selected (and not just a gif url)
       if (newAvatarFile) {
           const formData = new FormData();
           formData.append("file", newAvatarFile);
@@ -257,7 +267,6 @@ export default function DaChat() {
             setNewAvatarFile(null);
             alert("Profile Updated Successfully!");
         } else {
-            // 🚨 THIS IS THE FIX: It now tells you exactly why it failed
             alert(`Update Failed: ${data.message || "Unknown error"}`);
         }
       } catch (e) {
@@ -429,11 +438,43 @@ export default function DaChat() {
                   <h2 className="text-xl font-bold mb-6">Edit Profile</h2>
                   <div className="flex flex-col items-center gap-4 mb-6">
                       <div className="relative group cursor-pointer" onClick={() => (document.getElementById('avatarUpload') as any).click()}>
+                          {/* 🖼️ AVATAR DISPLAY (Supports GIFs) */}
                           <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-2 border-white/10 group-hover:border-white/50 transition-all" />
                           <div className="absolute inset-0 flex items-center justify-center bg-black/40 rounded-full opacity-0 group-hover:opacity-100 transition-all text-xs font-bold">CHANGE</div>
                       </div>
+                      
+                      {/* 🔥 NEW GIF BUTTON */}
+                      <button 
+                        onClick={() => setShowProfileGifPicker(!showProfileGifPicker)} 
+                        className="text-[10px] bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full text-white/70 font-bold border border-white/5 transition-all"
+                      >
+                        CHOOSE GIF
+                      </button>
+
                       <input id="avatarUpload" type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files && setNewAvatarFile(e.target.files[0])} />
                   </div>
+
+                  {/* 🔥 GIF PICKER IN SETTINGS */}
+                  {showProfileGifPicker && (
+                    <div className="absolute inset-0 z-50 bg-[#0e0e0f] rounded-[32px] overflow-hidden flex flex-col">
+                        <div className="p-4 border-b border-white/10 flex justify-between items-center">
+                            <span className="font-bold text-sm">Select GIF</span>
+                            <button onClick={() => setShowProfileGifPicker(false)}>✕</button>
+                        </div>
+                        <div className="flex-1 relative">
+                            {/* Reusing existing GIF picker logic but scoped locally */}
+                            <GifPicker 
+                                onSelect={(url: string) => {
+                                    setEditForm({ ...editForm, avatarUrl: url });
+                                    setNewAvatarFile(null); // Clear manual upload
+                                    setShowProfileGifPicker(false);
+                                }} 
+                                onClose={() => setShowProfileGifPicker(false)} 
+                            />
+                        </div>
+                    </div>
+                  )}
+
                   <div className="space-y-4">
                       <div>
                           <label className="text-xs font-bold text-white/40 uppercase ml-1">Username</label>
@@ -458,9 +499,9 @@ export default function DaChat() {
 
 // VIDEO COMPONENT
 const MediaPlayer = ({ peer }: any) => {
-    const ref = useRef<HTMLVideoElement>(null);
-    useEffect(() => {
-        peer.on("stream", (stream: MediaStream) => { if (ref.current) ref.current.srcObject = stream; });
-    }, [peer]);
-    return <video ref={ref} autoPlay playsInline className="w-full h-full object-cover" />;
+    const ref = useRef<HTMLVideoElement>(null);
+    useEffect(() => {
+        peer.on("stream", (stream: MediaStream) => { if (ref.current) ref.current.srcObject = stream; });
+    }, [peer]);
+    return <video ref={ref} autoPlay playsInline className="w-full h-full object-cover" />;
 };
