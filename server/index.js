@@ -12,6 +12,33 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+const ytdl = require('ytdl-core'); // 1. Import the library
+
+// 2. Add the Converter Route
+app.get("/stream-audio", async (req, res) => {
+    const videoURL = req.query.url;
+    if (!videoURL) return res.status(400).send("No URL provided");
+
+    try {
+        // Validate URL
+        if (!ytdl.validateURL(videoURL)) {
+            return res.status(400).send("Invalid YouTube URL");
+        }
+
+        // Get Audio Stream
+        res.header("Content-Type", "audio/mpeg");
+        
+        ytdl(videoURL, { 
+            filter: 'audioonly', 
+            quality: 'highestaudio' 
+        }).pipe(res);
+
+    } catch (err) {
+        console.error("Stream Error:", err.message);
+        res.status(500).send("Failed to stream audio");
+    }
+});
+
 // ⚠️ PASTE YOUR DB & SUPABASE INFO HERE ⚠️
 const connectionString = "postgresql://postgres.mgrjnnhqsadsquupqkgt:Skibidibibi69@aws-1-eu-west-1.pooler.supabase.com:6543/postgres";
 const SUPABASE_URL = "https://mgrjnnhqsadsquupqkgt.supabase.co"; 
