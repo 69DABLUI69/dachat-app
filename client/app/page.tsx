@@ -11,7 +11,7 @@ if (typeof window !== 'undefined') {
 import Peer from "simple-peer";
 
 // 🔑 CONFIG
-const KLIPY_API_KEY = "YOUR_KLIPY_API_KEY_HERE"; 
+const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 const socket = io(BACKEND_URL);
