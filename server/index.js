@@ -224,46 +224,51 @@ io.on("connection", (socket) => {
     io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id });
   });
 
-// --- CALLING SYSTEM (With Debugging) ---
+  // --- CALLING SYSTEM (With Debugging) ---
   socket.on("start_call", ({ userToCall, fromUser, roomId }) => {
     console.log("-----------------------------------------------");
     console.log(`[CALL STARTED] By ${fromUser.username} (ID: ${fromUser.id}) -> To ID: ${userToCall}`);
     
-    // Debug: Print who is currently online in memory
-    console.log("Current Online Users (Socket Mapping):");
-    Object.keys(socketMapping).forEach(sockId => {
-        console.log(` - Socket: ${sockId} is User ID: ${socketMapping[sockId].userId}`);
-    });
-
-    // 1. Find all sockets that belong to the recipient
     const recipientSockets = Object.keys(socketMapping).filter(key => 
       String(socketMapping[key].userId) === String(userToCall)
     );
 
-    console.log(`Found ${recipientSockets.length} sockets for User ${userToCall}`);
-
     if (recipientSockets.length > 0) {
       console.log(`[RINGING] Sending 'incoming_call' event to ${recipientSockets.length} sockets.`);
-      
       recipientSockets.forEach(socketId => {
           io.to(socketId).emit("incoming_call", { from: fromUser, roomId });
       });
     } else {
       console.log(`[FAILURE] User ID ${userToCall} is NOT in the socket mapping.`);
-      console.log("Possible causes:");
-      console.log("1. The user is not logged in.");
-      console.log("2. The user refreshed and didn't reconnect automatically.");
-      console.log("3. The user ID in the database doesn't match the one you are calling.");
     }
     console.log("-----------------------------------------------");
   });
 
   socket.on("answer_call", ({ to, roomId }) => {
-    // Find caller sockets
+    console.log("-----------------------------------------------");
+    console.log(`[CALL ANSWERED] In Room: ${roomId}`);
+    
+    if (!to || !to.id) {
+        console.error("❌ ERROR: 'to' user object is invalid or missing ID.");
+        return;
+    }
+
+    const targetId = String(to.id);
     const callerSockets = Object.keys(socketMapping).filter(key => 
-        String(socketMapping[key].userId) === String(to.id)
+        String(socketMapping[key].userId) === targetId
     );
-    callerSockets.forEach(socketId => io.to(socketId).emit("call_accepted", { roomId }));
+
+    console.log(` - Found ${callerSockets.length} sockets for Original Caller (ID: ${targetId})`);
+
+    if (callerSockets.length > 0) {
+        callerSockets.forEach(socketId => {
+            console.log(`   -> 🟢 Sending 'call_accepted' to ${socketId}`);
+            io.to(socketId).emit("call_accepted", { roomId });
+        });
+    } else {
+        console.warn(`⚠️ FAILURE: Original caller seems offline.`);
+    }
+    console.log("-----------------------------------------------");
   });
 
   socket.on("reject_call", ({ to }) => {
@@ -277,39 +282,31 @@ io.on("connection", (socket) => {
   const handleLeaveRoom = () => {
     const info = socketMapping[socket.id];
     
-    // Only proceed if we know who this socket is AND they are actually in a room
     if (info && info.roomId) {
       const { roomId, userId } = info;
 
       if (voiceRooms[roomId]) {
-        // 1. Remove user from the memory list for that room
         voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.socketId !== socket.id);
-        
-        // 2. Tell everyone else in the room to remove this peer (Kill the Ghost)
         io.to(roomId).emit("user_left", socket.id);
 
-        // 3. Update the visual "Who is in this channel" state
         const stillInRoom = voiceRooms[roomId]?.some(u => String(u.userData.id) === String(userId));
         if (!stillInRoom && roomStates[roomId]) {
             roomStates[roomId].delete(userId);
             io.emit("voice_state_update", { channelId: roomId, users: Array.from(roomStates[roomId]) });
         }
       }
-      
-      // ✅ CRITICAL FIX: Just clear the room ID, do NOT delete the user from the map!
+      // Just clear room ID, stay online
       if (socketMapping[socket.id]) {
         socketMapping[socket.id].roomId = null;
       }
     }
   };
 
-  // When user clicks "Leave Call" button
   socket.on("leave_voice", () => {
       handleLeaveRoom();
       console.log(`User ${socket.id} left voice (Still Online)`);
   });
 
-  // When user closes the tab
   socket.on("disconnect", () => {
       handleLeaveRoom(); // Remove from rooms first
       delete socketMapping[socket.id]; // THEN remove from online list

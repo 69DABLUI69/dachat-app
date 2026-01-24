@@ -263,9 +263,16 @@ const acceptCall = () => {
     });
     // 👆 END OF NEW CODE 👆
 
-    socket.on("call_accepted", ({ roomId }) => {
+socket.on("call_accepted", ({ roomId }) => {
+        console.log("✅ Call Accepted Event Received! Joining room:", roomId);
+        
+        // Force close popup
         setIsCalling(false);
-        joinVoiceRoom(roomId);
+        
+        // Small delay to ensure state updates before heavy video logic starts
+        setTimeout(() => {
+            joinVoiceRoom(roomId);
+        }, 100);
     });
 
     socket.on("call_rejected", () => {
