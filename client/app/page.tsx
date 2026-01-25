@@ -3,6 +3,17 @@ import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 
+const TAGLINES = [
+  "Next Gen Communication",
+  "Speak Freely, Vibe Truly",
+  "Where the homies are",
+  "Less Noise, More Voice",
+  "Connected by DaChat",
+  "Loading personality...",
+  "Better than IRL",
+  "No algorithm, just vibes"
+];
+
 // ⚠️ POLYFILL FOR SIMPLE-PEER
 if (typeof window !== 'undefined') { 
     (window as any).global = window; 
@@ -158,6 +169,14 @@ export default function DaChat() {
   
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
+
+  const [tagline, setTagline] = useState("Next Gen Communication");
+
+  // ✅ Randomize Tagline on Mount
+  useEffect(() => {
+      const randomTag = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
+      setTagline(randomTag);
+  }, []);
 
   // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
@@ -700,7 +719,7 @@ export default function DaChat() {
 
         <div> 
             <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">DaChat</h1> 
-            <p className="text-white/40 text-sm mt-2">Next Gen Communication</p> 
+            <p className="text-white/40 text-sm mt-2">{tagline}</p>
         </div>
 
         {error && <div className="bg-red-500/20 text-red-200 text-xs py-3 rounded-xl border border-red-500/20">{error}</div>}
