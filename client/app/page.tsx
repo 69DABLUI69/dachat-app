@@ -100,6 +100,15 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   );
 };
 
+// ✅ LOGO COMPONENT
+const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => (
+  <img 
+    src="/logo.png" 
+    alt="DaChat Logo" 
+    className={`${className} object-contain rounded-xl`} 
+  />
+);
+
 export default function DaChat() {
   // --- STATE ---
   const [user, setUser] = useState<any>(null);
@@ -718,7 +727,12 @@ export default function DaChat() {
       
       {/* 1. DOCK */}
       <div className="z-30 w-[90px] h-full flex flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl">
-        <div onClick={() => { setView("dms"); setActive({server:null}); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-blue-600" : "bg-white/10 hover:bg-white/20"}`}> 🏠 </div>
+        <div 
+  onClick={() => { setView("dms"); setActive({server:null}); }} 
+  className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}
+>
+  <DaChatLogo className="w-7 h-7" />
+</div>
         <div className="w-8 h-[1px] bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar">
             {servers.map(s => ( 
