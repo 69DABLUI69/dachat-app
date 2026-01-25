@@ -191,7 +191,11 @@ export default function DaChat() {
           }
       });
       
+// Incoming Call Listener
       socket.on("incoming_call", (data) => {
+          // ✅ FIX: Ignore the event if I am the one who sent it
+          if (user && data.senderId === user.id) return;
+          
           console.log("Incoming call received", data);
           setIncomingCall(data);
       });
