@@ -4,14 +4,25 @@ import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 
 const TAGLINES = [
-  "Next Gen Communication",
-  "Speak Freely, Vibe Truly",
-  "Where the homies are",
-  "Less Noise, More Voice",
-  "Connected by DaChat",
-  "Loading personality...",
-  "Better than IRL",
-  "No algorithm, just vibes"
+  "Tel Aviv group trip 2026 ?",
+  "Debis",
+  "Endorsed by the Netanyahu cousins",
+  "Also try DABROWSER",
+  "Noua aplicatie suvenirista",
+  "No Basinosu allowed",
+  "Nu stati singuri cu bibi pe VC",
+  "E buna Purcela",
+  "I AM OBEZ DELUXE 2026 ?",
+  "500 pe seara",
+  "Sure buddy",
+  "Mor vecinii",
+  "Aplicatie de jocuri dusmanoasa",
+  "Aplicatie de jocuri patriotica",
+  "Aplicatie de jocuri prietenoasa",
+  "Sanatate curata ma",
+  "Garju 8-bit",
+  "Five Nights at Valeriu (rip)",
+  "Micu Vesel group trip 202(si ceva) ?"
 ];
 
 // ⚠️ POLYFILL FOR SIMPLE-PEER
