@@ -837,15 +837,12 @@ export default function DaChat() {
              <div className="flex-1 bg-black flex flex-col items-center justify-center relative p-4">
                  <div className="grid grid-cols-2 gap-4 w-full h-full max-w-4xl">
                      <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="absolute inset-0 flex items-center justify-center flex-col"><UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full" /><span>You</span></div>} <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-2 bg-white/10 rounded-full">🖥️</button> </div>
-                     {peers.map(p => ( 
-                        <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
-                            <MediaPlayer peer={p.peer} /> 
-                            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-                                <UserAvatar src={p.info?.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" />
-                                <span className="font-bold text-white drop-shadow-md text-lg">{p.info?.username || "Unknown"}</span>
-                            </div>
-                        </div> 
-                     ))}
+{peers.map(p => ( 
+    <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
+        {/* We pass user info to the player so IT decides when to show the avatar */}
+        <MediaPlayer peer={p.peer} userInfo={p.info} /> 
+    </div> 
+))}
                  </div>
                  <button onClick={leaveCall} className="mt-4 px-8 py-3 bg-red-600 rounded-full font-bold">End Call</button>
              </div>
@@ -978,42 +975,71 @@ export default function DaChat() {
   );
 }
 
-// ✅ FIXED MEDIA PLAYER (Audio + Video)
-const MediaPlayer = ({ peer }: any) => {
+// ✅ SMART MEDIA PLAYER (Auto-hides avatar when video/screen is on)
+const MediaPlayer = ({ peer, userInfo }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
+    const [hasVideo, setHasVideo] = useState(false);
 
     useEffect(() => {
         const handleStream = (stream: MediaStream) => {
             if (videoRef.current) {
-                // Assign stream to video element
                 videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
                 
-                // Ensure it plays (fixes Autoplay policy issues)
-                videoRef.current.play().catch(e => {
-                    console.error("Autoplay blocked:", e);
-                    // Optional: Show a "Click to Play" button here if needed
+                // Function to check if we have a valid video track
+                const checkVideo = () => {
+                    const tracks = stream.getVideoTracks();
+                    // Check if track exists, is live, and enabled
+                    const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
+                    setHasVideo(isVideoActive);
+                };
+                
+                // Check immediately
+                checkVideo();
+
+                // Listen for changes (e.g., user starts/stops screen share)
+                stream.getVideoTracks().forEach(track => {
+                    track.onmute = () => setHasVideo(false);   // Video stopped/muted
+                    track.onunmute = () => setHasVideo(true);  // Video started
+                    track.onended = () => setHasVideo(false);  // Stream ended
                 });
             }
         };
 
-        // Listen for stream
         peer.on("stream", handleStream);
+        
+        // Handle case where stream is already ready before listener attaches
+        if ((peer as any)._remoteStreams?.[0]) {
+             handleStream((peer as any)._remoteStreams[0]);
+        }
 
-        // Cleanup
-        return () => {
-            peer.off("stream", handleStream);
-        };
+        return () => { peer.off("stream", handleStream); };
     }, [peer]);
 
     return (
-        <div className="relative w-full h-full">
+        <div className="relative w-full h-full bg-zinc-900">
+            {/* The Video Element - 'object-contain' ensures screen share text is readable */}
             <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
-                // Don't mute remote peers! Only mute yourself in the local preview.
-                className="w-full h-full object-cover bg-black" 
+                className={`w-full h-full object-contain ${hasVideo ? "block" : "hidden"}`} 
             />
+            
+            {/* 1. AUDIO ONLY LAYOUT (Big Avatar - Shows when no video) */}
+            {!hasVideo && (
+                <div className="absolute inset-0 flex items-center justify-center flex-col">
+                    <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" />
+                    <span className="font-bold text-white drop-shadow-md text-lg">{userInfo?.username || "Unknown"}</span>
+                </div>
+            )}
+
+            {/* 2. VIDEO LAYOUT (Small Name Tag - Shows when video is active) */}
+            {hasVideo && (
+                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-bold text-white backdrop-blur-sm">
+                    {userInfo?.username}
+                </div>
+            )}
         </div>
     );
 };
