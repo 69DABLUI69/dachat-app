@@ -154,8 +154,8 @@ export default function DaChat() {
   // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
-  const [isCallExpanded, setIsCallExpanded] = useState(false); // ✅ NEW: Controls Call View vs Chat View
-  const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null); // ✅ NEW: Tracks current call ID
+  const [isCallExpanded, setIsCallExpanded] = useState(false); 
+  const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   
   // ✅ Call Timer State
   const [callEndedData, setCallEndedData] = useState<string | null>(null);
@@ -290,7 +290,7 @@ export default function DaChat() {
   const selectServer = async (server: any) => {
     setView("servers");
     setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null }));
-    setIsCallExpanded(false); // Minimized call when switching servers
+    setIsCallExpanded(false); 
     
     const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     const chData = await res.json();
@@ -306,7 +306,6 @@ export default function DaChat() {
 
   const joinChannel = (channel: any) => {
     if (channel.type === 'voice') {
-      // ✅ FIX: If active in this channel, just expand view. If not, join.
       if (inCall && activeVoiceChannelId === channel.id.toString()) {
           setIsCallExpanded(true);
       } else {
@@ -315,7 +314,7 @@ export default function DaChat() {
     } else {
       setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null }));
       setChatHistory([]);
-      setIsCallExpanded(false); // Minimize call when viewing text
+      setIsCallExpanded(false); 
       if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() });
     }
   };
@@ -323,7 +322,7 @@ export default function DaChat() {
   const selectFriend = (friend: any) => {
     setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null }));
     setChatHistory([]);
-    setIsCallExpanded(false); // Minimize call
+    setIsCallExpanded(false); 
     const ids = [user.id, friend.id].sort((a, b) => a - b);
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
@@ -445,8 +444,8 @@ export default function DaChat() {
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     callStartTimeRef.current = Date.now();
-    setActiveVoiceChannelId(roomId); // ✅ Track ID
-    setIsCallExpanded(true); // ✅ Auto-expand
+    setActiveVoiceChannelId(roomId); 
+    setIsCallExpanded(true); 
 
     socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
 
@@ -608,12 +607,35 @@ export default function DaChat() {
             {view === "servers" && active.server ? (
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>Channels</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white">+</button>} </div>
-                    {channels.map(ch => ( 
-                        <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between ${active.channel?.id === ch.id ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white"}`}>
-                            <div className="flex items-center gap-2 truncate" onClick={() => joinChannel(ch)}> <span className="opacity-50">{ch.type==='voice'?'🔊':'#'}</span> {ch.name} </div>
-                            {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400">✕</button>}
-                        </div>
-                    ))}
+                    {channels.map(ch => {
+                        // ✅ LOGIC: Get users in this specific channel
+                        const currentUsers = voiceStates[ch.id.toString()] || [];
+                        const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
+                        
+                        return ( 
+                            <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between ${active.channel?.id === ch.id ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white"}`}>
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
+                                    <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
+                                    <span className="truncate">{ch.name}</span>
+                                    
+                                    {/* ✅ SHOW AVATARS NEXT TO NAME */}
+                                    {ch.type === 'voice' && activeMembers.length > 0 && (
+                                        <div className="flex -space-x-1 ml-auto mr-2 shrink-0">
+                                            {activeMembers.slice(0, 3).map(m => (
+                                                <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" />
+                                            ))}
+                                            {activeMembers.length > 3 && (
+                                                <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">
+                                                    +{activeMembers.length - 3}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                                {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0">✕</button>}
+                            </div>
+                        );
+                    })}
                     <div className="mt-6 px-2 space-y-2">
                         <button onClick={inviteUser} className="w-full py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-600/30">Invite People</button>
                         <button onClick={leaveServer} className="w-full py-2 bg-red-600/10 text-red-400 rounded-lg text-xs font-bold hover:bg-red-600/20">Leave Server</button>
@@ -647,7 +669,7 @@ export default function DaChat() {
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md"> <div className="flex items-center gap-3 font-bold text-lg"> <span className="text-white/30">@</span> {active.channel ? active.channel.name : active.friend?.username} </div> {!active.channel && <button onClick={startDMCall} className="bg-green-600 p-2 rounded-full hover:bg-green-500">📞</button>} </div>}
              
-             {/* ✅ NEW: Return to Call Banner */}
+             {/* Return to Call Banner */}
              {inCall && !isCallExpanded && (
                  <div onClick={() => setIsCallExpanded(true)} className="bg-green-600/20 text-green-400 p-2 text-center text-xs font-bold cursor-pointer hover:bg-green-600/30 border-b border-green-600/20 transition-all">
                      🔊 Call in Progress — Click to Return
@@ -690,7 +712,6 @@ export default function DaChat() {
          </div>
 
          {/* LAYER 2: CALL UI (Overlay - Toggleable visibility) */}
-         {/* We keep this mounted so audio plays, but hide it with CSS when minimized */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black" : "hidden"} flex flex-col relative`}>
                  
