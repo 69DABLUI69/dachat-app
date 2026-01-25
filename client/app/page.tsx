@@ -124,6 +124,10 @@ export default function DaChat() {
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   
+  // ✅ NEW: Call Timer State
+  const [callEndedData, setCallEndedData] = useState<string | null>(null);
+  const callStartTimeRef = useRef<number | null>(null);
+  
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [peers, setPeers] = useState<any[]>([]);
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
@@ -191,13 +195,18 @@ export default function DaChat() {
           }
       });
       
-// Incoming Call Listener
+      // Incoming Call Listener
       socket.on("incoming_call", (data) => {
           // ✅ FIX: Ignore the event if I am the one who sent it
           if (user && data.senderId === user.id) return;
           
           console.log("Incoming call received", data);
           setIncomingCall(data);
+      });
+
+      // ✅ NEW: Handle Call Ended Signal
+      socket.on("call_ended", () => {
+          endCallSession(); // Clean up locally
       });
       
       return () => { 
@@ -209,8 +218,9 @@ export default function DaChat() {
           socket.off("incoming_call"); 
           socket.off("server_updated");
           socket.off("new_server_invite");
+          socket.off("call_ended");
       }; 
-  }, [user, viewingProfile, active.server]);
+  }, [user, viewingProfile, active.server, inCall]); // Added inCall to dependency array
 
   // --- AUTH ---
   const handleAuth = async () => {
@@ -515,6 +525,9 @@ export default function DaChat() {
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     
+    // ✅ NEW: Start Timer
+    callStartTimeRef.current = Date.now();
+
     socket.off("all_users");
     socket.off("user_joined");
     socket.off("receiving_returned_signal");
@@ -618,23 +631,38 @@ const startScreenShare = async () => {
     }
   };
 
+// ✅ NEW: Helper to format duration
+  const getCallDuration = () => {
+      if (!callStartTimeRef.current) return "00:00";
+      const diff = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+      const m = Math.floor(diff / 60).toString().padStart(2, '0');
+      const s = (diff % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+  };
+
+  // ✅ NEW: Shared logic to end call
+  const endCallSession = () => {
+      if (inCall && callStartTimeRef.current) {
+          const duration = getCallDuration();
+          setCallEndedData(duration);
+      }
+      
+      // Reset State
+      if(isScreenSharing) stopScreenShare();
+      setInCall(false);
+      setIncomingCall(null);
+      
+      if(myStream) { myStream.getTracks().forEach(t => t.stop()); setMyStream(null); }
+      setPeers([]);
+      peersRef.current.forEach(p => p.peer.destroy());
+      peersRef.current = [];
+      
+      callStartTimeRef.current = null;
+  };
+
   const leaveCall = () => {
-    if(isScreenSharing) stopScreenShare();
-    setInCall(false);
-    setIncomingCall(null); // Clear incoming call modal if open
-    
-    // Stop all local tracks (Mic & Camera)
-    if (myStream) {
-        myStream.getTracks().forEach(t => t.stop());
-        setMyStream(null);
-    }
-    
-    // Destroy all peer connections
-    setPeers([]);
-    peersRef.current.forEach(p => p.peer.destroy());
-    peersRef.current = [];
-    
-    socket.emit("leave_voice");
+      endCallSession();
+      socket.emit("leave_voice");
   };
 
   // 🌈 LOGIN SCREEN
@@ -840,6 +868,18 @@ const startScreenShare = async () => {
                       <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-2xl">📞</button>
                   </div>
               </div>
+          </div>
+      )}
+
+      {/* ✅ NEW: CALL ENDED POPUP */}
+      {callEndedData && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
+              <GlassPanel className="w-80 p-8 flex flex-col items-center text-center">
+                  <div className="text-4xl mb-4">📞</div>
+                  <h2 className="text-2xl font-bold mb-2">Call Ended</h2>
+                  <p className="text-white/50 mb-6">Duration: <span className="text-white font-mono">{callEndedData}</span></p>
+                  <button onClick={() => setCallEndedData(null)} className="px-8 py-2 bg-white/10 hover:bg-white/20 rounded-full font-bold">Close</button>
+              </GlassPanel>
           </div>
       )}
 
