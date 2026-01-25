@@ -199,6 +199,7 @@ export default function DaChat() {
   // Handle remote video focus
   const handleRemoteVideo = useCallback((peerId: string, hasVideo: boolean) => {
       if (hasVideo) setFocusedPeerId(peerId);
+      // ✅ FIX: Only unset focus if video actually turned off and we are currently watching it
       else if (focusedPeerId === peerId) setFocusedPeerId(null);
   }, [focusedPeerId]);
 
@@ -225,7 +226,6 @@ export default function DaChat() {
       const handleConnect = () => {
           console.log("Connected to server");
           if (user) {
-              console.log("Re-registering user:", user.id);
               socket.emit("setup", user.id);
           }
       };
@@ -269,7 +269,6 @@ export default function DaChat() {
       
       socket.on("incoming_call", (data) => {
           if (user && data.senderId === user.id) return;
-          console.log("Incoming call received", data);
           setIncomingCall(data);
       });
 
@@ -580,7 +579,7 @@ export default function DaChat() {
       const audio = type === 'join' ? joinSoundRef.current : leaveSoundRef.current;
       
       if (audio) {
-          audio.currentTime = 0; // Reset to start so it can play rapidly
+          audio.currentTime = 0; 
           audio.volume = 0.5;
           audio.play().catch(e => console.error("❌ Audio play blocked or file missing:", e));
       }
@@ -608,6 +607,25 @@ export default function DaChat() {
       }
   };
 
+  // ✅ HELPER: Safely remove peer
+  const removePeer = (peerID: string) => {
+      console.log("Removing peer:", peerID);
+      playSound('leave');
+      
+      // Remove from Refs
+      const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID);
+      if (peerIdx > -1) {
+          peersRef.current[peerIdx].peer.destroy();
+          peersRef.current.splice(peerIdx, 1);
+      }
+
+      // Remove from State
+      setPeers(prev => prev.filter(p => p.peerID !== peerID));
+
+      // ✅ FIX: If focused user leaves, reset view
+      setFocusedPeerId(current => (current === peerID ? null : current));
+  };
+
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     
@@ -633,9 +651,7 @@ export default function DaChat() {
       });
 
       socket.on("user_joined", (payload) => {
-        // ✅ PLAY JOIN SOUND
         playSound('join');
-
         const item = peersRef.current.find(p => p.peerID === payload.callerID);
         if (item) {
             item.peer.signal(payload.signal);
@@ -663,11 +679,9 @@ export default function DaChat() {
         socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user });
     });
 
-    // ✅ PLAY SOUND & CLEANUP ON LEAVE
-    peer.on("close", () => {
-        playSound('leave');
-        setPeers(prev => prev.filter(p => p.peerID !== userToSignal));
-    });
+    // ✅ FIX: Use centralized removePeer
+    peer.on("close", () => removePeer(userToSignal));
+    peer.on("error", () => removePeer(userToSignal));
 
     return peer;
   };
@@ -679,11 +693,9 @@ export default function DaChat() {
         socket.emit("returning_signal", { signal, callerID });
     });
 
-    // ✅ PLAY SOUND & CLEANUP ON LEAVE
-    peer.on("close", () => {
-        playSound('leave');
-        setPeers(prev => prev.filter(p => p.peerID !== callerID));
-    });
+    // ✅ FIX: Use centralized removePeer
+    peer.on("close", () => removePeer(callerID));
+    peer.on("error", () => removePeer(callerID));
 
     peer.signal(incomingSignal);
     return peer;
@@ -709,6 +721,7 @@ export default function DaChat() {
            }
         }
       });
+      // Handle native "Stop Sharing" floating button
       screenTrack.onended = () => stopScreenShare();
     } catch(e) { console.error("Screen Share Error:", e); }
   };
@@ -717,7 +730,9 @@ export default function DaChat() {
     screenStream?.getTracks().forEach(t => t.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
-    setFocusedPeerId(null);
+    
+    // ✅ FIX: Clear focus if I was the one sharing
+    if (focusedPeerId === 'local') setFocusedPeerId(null);
     
     if(myStream) {
         const webcamTrack = myStream.getVideoTracks()[0];
@@ -756,7 +771,11 @@ export default function DaChat() {
       
       if(myStream) { myStream.getTracks().forEach(t => t.stop()); setMyStream(null); }
       setPeers([]);
-      peersRef.current.forEach(p => p.peer.destroy());
+      
+      // ✅ FIX: Safe cleanup
+      peersRef.current.forEach(p => {
+          try { p.peer.destroy(); } catch(e){}
+      });
       peersRef.current = [];
       
       callStartTimeRef.current = null;
@@ -801,7 +820,7 @@ export default function DaChat() {
         </div>
         
         <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95">
-            {isRegistering ? "Create Account" : "Log in"}
+            {isRegistering ? "Create Account" : "Enter Space"}
         </button>
         
         <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>
@@ -1095,7 +1114,7 @@ export default function DaChat() {
   );
 }
 
-// ✅ SMART MEDIA PLAYER (Auto-detects video for layout)
+// ✅ ROBUST MEDIA PLAYER (Fixes frozen screens & updates layout)
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
@@ -1106,20 +1125,33 @@ const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
                 videoRef.current.srcObject = stream;
                 videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
                 
+                // Function to check video status
                 const checkVideo = () => {
                     const tracks = stream.getVideoTracks();
+                    // Check if track exists and is actively LIVE
                     const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
                     
                     if (isVideoActive !== hasVideo) {
                         setHasVideo(isVideoActive);
-                        // Notify parent to switch layout
                         if (onVideoChange) onVideoChange(isVideoActive);
                     }
                 };
                 
+                // 1. Initial Check
                 checkVideo();
+
+                // 2. Event Listeners for Track Changes
                 stream.onaddtrack = checkVideo;
-                stream.onremovetrack = () => setTimeout(checkVideo, 100);
+                stream.onremovetrack = () => {
+                    // Small delay to let browser update state
+                    setTimeout(checkVideo, 100);
+                };
+
+                // 3. Polling Interval (The "Hammer" approach)
+                // This fixes the "Frozen Last Frame" bug by force-checking status
+                const interval = setInterval(checkVideo, 1000);
+
+                return () => clearInterval(interval);
             }
         };
 
