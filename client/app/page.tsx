@@ -801,7 +801,7 @@ export default function DaChat() {
         </div>
         
         <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95">
-            {isRegistering ? "Create Account" : "Enter Space"}
+            {isRegistering ? "Create Account" : "Log in"}
         </button>
         
         <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>
@@ -905,6 +905,7 @@ export default function DaChat() {
                                 <div className="relative w-full h-full">
                                     <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
                                     <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white font-bold">You (Screen)</div>
+                                    <button onClick={stopScreenShare} className="absolute bottom-4 right-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg">Stop Sharing</button>
                                 </div>
                             ) : (
                                 (() => {
@@ -941,7 +942,12 @@ export default function DaChat() {
                             {/* Local User */}
                             <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 flex items-center justify-center">
                                 {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="flex flex-col items-center"><UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/5 mb-3" /><span className="text-xl font-bold">You</span></div>}
-                                <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all">🖥️</button>
+                                <button 
+                                    onClick={isScreenSharing ? stopScreenShare : startScreenShare} 
+                                    className={`absolute bottom-4 right-4 p-3 rounded-full backdrop-blur-md transition-all ${isScreenSharing ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/10 hover:bg-white/20"}`}
+                                >
+                                    {isScreenSharing ? "🛑" : "🖥️"}
+                                </button>
                             </div>
                             {/* Peers */}
                             {peers.map(p => (
