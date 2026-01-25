@@ -768,7 +768,23 @@ const startScreenShare = async () => {
              <div className="flex-1 bg-black flex flex-col items-center justify-center relative p-4">
                  <div className="grid grid-cols-2 gap-4 w-full h-full max-w-4xl">
                      <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="absolute inset-0 flex items-center justify-center flex-col"><UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full" /><span>You</span></div>} <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-2 bg-white/10 rounded-full">🖥️</button> </div>
-                     {peers.map(p => ( <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> <MediaPlayer peer={p.peer} /> </div> ))}
+                     {peers.map(p => ( 
+    <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
+        {/* The Media Player (Audio/Video stream) */}
+        <MediaPlayer peer={p.peer} /> 
+        
+        {/* ✅ FIX: Overlay Peer Info (Avatar & Name) on top of the black video box */}
+        <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+            <UserAvatar 
+                src={p.info?.avatar_url} 
+                className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" 
+            />
+            <span className="font-bold text-white drop-shadow-md text-lg">
+                {p.info?.username || "Unknown"}
+            </span>
+        </div>
+    </div> 
+))}
                  </div>
                  <button onClick={leaveCall} className="mt-4 px-8 py-3 bg-red-600 rounded-full font-bold">End Call</button>
              </div>
