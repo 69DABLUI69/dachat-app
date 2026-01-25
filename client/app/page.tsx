@@ -10,7 +10,7 @@ if (typeof window !== 'undefined') {
     (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; 
 }
 
-// 🌐 CONFIGURATION
+// 🌐 CONFIG
 const BACKEND_URL = "https://dachat-app.onrender.com"; 
 const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
@@ -22,19 +22,15 @@ const PEER_CONFIG = {
     ]
 };
 
-// 🔌 SOCKET INITIALIZATION
+// 🔌 SOCKET SINGLETON
 const socket: Socket = io(BACKEND_URL, { 
     autoConnect: false,
     transports: ["websocket", "polling"]
 });
 
 // 🎨 CUSTOM COMPONENTS
-
 const GlassPanel = ({ children, className, onClick }: any) => (
-  <div 
-    onClick={onClick} 
-    className={`backdrop-blur-xl bg-gray-900/60 border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ${className}`}
-  >
+  <div onClick={onClick} className={`backdrop-blur-xl bg-gray-900/60 border border-white/5 shadow-[0_8px_32px_0_rgba(0,0,0,0.36)] ${className}`}>
     {children}
   </div>
 );
@@ -50,10 +46,7 @@ const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) =
         loading="lazy" 
     />
   ) : (
-    <div 
-        onClick={onClick} 
-        className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}
-    >
+    <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}>
        <span className="text-[10px] text-white/40 font-bold">?</span>
     </div>
   );
@@ -108,7 +101,7 @@ const GifPicker = ({ onSelect, onClose }: any) => {
 };
 
 export default function DaChat() {
-  // --- STATE MANAGEMENT ---
+  // --- STATE ---
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
@@ -136,24 +129,21 @@ export default function DaChat() {
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
-  
   const peersRef = useRef<any[]>([]);
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Settings & Edit States
+  // Settings State
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showProfileGifPicker, setShowProfileGifPicker] = useState(false);
-  
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
   const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
-  
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
 
-  // --- 1. INITIALIZATION & RECONNECTION ---
+  // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
       
@@ -178,27 +168,26 @@ export default function DaChat() {
       }; 
   }, [user]); 
 
-  // --- 2. GLOBAL EVENT LISTENERS ---
+  // --- 2. EVENT LISTENERS ---
   useEffect(() => { 
       socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      socket.on("voice_state_update", ({ channelId, users }) => { 
-          setVoiceStates(prev => ({ ...prev, [channelId]: users })); 
-      });
+      socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       
       socket.on("user_updated", ({ userId }) => { 
           if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
-          if (active.server) fetchServers(user.id);
-          fetchFriends(user.id);
+          // ✅ FIX: Check if user exists before accessing ID
+          if (active.server && user) fetchServers(user.id);
+          if (user) fetchFriends(user.id);
       });
       
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
       socket.on("server_updated", ({ serverId }) => { 
-          if (active.server?.id === serverId) {
+          if (active.server?.id === serverId && user) {
               fetchServers(user.id); 
-              selectServer({ id: serverId }); // Refresh contents
+              selectServer({ id: serverId });
           }
       });
       
@@ -219,7 +208,7 @@ export default function DaChat() {
       }; 
   }, [user, viewingProfile, active.server]);
 
-  // --- AUTHENTICATION ---
+  // --- AUTH ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
@@ -238,39 +227,27 @@ export default function DaChat() {
     } catch { setError("Connection failed"); }
   };
 
-  // --- DATA FETCHING HELPER FUNCTIONS ---
+  // --- DATA FETCHING ---
   const fetchServers = async (id: number) => {
     const res = await fetch(`${BACKEND_URL}/my-servers/${id}`);
     setServers(await res.json());
   };
-  
-  const fetchFriends = async (id: number) => {
-      const res = await fetch(`${BACKEND_URL}/my-friends/${id}`);
-      setFriends(await res.json());
-  };
-  
-  const fetchRequests = async (id: number) => {
-      const res = await fetch(`${BACKEND_URL}/my-requests/${id}`);
-      setRequests(await res.json());
-  };
+  const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
+  const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
 
-  // --- NAVIGATION LOGIC ---
+  // --- NAVIGATION ---
   const selectServer = async (server: any) => {
     setView("servers");
     setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null }));
-    
-    // Fetch channels
     const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     const chData = await res.json();
     setChannels(chData);
     
-    // Auto-select first text channel if no active channel or switching servers
     if(!active.channel && chData.length > 0) {
         const firstText = chData.find((c:any) => c.type === 'text');
         if (firstText) joinChannel(firstText);
     }
 
-    // Fetch members
     const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`);
     setServerMembers(await memRes.json());
   };
@@ -296,7 +273,7 @@ export default function DaChat() {
      setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null }));
   };
 
-  // --- FRIEND & REQUEST ACTIONS ---
+  // --- ACTIONS ---
   const sendFriendRequest = async () => { 
       const usernameToAdd = prompt("Enter username to request:"); 
       if (!usernameToAdd) return; 
@@ -354,7 +331,6 @@ export default function DaChat() {
       }
   };
 
-  // --- MESSAGING & UPLOADS ---
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
       const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url }; 
@@ -373,7 +349,6 @@ export default function DaChat() {
       if(data.success) sendMessage(null, data.fileUrl);
   };
 
-  // --- PROFILE VIEW & EDIT ---
   const viewUserProfile = async (userId: number) => {
       const res = await fetch(`${BACKEND_URL}/users/${userId}`);
       const data = await res.json();
@@ -416,7 +391,7 @@ export default function DaChat() {
       } catch { alert("Server Error"); }
   };
 
-  // --- SERVER MANAGEMENT (CREATE, INVITE, LEAVE, MOD) ---
+  // --- SERVER MANAGEMENT ---
   const createServer = async () => { 
       const name = prompt("Server Name"); 
       if(name) { 
@@ -506,19 +481,17 @@ export default function DaChat() {
       }); 
   };
 
-  // --- ROLE HELPERS ---
-  const getRole = () => serverMembers.find(m => m.id === user.id);
+  // --- ✅ FIX: ROLE HELPERS WITH SAFETY CHECKS ---
+  const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
   const isMod = getRole()?.is_admin;
-  const isOwner = active.server?.owner_id === user.id;
+  const isOwner = user && active.server?.owner_id === user.id;
 
-  // --- WEBRTC LOGIC ---
+  // --- WEBRTC ---
   const startDMCall = () => {
       if (!active.friend) return;
       const ids = [user.id, active.friend.id].sort((a, b) => a - b);
       const roomId = `dm-call-${ids[0]}-${ids[1]}`;
-      
       joinVoiceRoom(roomId);
-      
       socket.emit("start_call", { 
           senderId: user.id, 
           recipientId: active.friend.id, 
@@ -642,7 +615,7 @@ export default function DaChat() {
     socket.emit("leave_voice");
   };
 
-  // 🌈 RENDER: LOGIN SCREEN
+  // 🌈 LOGIN SCREEN
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
