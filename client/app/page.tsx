@@ -169,6 +169,10 @@ export default function DaChat() {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ✅ Audio Refs (Pre-load sounds)
+  const joinSoundRef = useRef<HTMLAudioElement | null>(null);
+  const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
+
   // Settings State
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -187,6 +191,18 @@ export default function DaChat() {
   useEffect(() => {
       const randomTag = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
       setTagline(randomTag);
+  }, []);
+
+  // ✅ Initialize Audio on Mount
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+        joinSoundRef.current = new Audio('/join.mp3');
+        leaveSoundRef.current = new Audio('/leave.mp3');
+        
+        // Pre-load to avoid delay
+        joinSoundRef.current.load();
+        leaveSoundRef.current.load();
+    }
   }, []);
 
   // --- 1. INIT & RECONNECTION LOGIC ---
@@ -262,7 +278,6 @@ export default function DaChat() {
   }, [user, viewingProfile, active.server, inCall]);
 
   // --- 3. VIDEO PREVIEW HOOK (MOVED OUTSIDE) ---
-  // ✅ FIX: This is now correctly separated from other hooks
   useEffect(() => {
       if (myVideoRef.current && screenStream) {
           myVideoRef.current.srcObject = screenStream;
@@ -547,6 +562,17 @@ export default function DaChat() {
   const isMod = getRole()?.is_admin;
   const isOwner = user && active.server?.owner_id === user.id;
 
+  // --- ✅ ROBUST SOUND HELPER ---
+  const playSound = (type: 'join' | 'leave') => {
+      const audio = type === 'join' ? joinSoundRef.current : leaveSoundRef.current;
+      
+      if (audio) {
+          audio.currentTime = 0; // Reset to start so it can play rapidly
+          audio.volume = 0.5;
+          audio.play().catch(e => console.error("❌ Audio play blocked or file missing:", e));
+      }
+  };
+
   // --- WEBRTC ---
   const startDMCall = () => {
       if (!active.friend) return;
@@ -593,8 +619,8 @@ export default function DaChat() {
         setPeers(peersArr);
       });
 
-socket.on("user_joined", (payload) => {
-        // ✅ NEW: Play join sound
+      socket.on("user_joined", (payload) => {
+        // ✅ PLAY JOIN SOUND
         playSound('join');
 
         const item = peersRef.current.find(p => p.peerID === payload.callerID);
@@ -617,14 +643,14 @@ socket.on("user_joined", (payload) => {
     });
   }, [user]);
 
-const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
+  const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
     const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG });
     
     peer.on("signal", (signal: any) => {
         socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user });
     });
 
-    // ✅ NEW: Play sound and cleanup when they leave
+    // ✅ PLAY SOUND & CLEANUP ON LEAVE
     peer.on("close", () => {
         playSound('leave');
         setPeers(prev => prev.filter(p => p.peerID !== userToSignal));
@@ -640,7 +666,7 @@ const createPeer = (userToSignal: string, callerID: string, stream: MediaStream,
         socket.emit("returning_signal", { signal, callerID });
     });
 
-    // ✅ NEW: Play sound and cleanup when they leave
+    // ✅ PLAY SOUND & CLEANUP ON LEAVE
     peer.on("close", () => {
         playSound('leave');
         setPeers(prev => prev.filter(p => p.peerID !== callerID));
@@ -721,17 +747,6 @@ const createPeer = (userToSignal: string, callerID: string, stream: MediaStream,
       callStartTimeRef.current = null;
   };
 
-  // ✅ HELPER: Play Sound Effect
-  const playSound = (type: 'join' | 'leave') => {
-      try {
-          const audio = new Audio(type === 'join' ? '/join.mp3' : '/leave.mp3');
-          audio.volume = 0.5;
-          audio.play().catch(e => console.warn("Audio play blocked:", e));
-      } catch (e) {
-          console.error("Error playing sound:", e);
-      }
-  };
-
   const leaveCall = () => {
       endCallSession();
       socket.emit("leave_voice");
@@ -747,7 +762,7 @@ const createPeer = (userToSignal: string, callerID: string, stream: MediaStream,
       
       <GlassPanel className="p-10 rounded-[40px] w-[400px] text-center relative z-10 flex flex-col gap-6 ring-1 ring-white/10">
         
-        {/* ✅ NEW LOGO SECTION */}
+        {/* ✅ LOGO SECTION */}
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             {/* Soft Glow behind the logo */}
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full"></div>
@@ -788,11 +803,11 @@ const createPeer = (userToSignal: string, callerID: string, stream: MediaStream,
       {/* 1. DOCK */}
       <div className="z-30 w-[90px] h-full flex flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl">
         <div 
-  onClick={() => { setView("dms"); setActive({server:null}); }} 
-  className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}
->
-  <DaChatLogo className="w-7 h-7" />
-</div>
+          onClick={() => { setView("dms"); setActive({server:null}); }} 
+          className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}
+        >
+          <DaChatLogo className="w-7 h-7" />
+        </div>
         <div className="w-8 h-[1px] bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar">
             {servers.map(s => ( 
@@ -867,12 +882,12 @@ const createPeer = (userToSignal: string, callerID: string, stream: MediaStream,
              <div className="flex-1 bg-black flex flex-col items-center justify-center relative p-4">
                  <div className="grid grid-cols-2 gap-4 w-full h-full max-w-4xl">
                      <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="absolute inset-0 flex items-center justify-center flex-col"><UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full" /><span>You</span></div>} <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-2 bg-white/10 rounded-full">🖥️</button> </div>
-{peers.map(p => ( 
-    <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
-        {/* We pass user info to the player so IT decides when to show the avatar */}
-        <MediaPlayer peer={p.peer} userInfo={p.info} /> 
-    </div> 
-))}
+                     {peers.map(p => ( 
+                        <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
+                            {/* We pass user info to the player so IT decides when to show the avatar */}
+                            <MediaPlayer peer={p.peer} userInfo={p.info} /> 
+                        </div> 
+                     ))}
                  </div>
                  <button onClick={leaveCall} className="mt-4 px-8 py-3 bg-red-600 rounded-full font-bold">End Call</button>
              </div>
