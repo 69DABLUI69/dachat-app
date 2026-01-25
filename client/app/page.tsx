@@ -124,7 +124,7 @@ export default function DaChat() {
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   
-  // ✅ NEW: Call Timer State
+  // ✅ Call Timer State
   const [callEndedData, setCallEndedData] = useState<string | null>(null);
   const callStartTimeRef = useRef<number | null>(null);
   
@@ -133,6 +133,7 @@ export default function DaChat() {
   const [myStream, setMyStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
+  
   const peersRef = useRef<any[]>([]);
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -142,8 +143,10 @@ export default function DaChat() {
   const [showSettings, setShowSettings] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [showProfileGifPicker, setShowProfileGifPicker] = useState(false);
+  
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
   const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
+  
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
 
@@ -172,25 +175,19 @@ export default function DaChat() {
       }; 
   }, [user]); 
 
-  // --- 2. EVENT LISTENERS ---
+  // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
       socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
+      socket.on("voice_state_update", ({ channelId, users }) => { 
+          setVoiceStates(prev => ({ ...prev, [channelId]: users })); 
+      });
       
       socket.on("user_updated", ({ userId }) => { 
           if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
-          // ✅ FIX: Check if user exists before accessing ID
           if (active.server && user) fetchServers(user.id);
           if (user) fetchFriends(user.id);
       });
-
-      // ✅ FIX: Local Video Preview (For your own screen share)
-  useEffect(() => {
-      if (myVideoRef.current && screenStream) {
-          myVideoRef.current.srcObject = screenStream;
-      }
-  }, [screenStream, isScreenSharing]);
       
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
@@ -198,22 +195,18 @@ export default function DaChat() {
       socket.on("server_updated", ({ serverId }) => { 
           if (active.server?.id === serverId && user) {
               fetchServers(user.id); 
-              selectServer({ id: serverId });
+              selectServer({ id: serverId }); // Refresh contents
           }
       });
       
-      // Incoming Call Listener
       socket.on("incoming_call", (data) => {
-          // ✅ FIX: Ignore the event if I am the one who sent it
           if (user && data.senderId === user.id) return;
-          
           console.log("Incoming call received", data);
           setIncomingCall(data);
       });
 
-      // ✅ NEW: Handle Call Ended Signal
       socket.on("call_ended", () => {
-          endCallSession(); // Clean up locally
+          endCallSession(); 
       });
       
       return () => { 
@@ -227,9 +220,17 @@ export default function DaChat() {
           socket.off("new_server_invite");
           socket.off("call_ended");
       }; 
-  }, [user, viewingProfile, active.server, inCall]); // Added inCall to dependency array
+  }, [user, viewingProfile, active.server, inCall]);
 
-  // --- AUTH ---
+  // --- 3. VIDEO PREVIEW HOOK (MOVED OUTSIDE) ---
+  // ✅ FIX: This is now correctly separated from other hooks
+  useEffect(() => {
+      if (myVideoRef.current && screenStream) {
+          myVideoRef.current.srcObject = screenStream;
+      }
+  }, [screenStream, isScreenSharing]);
+
+  // --- AUTHENTICATION ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
@@ -502,7 +503,7 @@ export default function DaChat() {
       }); 
   };
 
-  // --- ✅ FIX: ROLE HELPERS WITH SAFETY CHECKS ---
+  // --- ROLE HELPERS ---
   const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
   const isMod = getRole()?.is_admin;
   const isOwner = user && active.server?.owner_id === user.id;
@@ -532,7 +533,6 @@ export default function DaChat() {
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     
-    // ✅ NEW: Start Timer
     callStartTimeRef.current = Date.now();
 
     socket.off("all_users");
@@ -592,15 +592,13 @@ export default function DaChat() {
     return peer;
   };
 
-const startScreenShare = async () => {
+  const startScreenShare = async () => {
     try {
-      // Ask for video (screen) and optionally audio
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       setScreenStream(stream);
       setIsScreenSharing(true);
       const screenTrack = stream.getVideoTracks()[0];
       
-      // Update local preview immediately
       if (myVideoRef.current) myVideoRef.current.srcObject = stream;
 
       peersRef.current.forEach((peerObj) => {
@@ -610,38 +608,34 @@ const startScreenShare = async () => {
            if (sender) {
                sender.replaceTrack(screenTrack);
            } else {
-               // Add video track to the existing connection
                peerObj.peer.addTrack(screenTrack, myStream);
            }
         }
       });
-      
-      // Handle native "Stop Sharing" floating button
-      screenTrack.onended = () => {
-          stopScreenShare();
-      };
+      screenTrack.onended = () => stopScreenShare();
     } catch(e) { console.error("Screen Share Error:", e); }
   };
 
-const stopScreenShare = () => {
+  const stopScreenShare = () => {
     screenStream?.getTracks().forEach(t => t.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
     
-    // Remove the video track from the peer connection to return to audio-only
-    peersRef.current.forEach((peerObj) => {
-        const pc = (peerObj.peer as any)._pc;
-        if (pc) {
-            const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-            if (sender) {
-                // Remove the track entirely (triggers renegotiation)
-                peerObj.peer.removeTrack(sender); 
-            }
+    if(myStream) {
+        const webcamTrack = myStream.getVideoTracks()[0];
+        if(webcamTrack) {
+            peersRef.current.forEach((peerObj) => {
+                const pc = (peerObj.peer as any)._pc;
+                if(pc) {
+                   const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+                   if(sender) sender.replaceTrack(webcamTrack);
+                }
+            });
         }
-    });
+    }
   };
 
-// ✅ NEW: Helper to format duration
+  // ✅ HELPER: Format Call Duration
   const getCallDuration = () => {
       if (!callStartTimeRef.current) return "00:00";
       const diff = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
@@ -650,14 +644,13 @@ const stopScreenShare = () => {
       return `${m}:${s}`;
   };
 
-  // ✅ NEW: Shared logic to end call
+  // ✅ SHARED LOGIC: End Call
   const endCallSession = () => {
       if (inCall && callStartTimeRef.current) {
           const duration = getCallDuration();
           setCallEndedData(duration);
       }
       
-      // Reset State
       if(isScreenSharing) stopScreenShare();
       setInCall(false);
       setIncomingCall(null);
@@ -779,22 +772,14 @@ const stopScreenShare = () => {
                  <div className="grid grid-cols-2 gap-4 w-full h-full max-w-4xl">
                      <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="absolute inset-0 flex items-center justify-center flex-col"><UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full" /><span>You</span></div>} <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-2 bg-white/10 rounded-full">🖥️</button> </div>
                      {peers.map(p => ( 
-    <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
-        {/* The Media Player (Audio/Video stream) */}
-        <MediaPlayer peer={p.peer} /> 
-        
-        {/* ✅ FIX: Overlay Peer Info (Avatar & Name) on top of the black video box */}
-        <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
-            <UserAvatar 
-                src={p.info?.avatar_url} 
-                className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" 
-            />
-            <span className="font-bold text-white drop-shadow-md text-lg">
-                {p.info?.username || "Unknown"}
-            </span>
-        </div>
-    </div> 
-))}
+                        <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
+                            <MediaPlayer peer={p.peer} /> 
+                            <div className="absolute inset-0 flex items-center justify-center flex-col pointer-events-none">
+                                <UserAvatar src={p.info?.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" />
+                                <span className="font-bold text-white drop-shadow-md text-lg">{p.info?.username || "Unknown"}</span>
+                            </div>
+                        </div> 
+                     ))}
                  </div>
                  <button onClick={leaveCall} className="mt-4 px-8 py-3 bg-red-600 rounded-full font-bold">End Call</button>
              </div>
