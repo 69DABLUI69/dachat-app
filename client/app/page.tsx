@@ -614,19 +614,35 @@ export default function DaChat() {
     });
   }, [user]);
 
-  const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
+const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
     const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG });
+    
     peer.on("signal", (signal: any) => {
         socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user });
     });
+
+    // ✅ NEW: Play sound and cleanup when they leave
+    peer.on("close", () => {
+        playSound('leave');
+        setPeers(prev => prev.filter(p => p.peerID !== userToSignal));
+    });
+
     return peer;
   };
 
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => {
     const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG });
+    
     peer.on("signal", (signal: any) => {
         socket.emit("returning_signal", { signal, callerID });
     });
+
+    // ✅ NEW: Play sound and cleanup when they leave
+    peer.on("close", () => {
+        playSound('leave');
+        setPeers(prev => prev.filter(p => p.peerID !== callerID));
+    });
+
     peer.signal(incomingSignal);
     return peer;
   };
@@ -700,6 +716,17 @@ export default function DaChat() {
       peersRef.current = [];
       
       callStartTimeRef.current = null;
+  };
+
+  // ✅ HELPER: Play Sound Effect
+  const playSound = (type: 'join' | 'leave') => {
+      try {
+          const audio = new Audio(type === 'join' ? '/join.mp3' : '/leave.mp3');
+          audio.volume = 0.5;
+          audio.play().catch(e => console.warn("Audio play blocked:", e));
+      } catch (e) {
+          console.error("Error playing sound:", e);
+      }
   };
 
   const leaveCall = () => {
@@ -975,58 +1002,87 @@ export default function DaChat() {
   );
 }
 
-// ✅ SMART MEDIA PLAYER (Auto-hides avatar when video/screen is on)
+// ✅ ROBUST MEDIA PLAYER (Updates when tracks are added/removed)
 const MediaPlayer = ({ peer, userInfo }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
+    const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
         const handleStream = (stream: MediaStream) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
+                // Important: Play immediately when stream updates
                 videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
                 
-                // Function to check if we have a valid video track
                 const checkVideo = () => {
                     const tracks = stream.getVideoTracks();
-                    // Check if track exists, is live, and enabled
+                    // Check if we have a live video track
                     const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
                     setHasVideo(isVideoActive);
                 };
                 
-                // Check immediately
+                // 1. Check immediately
                 checkVideo();
 
-                // Listen for changes (e.g., user starts/stops screen share)
+                // 2. Listen for NEW tracks (e.g. User starts screen share)
+                stream.onaddtrack = () => {
+                    console.log("Track added!");
+                    checkVideo();
+                };
+
+                // 3. Listen for REMOVED tracks (e.g. User stops share)
+                stream.onremovetrack = () => {
+                     console.log("Track removed!");
+                     // Small delay to allow state to settle
+                     setTimeout(checkVideo, 100);
+                };
+
+                // 4. Listen for Mute/Unmute (Camera toggles)
                 stream.getVideoTracks().forEach(track => {
-                    track.onmute = () => setHasVideo(false);   // Video stopped/muted
-                    track.onunmute = () => setHasVideo(true);  // Video started
-                    track.onended = () => setHasVideo(false);  // Stream ended
+                    track.onmute = () => setHasVideo(false);
+                    track.onunmute = () => setHasVideo(true);
+                    track.onended = () => setHasVideo(false);
                 });
             }
         };
 
         peer.on("stream", handleStream);
         
-        // Handle case where stream is already ready before listener attaches
+        // Handle case where stream is already ready
         if ((peer as any)._remoteStreams?.[0]) {
              handleStream((peer as any)._remoteStreams[0]);
         }
 
-        return () => { peer.off("stream", handleStream); };
+        return () => { 
+            peer.off("stream", handleStream); 
+        };
     }, [peer]);
 
     return (
-        <div className="relative w-full h-full bg-zinc-900">
-            {/* The Video Element - 'object-contain' ensures screen share text is readable */}
+        <div 
+            className={`${isMaximized ? "fixed inset-0 z-[100] bg-black flex items-center justify-center" : "relative w-full h-full bg-zinc-900"}`}
+        >
+            {/* The Video Element */}
             <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
-                className={`w-full h-full object-contain ${hasVideo ? "block" : "hidden"}`} 
+                onClick={() => hasVideo && setIsMaximized(!isMaximized)}
+                className={`object-contain transition-all duration-300 cursor-pointer ${isMaximized ? "w-screen h-screen" : "w-full h-full"} ${hasVideo ? "block" : "hidden"}`} 
             />
             
-            {/* 1. AUDIO ONLY LAYOUT (Big Avatar - Shows when no video) */}
+            {/* Maximize Icon */}
+            {hasVideo && (
+                <button 
+                    onClick={(e) => { e.stopPropagation(); setIsMaximized(!isMaximized); }}
+                    className="absolute top-4 right-4 p-2 bg-black/50 rounded-full hover:bg-black/80 text-white opacity-0 hover:opacity-100 transition-opacity"
+                >
+                    {isMaximized ? "↙️" : "↗️"}
+                </button>
+            )}
+            
+            {/* 1. AUDIO ONLY (Avatar) - Shows when NO video */}
             {!hasVideo && (
                 <div className="absolute inset-0 flex items-center justify-center flex-col">
                     <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" />
@@ -1034,9 +1090,9 @@ const MediaPlayer = ({ peer, userInfo }: any) => {
                 </div>
             )}
 
-            {/* 2. VIDEO LAYOUT (Small Name Tag - Shows when video is active) */}
-            {hasVideo && (
-                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-bold text-white backdrop-blur-sm">
+            {/* 2. VIDEO OVERLAY (Name Tag) - Shows when video IS active */}
+            {hasVideo && !isMaximized && (
+                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-bold text-white backdrop-blur-sm pointer-events-none">
                     {userInfo?.username}
                 </div>
             )}
