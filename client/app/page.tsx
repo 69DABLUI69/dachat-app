@@ -187,6 +187,21 @@ export default function DaChat() {
 
   const [tagline, setTagline] = useState("Next Gen Communication");
 
+  // ✅ NEW: Focused Stream State (for Big Screen layout)
+  const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
+
+  // Auto-focus my screen when I start sharing
+  useEffect(() => {
+      if (isScreenSharing) setFocusedPeerId('local');
+      else if (focusedPeerId === 'local') setFocusedPeerId(null);
+  }, [isScreenSharing]);
+
+  // Handle remote video focus
+  const handleRemoteVideo = useCallback((peerId: string, hasVideo: boolean) => {
+      if (hasVideo) setFocusedPeerId(peerId);
+      else if (focusedPeerId === peerId) setFocusedPeerId(null);
+  }, [focusedPeerId]);
+
   // ✅ Randomize Tagline on Mount
   useEffect(() => {
       const randomTag = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
@@ -198,8 +213,6 @@ export default function DaChat() {
     if (typeof window !== 'undefined') {
         joinSoundRef.current = new Audio('/join.mp3');
         leaveSoundRef.current = new Audio('/leave.mp3');
-        
-        // Pre-load to avoid delay
         joinSoundRef.current.load();
         leaveSoundRef.current.load();
     }
@@ -250,7 +263,7 @@ export default function DaChat() {
       socket.on("server_updated", ({ serverId }) => { 
           if (active.server?.id === serverId && user) {
               fetchServers(user.id); 
-              selectServer({ id: serverId }); // Refresh contents
+              selectServer({ id: serverId }); 
           }
       });
       
@@ -277,7 +290,7 @@ export default function DaChat() {
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
-  // --- 3. VIDEO PREVIEW HOOK (MOVED OUTSIDE) ---
+  // --- 3. VIDEO PREVIEW HOOK ---
   useEffect(() => {
       if (myVideoRef.current && screenStream) {
           myVideoRef.current.srcObject = screenStream;
@@ -704,6 +717,7 @@ export default function DaChat() {
     screenStream?.getTracks().forEach(t => t.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
+    setFocusedPeerId(null);
     
     if(myStream) {
         const webcamTrack = myStream.getVideoTracks()[0];
@@ -738,6 +752,7 @@ export default function DaChat() {
       if(isScreenSharing) stopScreenShare();
       setInCall(false);
       setIncomingCall(null);
+      setFocusedPeerId(null);
       
       if(myStream) { myStream.getTracks().forEach(t => t.stop()); setMyStream(null); }
       setPeers([]);
@@ -769,7 +784,7 @@ export default function DaChat() {
             <img 
                 src="/logo.png" 
                 alt="DaChat" 
-                className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)]" 
+                className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-[32px]" 
             />
         </div>
 
@@ -879,17 +894,71 @@ export default function DaChat() {
                  <div className="flex gap-3"> <button onClick={handleAcceptRequest} className="px-6 py-2 bg-green-600 rounded-lg font-bold">Accept</button> <button onClick={handleDeclineRequest} className="px-6 py-2 bg-red-600/30 text-red-200 rounded-lg font-bold">Decline</button> </div>
              </div>
          ) : inCall ? (
-             <div className="flex-1 bg-black flex flex-col items-center justify-center relative p-4">
-                 <div className="grid grid-cols-2 gap-4 w-full h-full max-w-4xl">
-                     <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="absolute inset-0 flex items-center justify-center flex-col"><UserAvatar src={user.avatar_url} className="w-20 h-20 rounded-full" /><span>You</span></div>} <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-2 bg-white/10 rounded-full">🖥️</button> </div>
-                     {peers.map(p => ( 
-                        <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10"> 
-                            {/* We pass user info to the player so IT decides when to show the avatar */}
-                            <MediaPlayer peer={p.peer} userInfo={p.info} /> 
-                        </div> 
-                     ))}
+             <div className="flex-1 bg-black flex flex-col relative overflow-hidden">
+                 
+                 {/* 🅰️ STAGE LAYOUT (Big Screen Active) */}
+                 {focusedPeerId ? (
+                    <div className="flex-1 flex flex-col relative">
+                        {/* MAIN STAGE */}
+                        <div className="flex-1 relative bg-zinc-950 flex items-center justify-center p-2">
+                            {focusedPeerId === 'local' ? (
+                                <div className="relative w-full h-full">
+                                    <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+                                    <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white font-bold">You (Screen)</div>
+                                </div>
+                            ) : (
+                                (() => {
+                                    const p = peers.find(x => x.peerID === focusedPeerId);
+                                    return p ? <MediaPlayer peer={p.peer} userInfo={p.info} /> : null;
+                                })()
+                            )}
+                        </div>
+
+                        {/* FILMSTRIP (Bottom Bar) */}
+                        <div className="h-32 w-full bg-zinc-900/80 backdrop-blur-md flex items-center justify-center gap-4 px-4 overflow-x-auto border-t border-white/10 z-20">
+                            {/* Local User Tile */}
+                            <div onClick={() => setFocusedPeerId('local')} className={`w-48 h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === 'local' ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                {isScreenSharing ? (
+                                    <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                                ) : (
+                                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserAvatar src={user.avatar_url} className="w-10 h-10 rounded-full" /></div>
+                                )}
+                                <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white shadow-black drop-shadow-md">You</span>
+                            </div>
+
+                            {/* Remote Peers Tiles */}
+                            {peers.map(p => (
+                                <div key={p.peerID} onClick={() => setFocusedPeerId(p.peerID)} className={`w-48 h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === p.peerID ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                    <MediaPlayer peer={p.peer} userInfo={p.info} isMini={true} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                 ) : (
+                    /* 🅱️ GRID LAYOUT (Default / Audio Only) */
+                     <div className="flex-1 flex items-center justify-center p-4">
+                        <div className="grid grid-cols-2 gap-4 w-full h-full max-w-5xl max-h-[80vh]">
+                            {/* Local User */}
+                            <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 flex items-center justify-center">
+                                {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="flex flex-col items-center"><UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/5 mb-3" /><span className="text-xl font-bold">You</span></div>}
+                                <button onClick={startScreenShare} className="absolute bottom-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full backdrop-blur-md transition-all">🖥️</button>
+                            </div>
+                            {/* Peers */}
+                            {peers.map(p => (
+                                <div key={p.peerID} className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10">
+                                    <MediaPlayer peer={p.peer} userInfo={p.info} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
+                                </div>
+                            ))}
+                        </div>
+                     </div>
+                 )}
+                 
+                 {/* GLOBAL CONTROLS */}
+                 <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50">
+                    <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all">End Call</button>
+                    {focusedPeerId && <button onClick={() => setFocusedPeerId(null)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg">Show Grid</button>}
                  </div>
-                 <button onClick={leaveCall} className="mt-4 px-8 py-3 bg-red-600 rounded-full font-bold">End Call</button>
+
              </div>
          ) : (active.channel || active.friend) ? (
              <>
@@ -1020,100 +1089,61 @@ export default function DaChat() {
   );
 }
 
-// ✅ ROBUST MEDIA PLAYER (Updates when tracks are added/removed)
-const MediaPlayer = ({ peer, userInfo }: any) => {
+// ✅ SMART MEDIA PLAYER (Auto-detects video for layout)
+const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
-    const [isMaximized, setIsMaximized] = useState(false);
 
     useEffect(() => {
         const handleStream = (stream: MediaStream) => {
             if (videoRef.current) {
                 videoRef.current.srcObject = stream;
-                // Important: Play immediately when stream updates
                 videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
                 
                 const checkVideo = () => {
                     const tracks = stream.getVideoTracks();
-                    // Check if we have a live video track
                     const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
-                    setHasVideo(isVideoActive);
+                    
+                    if (isVideoActive !== hasVideo) {
+                        setHasVideo(isVideoActive);
+                        // Notify parent to switch layout
+                        if (onVideoChange) onVideoChange(isVideoActive);
+                    }
                 };
                 
-                // 1. Check immediately
                 checkVideo();
-
-                // 2. Listen for NEW tracks (e.g. User starts screen share)
-                stream.onaddtrack = () => {
-                    console.log("Track added!");
-                    checkVideo();
-                };
-
-                // 3. Listen for REMOVED tracks (e.g. User stops share)
-                stream.onremovetrack = () => {
-                     console.log("Track removed!");
-                     // Small delay to allow state to settle
-                     setTimeout(checkVideo, 100);
-                };
-
-                // 4. Listen for Mute/Unmute (Camera toggles)
-                stream.getVideoTracks().forEach(track => {
-                    track.onmute = () => setHasVideo(false);
-                    track.onunmute = () => setHasVideo(true);
-                    track.onended = () => setHasVideo(false);
-                });
+                stream.onaddtrack = checkVideo;
+                stream.onremovetrack = () => setTimeout(checkVideo, 100);
             }
         };
 
         peer.on("stream", handleStream);
-        
-        // Handle case where stream is already ready
-        if ((peer as any)._remoteStreams?.[0]) {
-             handleStream((peer as any)._remoteStreams[0]);
-        }
+        if ((peer as any)._remoteStreams?.[0]) handleStream((peer as any)._remoteStreams[0]);
 
-        return () => { 
-            peer.off("stream", handleStream); 
-        };
-    }, [peer]);
+        return () => { peer.off("stream", handleStream); };
+    }, [peer, hasVideo, onVideoChange]);
 
     return (
-        <div 
-            className={`${isMaximized ? "fixed inset-0 z-[100] bg-black flex items-center justify-center" : "relative w-full h-full bg-zinc-900"}`}
-        >
-            {/* The Video Element */}
+        <div className="relative w-full h-full bg-zinc-900 flex items-center justify-center overflow-hidden">
             <video 
                 ref={videoRef} 
                 autoPlay 
                 playsInline 
-                onClick={() => hasVideo && setIsMaximized(!isMaximized)}
-                className={`object-contain transition-all duration-300 cursor-pointer ${isMaximized ? "w-screen h-screen" : "w-full h-full"} ${hasVideo ? "block" : "hidden"}`} 
+                className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} 
             />
             
-            {/* Maximize Icon */}
-            {hasVideo && (
-                <button 
-                    onClick={(e) => { e.stopPropagation(); setIsMaximized(!isMaximized); }}
-                    className="absolute top-4 right-4 p-2 bg-black/50 rounded-full hover:bg-black/80 text-white opacity-0 hover:opacity-100 transition-opacity"
-                >
-                    {isMaximized ? "↙️" : "↗️"}
-                </button>
-            )}
-            
-            {/* 1. AUDIO ONLY (Avatar) - Shows when NO video */}
+            {/* AUDIO AVATAR (Shown if no video) */}
             {!hasVideo && (
-                <div className="absolute inset-0 flex items-center justify-center flex-col">
-                    <UserAvatar src={userInfo?.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10 mb-3 shadow-2xl" />
-                    <span className="font-bold text-white drop-shadow-md text-lg">{userInfo?.username || "Unknown"}</span>
+                <div className="flex flex-col items-center">
+                    <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} />
+                    {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>}
                 </div>
             )}
 
-            {/* 2. VIDEO OVERLAY (Name Tag) - Shows when video IS active */}
-            {hasVideo && !isMaximized && (
-                <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-xs font-bold text-white backdrop-blur-sm pointer-events-none">
-                    {userInfo?.username}
-                </div>
-            )}
+            {/* NAME TAG */}
+            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
+                {userInfo?.username}
+            </div>
         </div>
     );
 };
