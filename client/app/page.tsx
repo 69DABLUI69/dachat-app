@@ -184,6 +184,13 @@ export default function DaChat() {
           if (active.server && user) fetchServers(user.id);
           if (user) fetchFriends(user.id);
       });
+
+      // ✅ FIX: Local Video Preview (For your own screen share)
+  useEffect(() => {
+      if (myVideoRef.current && screenStream) {
+          myVideoRef.current.srcObject = screenStream;
+      }
+  }, [screenStream, isScreenSharing]);
       
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
@@ -587,48 +594,51 @@ export default function DaChat() {
 
 const startScreenShare = async () => {
     try {
-      // ✅ Request both video AND audio for system audio sharing
+      // Ask for video (screen) and optionally audio
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       setScreenStream(stream);
       setIsScreenSharing(true);
       const screenTrack = stream.getVideoTracks()[0];
       
+      // Update local preview immediately
+      if (myVideoRef.current) myVideoRef.current.srcObject = stream;
+
       peersRef.current.forEach((peerObj) => {
         const pc = (peerObj.peer as any)._pc;
         if (pc) {
            const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-           
            if (sender) {
-               // If we were already sending video (webcam), replace it
                sender.replaceTrack(screenTrack);
            } else {
-               // ✅ FIX: If we were audio-only, we must ADD the video track
+               // Add video track to the existing connection
                peerObj.peer.addTrack(screenTrack, myStream);
            }
         }
       });
-      screenTrack.onended = () => stopScreenShare();
+      
+      // Handle native "Stop Sharing" floating button
+      screenTrack.onended = () => {
+          stopScreenShare();
+      };
     } catch(e) { console.error("Screen Share Error:", e); }
   };
 
-  const stopScreenShare = () => {
+const stopScreenShare = () => {
     screenStream?.getTracks().forEach(t => t.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
     
-    // Attempt to revert to webcam video if available
-    if(myStream) {
-        const webcamTrack = myStream.getVideoTracks()[0];
-        if(webcamTrack) {
-            peersRef.current.forEach((peerObj) => {
-                const pc = (peerObj.peer as any)._pc;
-                if(pc) {
-                   const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-                   if(sender) sender.replaceTrack(webcamTrack);
-                }
-            });
+    // Remove the video track from the peer connection to return to audio-only
+    peersRef.current.forEach((peerObj) => {
+        const pc = (peerObj.peer as any)._pc;
+        if (pc) {
+            const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+            if (sender) {
+                // Remove the track entirely (triggers renegotiation)
+                peerObj.peer.removeTrack(sender); 
+            }
         }
-    }
+    });
   };
 
 // ✅ NEW: Helper to format duration
