@@ -93,7 +93,7 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   };
 
   return (
-    <GlassPanel className="absolute bottom-24 left-4 w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+    <GlassPanel className="absolute bottom-24 left-4 w-[90%] max-w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
         <input 
             className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all"
@@ -189,8 +189,18 @@ export default function DaChat() {
 
   const [tagline, setTagline] = useState("Next Gen Communication");
 
+  // ✅ NEW: Mobile Responsiveness State
+  const [showMobileChat, setShowMobileChat] = useState(false);
+
   // ✅ NEW: Focused Stream State (for Big Screen layout)
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
+
+  // ✅ Auto-switch to chat view on mobile when selecting something
+  useEffect(() => {
+      if (active.channel || active.friend) {
+          setShowMobileChat(true);
+      }
+  }, [active.channel, active.friend]);
 
   useEffect(() => {
       if (isScreenSharing) setFocusedPeerId('local');
@@ -552,13 +562,13 @@ export default function DaChat() {
 
   const leaveCall = () => { endCallSession(); socket.emit("leave_voice"); };
 
-// 🌈 LOGIN SCREEN
+// 🌈 LOGIN SCREEN (Responsive)
   if (!user) return (
-    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden">
+    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]"></div>
-      <GlassPanel className="p-10 rounded-[40px] w-[400px] text-center relative z-10 flex flex-col gap-6 ring-1 ring-white/10">
+      <GlassPanel className="p-10 rounded-[40px] w-full max-w-[400px] text-center relative z-10 flex flex-col gap-6 ring-1 ring-white/10">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full"></div>
             <img src="/logo.png" alt="DaChat" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-[32px]" />
@@ -579,8 +589,8 @@ export default function DaChat() {
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
-      {/* 1. DOCK */}
-      <div className="z-30 w-[90px] h-full flex flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl">
+      {/* 1. DOCK (Hidden on mobile when chat is active) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
@@ -597,8 +607,8 @@ export default function DaChat() {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer hover:ring-2 ring-white/50" />
       </div>
 
-      {/* 2. SIDEBAR */}
-      <div className="relative z-10 w-[260px] ml-[90px] h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex flex-col">
+      {/* 2. SIDEBAR (Full width on mobile, hidden when chat is active) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px]`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate">{active.server ? active.server.name : "Direct Messages"}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white">⚙️</button>}
@@ -608,27 +618,17 @@ export default function DaChat() {
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>Channels</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white">+</button>} </div>
                     {channels.map(ch => {
-                        // ✅ LOGIC: Get users in this specific channel
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
-                        
                         return ( 
                             <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between ${active.channel?.id === ch.id ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white"}`}>
                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                     <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
                                     <span className="truncate">{ch.name}</span>
-                                    
-                                    {/* ✅ SHOW AVATARS NEXT TO NAME */}
                                     {ch.type === 'voice' && activeMembers.length > 0 && (
                                         <div className="flex -space-x-1 ml-auto mr-2 shrink-0">
-                                            {activeMembers.slice(0, 3).map(m => (
-                                                <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" />
-                                            ))}
-                                            {activeMembers.length > 3 && (
-                                                <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">
-                                                    +{activeMembers.length - 3}
-                                                </div>
-                                            )}
+                                            {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
+                                            {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )}
                                         </div>
                                     )}
                                 </div>
@@ -662,12 +662,22 @@ export default function DaChat() {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT (CHAT & CALL LAYERS) */}
-      <div className="flex-1 flex flex-col relative z-10 min-w-0 bg-transparent">
+      {/* 3. MAIN CONTENT (Full width on mobile when active) */}
+      <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
          
-         {/* LAYER 1: CHAT UI (Always rendered underneath) */}
+         {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
-             {(active.channel || active.friend) && <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md"> <div className="flex items-center gap-3 font-bold text-lg"> <span className="text-white/30">@</span> {active.channel ? active.channel.name : active.friend?.username} </div> {!active.channel && <button onClick={startDMCall} className="bg-green-600 p-2 rounded-full hover:bg-green-500">📞</button>} </div>}
+             {(active.channel || active.friend) && (
+                 <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md"> 
+                    <div className="flex items-center gap-3 font-bold text-lg overflow-hidden"> 
+                        {/* ✅ NEW: Back Button */}
+                        <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white" onClick={() => setShowMobileChat(false)}>←</button>
+                        <span className="text-white/30">@</span> 
+                        <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
+                    </div> 
+                    {!active.channel && <button onClick={startDMCall} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0">📞</button>} 
+                 </div>
+             )}
              
              {/* Return to Call Banner */}
              {inCall && !isCallExpanded && (
@@ -678,6 +688,8 @@ export default function DaChat() {
 
              {active.pendingRequest ? (
                  <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                     {/* Back Button for Request View on Mobile */}
+                     <button className="md:hidden absolute top-4 left-4 text-white/50" onClick={() => setShowMobileChat(false)}>← Back</button>
                      <UserAvatar src={active.pendingRequest.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10" />
                      <div className="text-xl font-bold">{active.pendingRequest.username}</div>
                      <div className="flex gap-3"> <button onClick={handleAcceptRequest} className="px-6 py-2 bg-green-600 rounded-lg font-bold">Accept</button> <button onClick={handleDeclineRequest} className="px-6 py-2 bg-red-600/30 text-red-200 rounded-lg font-bold">Decline</button> </div>
@@ -688,43 +700,41 @@ export default function DaChat() {
                         {chatHistory.map((msg, i) => ( 
                             <div key={msg.id || i} className={`flex gap-3 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}> 
                                 <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl" /> 
-                                <div className={`max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
+                                <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
                                     <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> 
                                     <div className={`px-4 py-2 rounded-2xl text-sm ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
-                                        {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[250px] rounded-lg" /> : msg.content} 
+                                        {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[200px] md:max-w-[250px] rounded-lg" /> : msg.content} 
                                     </div> 
-                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[300px] rounded-xl border border-white/10" />} 
+                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[250px] rounded-xl border border-white/10" />} 
                                 </div> 
                             </div> 
                         ))}
                     </div>
                     <div className="p-4">
-                        {showGifPicker && <div className="absolute bottom-20 left-4 z-50"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
+                        {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
                         <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2"> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
-                            <input className="flex-1 bg-transparent outline-none px-2" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
+                            <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
                         </div>
                     </div>
                  </>
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest">Select a Channel</div>}
          </div>
 
-         {/* LAYER 2: CALL UI (Overlay - Toggleable visibility) */}
+         {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black" : "hidden"} flex flex-col relative`}>
                  
-                 {/* 🅰️ STAGE LAYOUT (Big Screen Active) */}
                  {focusedPeerId ? (
                     <div className="flex-1 flex flex-col relative">
-                        {/* MAIN STAGE */}
                         <div className="flex-1 relative bg-zinc-950 flex items-center justify-center p-2">
                             {focusedPeerId === 'local' ? (
                                 <div className="relative w-full h-full">
                                     <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
                                     <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white font-bold">You (Screen)</div>
-                                    <button onClick={stopScreenShare} className="absolute bottom-4 right-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg">Stop Sharing</button>
+                                    <button onClick={stopScreenShare} className="absolute bottom-4 right-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg">Stop</button>
                                 </div>
                             ) : (
                                 (() => {
@@ -733,42 +743,25 @@ export default function DaChat() {
                                 })()
                             )}
                         </div>
-
-                        {/* FILMSTRIP (Bottom Bar) */}
-                        <div className="h-32 w-full bg-zinc-900/80 backdrop-blur-md flex items-center justify-center gap-4 px-4 overflow-x-auto border-t border-white/10 z-20">
-                            {/* Local User Tile */}
-                            <div onClick={() => setFocusedPeerId('local')} className={`w-48 h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === 'local' ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
-                                {isScreenSharing ? (
-                                    <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
-                                ) : (
-                                    <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserAvatar src={user.avatar_url} className="w-10 h-10 rounded-full" /></div>
-                                )}
+                        <div className="h-24 md:h-32 w-full bg-zinc-900/80 backdrop-blur-md flex items-center justify-center gap-4 px-4 overflow-x-auto border-t border-white/10 z-20">
+                            <div onClick={() => setFocusedPeerId('local')} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === 'local' ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                {isScreenSharing ? ( <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserAvatar src={user.avatar_url} className="w-8 h-8 rounded-full" /></div> )}
                                 <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white shadow-black drop-shadow-md">You</span>
                             </div>
-
-                            {/* Remote Peers Tiles */}
                             {peers.map(p => (
-                                <div key={p.peerID} onClick={() => setFocusedPeerId(p.peerID)} className={`w-48 h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === p.peerID ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                <div key={p.peerID} onClick={() => setFocusedPeerId(p.peerID)} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all ${focusedPeerId === p.peerID ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
                                     <MediaPlayer peer={p.peer} userInfo={p.info} isMini={true} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
                                 </div>
                             ))}
                         </div>
                     </div>
                  ) : (
-                    /* 🅱️ GRID LAYOUT (Default / Audio Only) */
                      <div className="flex-1 flex items-center justify-center p-4">
                         <div className="grid grid-cols-2 gap-4 w-full h-full max-w-5xl max-h-[80vh]">
-                            {/* Local User */}
                             <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 flex items-center justify-center">
                                 {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="flex flex-col items-center"><UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/5 mb-3" /><span className="text-xl font-bold">You</span></div>}
-                                <button 
-                                    onClick={isScreenSharing ? stopScreenShare : startScreenShare} 
-                                    className={`absolute bottom-4 right-4 p-3 rounded-full backdrop-blur-md transition-all ${isScreenSharing ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/10 hover:bg-white/20"}`}
-                                >
-                                    {isScreenSharing ? "🛑" : "🖥️"}
-                                </button>
+                                <button onClick={isScreenSharing ? stopScreenShare : startScreenShare} className={`absolute bottom-4 right-4 p-3 rounded-full backdrop-blur-md transition-all ${isScreenSharing ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/10 hover:bg-white/20"}`}>{isScreenSharing ? "🛑" : "🖥️"}</button>
                             </div>
-                            {/* Peers */}
                             {peers.map(p => (
                                 <div key={p.peerID} className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10">
                                     <MediaPlayer peer={p.peer} userInfo={p.info} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
@@ -778,18 +771,16 @@ export default function DaChat() {
                      </div>
                  )}
                  
-                 {/* GLOBAL CONTROLS */}
-                 <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50">
-                    <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all">End Call</button>
-                    <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg">📉 Minimize</button>
-                    {focusedPeerId && <button onClick={() => setFocusedPeerId(null)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg">Show Grid</button>}
+                 <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50 w-full justify-center px-4">
+                    <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all text-sm whitespace-nowrap">End Call</button>
+                    <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg text-sm whitespace-nowrap">📉 Minimize</button>
+                    {focusedPeerId && <button onClick={() => setFocusedPeerId(null)} className="hidden md:block px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg">Show Grid</button>}
                  </div>
-
              </div>
          )}
       </div>
 
-      {/* 4. MEMBER LIST */}
+      {/* 4. MEMBER LIST (Hidden on Mobile) */}
       {view === "servers" && active.server && (
           <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20">
               <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
@@ -806,20 +797,14 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* MODALS */}
-      
-      {/* View Profile Modal */}
+      {/* MODALS (Responsive) */}
       {viewingProfile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm" onClick={() => setViewingProfile(null)}>
-              <GlassPanel className="w-96 p-8 flex flex-col items-center relative" onClick={(e:any)=>e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setViewingProfile(null)}>
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative" onClick={(e:any)=>e.stopPropagation()}>
                   <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10" />
                   <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
                   <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p>
-                  
-                  {/* Remove Friend Logic */}
                   {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={handleRemoveFriend} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold">Remove Friend</button>}
-                  
-                  {/* Mod Logic: Promote/Demote */}
                   {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && (
                       <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10">
                           <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div>
@@ -830,10 +815,9 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* Server Settings Modal */}
       {showServerSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-              <GlassPanel className="w-96 p-8 flex flex-col gap-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4">
                   <h2 className="text-xl font-bold">Server Settings</h2>
                   <div className="flex justify-center mb-4 cursor-pointer" onClick={()=>(document.getElementById('serverImg') as any).click()}>
                       <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20" />
@@ -845,12 +829,11 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* Incoming Call Modal */}
       {incomingCall && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-bounce-in">
               <div className="flex flex-col items-center gap-6">
                   <UserAvatar src={incomingCall.avatarUrl} className="w-32 h-32 rounded-full border-4 border-green-500 animate-pulse" />
-                  <div className="text-2xl font-bold">{incomingCall.senderName} is calling...</div>
+                  <div className="text-2xl font-bold text-center">{incomingCall.senderName} is calling...</div>
                   <div className="flex gap-8">
                       <button onClick={()=>setIncomingCall(null)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-2xl">✕</button>
                       <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-2xl">📞</button>
@@ -859,7 +842,6 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* ✅ NEW: CALL ENDED POPUP */}
       {callEndedData && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in">
               <GlassPanel className="w-80 p-8 flex flex-col items-center text-center">
@@ -871,10 +853,9 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* Edit Profile Modal */}
       {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-              <GlassPanel className="w-96 p-8 flex flex-col gap-4">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4">
                   <div className="flex flex-col items-center mb-4">
                       <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-2" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
                       <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
