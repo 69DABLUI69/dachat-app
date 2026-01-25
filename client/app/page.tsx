@@ -593,7 +593,10 @@ export default function DaChat() {
         setPeers(peersArr);
       });
 
-      socket.on("user_joined", (payload) => {
+socket.on("user_joined", (payload) => {
+        // ✅ NEW: Play join sound
+        playSound('join');
+
         const item = peersRef.current.find(p => p.peerID === payload.callerID);
         if (item) {
             item.peer.signal(payload.signal);
