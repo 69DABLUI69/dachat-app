@@ -568,36 +568,46 @@ export default function DaChat() {
     return peer;
   };
 
-  const startScreenShare = async () => {
+const startScreenShare = async () => {
     try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+      // ✅ Request both video AND audio for system audio sharing
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
       setScreenStream(stream);
       setIsScreenSharing(true);
       const screenTrack = stream.getVideoTracks()[0];
       
       peersRef.current.forEach((peerObj) => {
         const pc = (peerObj.peer as any)._pc;
-        if(pc) {
+        if (pc) {
            const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-           if(sender) sender.replaceTrack(screenTrack);
+           
+           if (sender) {
+               // If we were already sending video (webcam), replace it
+               sender.replaceTrack(screenTrack);
+           } else {
+               // ✅ FIX: If we were audio-only, we must ADD the video track
+               peerObj.peer.addTrack(screenTrack, myStream);
+           }
         }
       });
       screenTrack.onended = () => stopScreenShare();
-    } catch(e) { console.error(e); }
+    } catch(e) { console.error("Screen Share Error:", e); }
   };
 
   const stopScreenShare = () => {
     screenStream?.getTracks().forEach(t => t.stop());
     setScreenStream(null);
     setIsScreenSharing(false);
+    
+    // Attempt to revert to webcam video if available
     if(myStream) {
-        const track = myStream.getVideoTracks()[0];
-        if(track) {
+        const webcamTrack = myStream.getVideoTracks()[0];
+        if(webcamTrack) {
             peersRef.current.forEach((peerObj) => {
                 const pc = (peerObj.peer as any)._pc;
                 if(pc) {
                    const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
-                   if(sender) sender.replaceTrack(track);
+                   if(sender) sender.replaceTrack(webcamTrack);
                 }
             });
         }
@@ -607,11 +617,19 @@ export default function DaChat() {
   const leaveCall = () => {
     if(isScreenSharing) stopScreenShare();
     setInCall(false);
-    setMyStream(null);
+    setIncomingCall(null); // Clear incoming call modal if open
+    
+    // Stop all local tracks (Mic & Camera)
+    if (myStream) {
+        myStream.getTracks().forEach(t => t.stop());
+        setMyStream(null);
+    }
+    
+    // Destroy all peer connections
     setPeers([]);
-    myStream?.getTracks().forEach(t => t.stop());
     peersRef.current.forEach(p => p.peer.destroy());
     peersRef.current = [];
+    
     socket.emit("leave_voice");
   };
 
@@ -842,25 +860,39 @@ export default function DaChat() {
 // ✅ FIXED MEDIA PLAYER (Audio + Video)
 const MediaPlayer = ({ peer }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
-    const audioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
-        peer.on("stream", (stream: MediaStream) => {
+        const handleStream = (stream: MediaStream) => {
             if (videoRef.current) {
+                // Assign stream to video element
                 videoRef.current.srcObject = stream;
-                videoRef.current.play().catch(e => console.log("Video Play Error:", e));
+                
+                // Ensure it plays (fixes Autoplay policy issues)
+                videoRef.current.play().catch(e => {
+                    console.error("Autoplay blocked:", e);
+                    // Optional: Show a "Click to Play" button here if needed
+                });
             }
-            if (audioRef.current) {
-                audioRef.current.srcObject = stream;
-                audioRef.current.play().catch(e => console.log("Audio Play Error:", e));
-            }
-        });
+        };
+
+        // Listen for stream
+        peer.on("stream", handleStream);
+
+        // Cleanup
+        return () => {
+            peer.off("stream", handleStream);
+        };
     }, [peer]);
 
     return (
-        <>
-            <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
-            <audio ref={audioRef} autoPlay style={{ display: 'none' }} />
-        </>
+        <div className="relative w-full h-full">
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                // Don't mute remote peers! Only mute yourself in the local preview.
+                className="w-full h-full object-cover bg-black" 
+            />
+        </div>
     );
 };
