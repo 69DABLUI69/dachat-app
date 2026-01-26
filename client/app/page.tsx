@@ -673,8 +673,8 @@ export default function DaChat() {
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
-      {/* 1. DOCK (Hidden on mobile when chat is active) */}
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl`}>
+      {/* 1. DOCK (Always visible in background on mobile) */}
+      <div className={`flex z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
@@ -691,8 +691,8 @@ export default function DaChat() {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer hover:ring-2 ring-white/50" />
       </div>
 
-      {/* 2. SIDEBAR (Full width on mobile, hidden when chat is active) */}
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px]`}>
+      {/* 2. SIDEBAR (Always visible in background on mobile) */}
+      <div className={`flex relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px]`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate">{active.server ? active.server.name : "Direct Messages"}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white">⚙️</button>}
@@ -755,8 +755,13 @@ export default function DaChat() {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT (Full width on mobile when active) */}
-      <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
+      {/* 3. MAIN CONTENT (✅ ANIMATED SLIDE PANEL FOR MOBILE) */}
+      <div className={`
+          flex-1 flex-col relative min-w-0 bg-transparent
+          fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 cubic-bezier(0.32, 0.72, 0, 1)
+          ${showMobileChat ? 'translate-x-0' : 'translate-x-full'} 
+          md:static md:bg-transparent md:translate-x-0 md:flex md:z-auto
+      `}>
          
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
