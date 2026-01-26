@@ -419,12 +419,10 @@ export default function DaChat() {
       </div>
 
       {/* 3. MAIN CONTENT (✅ ANIMATED SLIDE PANEL FOR MOBILE) */}
-      <div className={`
-          flex-1 flex-col relative min-w-0 bg-transparent
-          fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 cubic-bezier(0.32, 0.72, 0, 1)
-          ${showMobileChat ? 'translate-x-0' : 'translate-x-full'} 
-          md:static md:bg-transparent md:translate-x-0 md:flex md:z-auto
-      `}>
+      <div 
+          className="flex flex-col relative min-w-0 bg-transparent fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-transparent md:z-auto"
+          style={{ transform: showMobileChat ? 'translateX(0)' : 'translateX(100%)', display: 'flex' }}
+      >
          
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
