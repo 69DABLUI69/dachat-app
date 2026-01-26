@@ -329,7 +329,20 @@ export default function DaChat() {
         body: JSON.stringify(authForm),
       });
       const data = await res.json();
+      
       if (data.success) {
+        // 🔥 NEW: REQUEST MIC PERMISSION IMMEDIATELY ON LOGIN
+        // This acts as a "User Gesture" since it happens after a click event.
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Permission secured! Now stop the tracks to release the mic.
+            stream.getTracks().forEach(track => track.stop());
+            console.log("✅ Microphone permission secured.");
+        } catch (e) {
+            console.warn("⚠️ Microphone permission denied or dismissed:", e);
+            // We proceed anyway, but user may need to enable it manually later.
+        }
+
         setUser(data.user);
         fetchServers(data.user.id);
         fetchFriends(data.user.id);
@@ -435,7 +448,7 @@ export default function DaChat() {
           ...payload, 
           sender_id: user.id, 
           sender_name: user.username,
-          file_url: fileUrl,
+          file_url: fileUrl, 
           avatar_url: user.avatar_url 
       }]);
 
@@ -951,7 +964,7 @@ export default function DaChat() {
   );
 }
 
-// ✅ ROBUST MEDIA PLAYER (Unchanged logic, just ensure classes are clean)
+// ... [Keep MediaPlayer Component exactly as it was] ...
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
