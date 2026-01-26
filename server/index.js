@@ -120,10 +120,15 @@ app.get("/my-requests/:userId", safeRoute(async (req, res) => {
   res.json(senders || []);
 }));
 
+// ✅ UPDATED: Accept Request now notifies the sender
 app.post("/accept-request", safeRoute(async (req, res) => {
   const { myId, senderId } = req.body;
   await supabase.from("friends").insert([ { user_id: myId, friend_id: senderId }, { user_id: senderId, friend_id: myId } ]);
   await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
+  
+  // 🔥 FIX: Notify the sender that their request was accepted!
+  io.to(senderId.toString()).emit("request_accepted");
+
   res.json({ success: true });
 }));
 

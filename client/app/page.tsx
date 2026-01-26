@@ -247,10 +247,15 @@ export default function DaChat() {
       }; 
   }, [user]); 
 
-  // --- 2. GLOBAL EVENT LISTENERS (✅ UPDATED FOR FRIENDS) ---
+  // --- 2. GLOBAL EVENT LISTENERS (✅ UPDATED FOR FRIENDS & OPTIMISTIC UI) ---
   useEffect(() => { 
       // 1. Existing listeners
-      socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
+      // ✅ UPDATED: Ignore duplicate messages from self (Optimistic UI fix)
+      socket.on("receive_message", (msg) => {
+          if (user && msg.sender_id === user.id) return; 
+          setChatHistory(prev => [...prev, msg]);
+      });
+
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       
@@ -420,11 +425,37 @@ export default function DaChat() {
       fetchFriends(user.id); setViewingProfile(null);
   };
 
+  // ✅ UPDATED: sendMessage with Optimistic UI
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
-      const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url }; 
-      if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } 
-      else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
+      const payload: any = { 
+          content, 
+          senderId: user.id, 
+          senderName: user.username, 
+          fileUrl, 
+          avatar_url: user.avatar_url,
+          id: Date.now(),               // Temporary ID
+          created_at: new Date().toISOString()
+      }; 
+      
+      // 1. Show immediately (Optimistic Update)
+      setChatHistory(prev => [...prev, { 
+          ...payload, 
+          sender_id: user.id, 
+          sender_name: user.username,
+          file_url: fileUrl,
+          avatar_url: user.avatar_url 
+      }]);
+
+      // 2. Send to Server
+      if (view === "servers" && active.channel) { 
+          payload.channelId = active.channel.id; 
+          socket.emit("send_message", payload); 
+      } else if (view === "dms" && active.friend) { 
+          payload.recipientId = active.friend.id; 
+          socket.emit("send_message", payload); 
+      } 
+      
       setMessage(""); 
   };
 
@@ -616,17 +647,11 @@ export default function DaChat() {
 
 // 🌈 LOGIN SCREEN (Responsive Fix)
   if (!user) return (
-    // CHANGE 1: "p-4" -> "p-0 md:p-4" (Removes padding on mobile so it touches the edges)
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]"></div>
       
-      {/* CHANGE 2: Updated the GlassPanel classes below:
-         - Added "h-full md:h-auto": Makes it full height on phone, auto height on PC.
-         - Added "rounded-none md:rounded-[40px]": Removes corners on phone.
-         - Added "justify-center": Centers the text vertically on the phone screen.
-      */}
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full"></div>
