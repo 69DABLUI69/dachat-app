@@ -280,6 +280,60 @@ app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
 let voiceRooms = {}; 
 let socketToUser = {}; 
 
+// 1. Keep track of online users
+// Map: userId -> Set of socketIds (a user might have multiple tabs open)
+const onlineUsers = new Map();
+
+io.on("connection", (socket) => {
+  console.log("New connection:", socket.id);
+
+  // 2. LISTEN for the 'setup' event from frontend
+  socket.on("setup", (userId) => {
+    socket.userData = { id: userId }; // Store ID on the socket object
+    
+    // Add to online tracking
+    if (!onlineUsers.has(userId)) {
+      onlineUsers.set(userId, new Set());
+    }
+    onlineUsers.get(userId).add(socket.id);
+
+    // Join their own room (for private messages)
+    socket.join(userId.toString());
+    socket.emit("connected");
+
+    // 🔥 BROADCAST: Tell everyone this user is now online
+    io.emit("user_connected", userId);
+  });
+
+  // 3. LISTEN for 'get_online_users' (When app loads)
+  socket.on("get_online_users", () => {
+    // Send the list of all currently online user IDs
+    const onlineIds = Array.from(onlineUsers.keys());
+    socket.emit("online_users", onlineIds);
+  });
+
+  // 4. LISTEN for Disconnect
+  socket.on("disconnect", () => {
+    if (socket.userData && socket.userData.id) {
+      const userId = socket.userData.id;
+      
+      // Remove this specific socket
+      if (onlineUsers.has(userId)) {
+        const userSockets = onlineUsers.get(userId);
+        userSockets.delete(socket.id);
+
+        // If user has no more open sockets/tabs, they are offline
+        if (userSockets.size === 0) {
+          onlineUsers.delete(userId);
+          // 🔥 BROADCAST: Tell everyone this user went offline
+          io.emit("user_disconnected", userId);
+        }
+      }
+    }
+    console.log("Disconnected:", socket.id);
+  });
+});
+
 io.on("connection", (socket) => {
   console.log("User Connected:", socket.id);
 
