@@ -247,16 +247,20 @@ export default function DaChat() {
       }; 
   }, [user]); 
 
-  // --- 2. GLOBAL EVENT LISTENERS ---
+  // --- 2. GLOBAL EVENT LISTENERS (✅ UPDATED FOR FRIENDS) ---
   useEffect(() => { 
+      // 1. Existing listeners
       socket.on("receive_message", (msg) => setChatHistory(prev => [...prev, msg])); 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       
-      // ✅ STATUS LISTENERS
+      // 2. Status & Updates
       socket.on("user_connected", (userId: number) => {
           setOnlineUsers(prev => new Set(prev).add(userId));
+          // Refresh friends to get green dot immediately
+          if (user) fetchFriends(user.id); 
       });
+      
       socket.on("user_disconnected", (userId: number) => {
           setOnlineUsers(prev => {
               const next = new Set(prev);
@@ -264,6 +268,7 @@ export default function DaChat() {
               return next;
           });
       });
+      
       socket.on("online_users", (users: number[]) => {
           setOnlineUsers(new Set(users));
       });
@@ -274,6 +279,21 @@ export default function DaChat() {
           if (user) fetchFriends(user.id);
       });
       
+      // ✅ NEW: Listen for accepted requests (Updates the requester's list)
+      socket.on("request_accepted", () => {
+          if (user) {
+              fetchFriends(user.id);   // Refresh Friend List
+              fetchRequests(user.id);  // Refresh Pending List
+          }
+      });
+      
+      // ✅ NEW: Listen for removed friends
+      socket.on("friend_removed", () => {
+          if (user) {
+              fetchFriends(user.id);
+          }
+      });
+
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
@@ -288,10 +308,12 @@ export default function DaChat() {
       socket.on("call_ended", () => { endCallSession(); });
       
       return () => { 
+          // cleanup all listeners
           socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); 
           socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); 
           socket.off("server_updated"); socket.off("new_server_invite"); socket.off("call_ended");
           socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users");
+          socket.off("request_accepted"); socket.off("friend_removed"); 
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
