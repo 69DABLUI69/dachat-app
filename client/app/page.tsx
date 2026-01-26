@@ -592,13 +592,20 @@ export default function DaChat() {
 
   const leaveCall = () => { endCallSession(); socket.emit("leave_voice"); };
 
-// 🌈 LOGIN SCREEN (Responsive)
+// 🌈 LOGIN SCREEN (Responsive Fix)
   if (!user) return (
-    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-4">
+    // CHANGE 1: "p-4" -> "p-0 md:p-4" (Removes padding on mobile so it touches the edges)
+    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]"></div>
-      <GlassPanel className="p-10 rounded-[40px] w-full max-w-[400px] text-center relative z-10 flex flex-col gap-6 ring-1 ring-white/10">
+      
+      {/* CHANGE 2: Updated the GlassPanel classes below:
+         - Added "h-full md:h-auto": Makes it full height on phone, auto height on PC.
+         - Added "rounded-none md:rounded-[40px]": Removes corners on phone.
+         - Added "justify-center": Centers the text vertically on the phone screen.
+      */}
+      <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full"></div>
             <img src="/logo.png" alt="DaChat" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-[32px]" />
