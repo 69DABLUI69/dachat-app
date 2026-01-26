@@ -144,6 +144,9 @@ export default function DaChat() {
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
 
+  // ✅ NEW: Online Status State
+  const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+
   const [view, setView] = useState("dms");
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
   
@@ -189,9 +192,6 @@ export default function DaChat() {
 
   const [tagline, setTagline] = useState("Next Gen Communication");
 
-  // ✅ NEW: Mobile Responsiveness State
-  const [showMobileChat, setShowMobileChat] = useState(false);
-
   // ✅ NEW: Focused Stream State (for Big Screen layout)
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
 
@@ -201,6 +201,9 @@ export default function DaChat() {
           setShowMobileChat(true);
       }
   }, [active.channel, active.friend]);
+
+  // ✅ NEW: Mobile Responsiveness State
+  const [showMobileChat, setShowMobileChat] = useState(false);
 
   useEffect(() => {
       if (isScreenSharing) setFocusedPeerId('local');
@@ -229,11 +232,26 @@ export default function DaChat() {
   // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
-      const handleConnect = () => { if (user) socket.emit("setup", user.id); };
+      
+      const handleConnect = () => { 
+          if (user) {
+              socket.emit("setup", user.id);
+              socket.emit("get_online_users"); // Request initial status
+          }
+      };
+
       socket.on("connect", handleConnect);
       socket.on("connect_error", (err) => console.error("Connection Error:", err));
-      if (socket.connected && user) socket.emit("setup", user.id);
-      return () => { socket.off("connect", handleConnect); socket.disconnect(); }; 
+      
+      if (socket.connected && user) {
+          socket.emit("setup", user.id);
+          socket.emit("get_online_users");
+      }
+
+      return () => { 
+          socket.off("connect", handleConnect);
+          socket.disconnect(); 
+      }; 
   }, [user]); 
 
   // --- 2. GLOBAL EVENT LISTENERS ---
@@ -242,6 +260,21 @@ export default function DaChat() {
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       
+      // ✅ STATUS LISTENERS
+      socket.on("user_connected", (userId: number) => {
+          setOnlineUsers(prev => new Set(prev).add(userId));
+      });
+      socket.on("user_disconnected", (userId: number) => {
+          setOnlineUsers(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+          });
+      });
+      socket.on("online_users", (users: number[]) => {
+          setOnlineUsers(new Set(users));
+      });
+
       socket.on("user_updated", ({ userId }) => { 
           if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
           if (active.server && user) fetchServers(user.id);
@@ -265,6 +298,7 @@ export default function DaChat() {
           socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); 
           socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); 
           socket.off("server_updated"); socket.off("new_server_invite"); socket.off("call_ended");
+          socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users");
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
@@ -651,12 +685,23 @@ export default function DaChat() {
                         </div> 
                     ))}
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
-                    {friends.map(f => ( 
-                        <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> 
-                            <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
-                            <div className="flex-1" onClick={()=>selectFriend(f)}><div className="text-xs font-bold">{f.username}</div><div className="text-[9px] text-green-400">Online</div></div> 
-                        </div> 
-                    ))}
+                    {friends.map(f => {
+                        // ✅ FIX: Check if online using our tracking set OR database field
+                        const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
+                        
+                        return (
+                            <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> 
+                                <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
+                                <div className="flex-1" onClick={()=>selectFriend(f)}>
+                                    <div className="text-xs font-bold">{f.username}</div>
+                                    {/* ✅ FIX: Dynamic status text instead of hardcoded 'Online' */}
+                                    <div className={`text-[9px] ${isOnline ? "text-green-400" : "text-white/30"}`}>
+                                        {isOnline ? "Online" : "Offline"}
+                                    </div>
+                                </div> 
+                            </div> 
+                        );
+                    })}
                 </>
             )}
         </div>
