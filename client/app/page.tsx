@@ -4,11 +4,25 @@ import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 
 const TAGLINES = [
-  "Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER",
-  "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela",
-  "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa",
-  "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit",
-  "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"
+  "Tel Aviv group trip 2026 ?",
+  "Debis",
+  "Endorsed by the Netanyahu cousins",
+  "Also try DABROWSER",
+  "Noua aplicatie suvenirista",
+  "No Basinosu allowed",
+  "Nu stati singuri cu bibi pe VC",
+  "E buna Purcela",
+  "I AM OBEZ DELUXE 2026 ?",
+  "500 pe seara",
+  "Sure buddy",
+  "Mor vecinii",
+  "Aplicatie de jocuri dusmanoasa",
+  "Aplicatie de jocuri patriotica",
+  "Aplicatie de jocuri prietenoasa",
+  "Sanatate curata ma",
+  "Garju 8-bit",
+  "Five Nights at Valeriu (rip)",
+  "Micu Vesel group trip 202(si ceva) ?"
 ];
 
 // ⚠️ POLYFILL FOR SIMPLE-PEER
@@ -45,7 +59,14 @@ const GlassPanel = ({ children, className, onClick }: any) => (
 
 const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) => {
   return src ? (
-    <img key={src} onClick={onClick} src={src} alt={alt || "User"} className={`${className} bg-black/20 object-cover cursor-pointer`} loading="lazy" />
+    <img 
+        key={src} 
+        onClick={onClick} 
+        src={src} 
+        alt={alt || "User"} 
+        className={`${className} bg-black/20 object-cover cursor-pointer`} 
+        loading="lazy" 
+    />
   ) : (
     <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer`}>
        <span className="text-[10px] text-white/40 font-bold">?</span>
@@ -59,7 +80,9 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`).then(r => r.json()).then(d => setGifs(d.results || []));
+    fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`)
+      .then(r => r.json())
+      .then(d => setGifs(d.results || []));
   }, []);
 
   const searchGifs = async (q: string) => {
@@ -72,13 +95,24 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   return (
     <GlassPanel className="absolute bottom-24 left-4 w-[90%] max-w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
-        <input className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all" placeholder="Search GIFs..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)} autoFocus />
+        <input 
+            className="w-full bg-black/20 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all"
+            placeholder="Search GIFs..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)}
+            autoFocus
+        />
         <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 transition-colors">✕</button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         <div className="columns-2 gap-3 space-y-3">
           {gifs.map((g) => (
-            <div key={g.id} className="relative group overflow-hidden rounded-2xl cursor-pointer hover:ring-2 ring-blue-500/50 transition-all" onClick={() => onSelect(g?.media_formats?.gif?.url)}>
+            <div 
+                key={g.id} 
+                className="relative group overflow-hidden rounded-2xl cursor-pointer hover:ring-2 ring-blue-500/50 transition-all" 
+                onClick={() => onSelect(g?.media_formats?.gif?.url)}
+            >
               <img src={g?.media_formats?.tinygif?.url} className="w-full h-auto object-cover rounded-xl" />
             </div>
           ))}
@@ -88,11 +122,17 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   );
 };
 
+// ✅ LOGO COMPONENT
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => (
-  <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl`} />
+  <img 
+    src="/logo.png" 
+    alt="DaChat Logo" 
+    className={`${className} object-contain rounded-xl`} 
+  />
 );
 
 export default function DaChat() {
+  // --- STATE ---
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
@@ -104,6 +144,7 @@ export default function DaChat() {
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
 
+  // ✅ NEW: Online Status State
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
 
   const [view, setView] = useState("dms");
@@ -113,11 +154,13 @@ export default function DaChat() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   
+  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   
+  // ✅ Call Timer State
   const [callEndedData, setCallEndedData] = useState<string | null>(null);
   const callStartTimeRef = useRef<number | null>(null);
   
@@ -130,9 +173,12 @@ export default function DaChat() {
   const peersRef = useRef<any[]>([]);
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ Audio Refs
   const joinSoundRef = useRef<HTMLAudioElement | null>(null);
   const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
 
+  // Settings State
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
@@ -140,10 +186,16 @@ export default function DaChat() {
   
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
   const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
+  
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
+
   const [tagline, setTagline] = useState("Next Gen Communication");
+
+  // ✅ NEW: Focused Stream State (for Big Screen layout)
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
+
+  // ✅ NEW: Mobile Responsiveness State
   const [showMobileChat, setShowMobileChat] = useState(false);
 
   useEffect(() => {
@@ -156,7 +208,10 @@ export default function DaChat() {
       else if (focusedPeerId === peerId) setFocusedPeerId(null);
   }, [focusedPeerId]);
 
-  useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
+  useEffect(() => {
+      const randomTag = TAGLINES[Math.floor(Math.random() * TAGLINES.length)];
+      setTagline(randomTag);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -167,31 +222,98 @@ export default function DaChat() {
     }
   }, []);
 
+  // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
-      const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
+      
+      const handleConnect = () => { 
+          if (user) {
+              socket.emit("setup", user.id);
+              socket.emit("get_online_users"); // Request initial status
+          }
+      };
+
       socket.on("connect", handleConnect);
-      if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); }
-      return () => { socket.off("connect", handleConnect); socket.disconnect(); }; 
+      socket.on("connect_error", (err) => console.error("Connection Error:", err));
+      
+      if (socket.connected && user) {
+          socket.emit("setup", user.id);
+          socket.emit("get_online_users");
+      }
+
+      return () => { 
+          socket.off("connect", handleConnect);
+          socket.disconnect(); 
+      }; 
   }, [user]); 
 
+  // --- 2. GLOBAL EVENT LISTENERS (✅ UPDATED FOR FRIENDS & OPTIMISTIC UI) ---
   useEffect(() => { 
-      socket.on("receive_message", (msg) => { if (user && msg.sender_id === user.id) return; setChatHistory(prev => [...prev, msg]); });
+      // 1. Existing listeners
+      // ✅ UPDATED: Ignore duplicate messages from self (Optimistic UI fix)
+      socket.on("receive_message", (msg) => {
+          if (user && msg.sender_id === user.id) return; 
+          setChatHistory(prev => [...prev, msg]);
+      });
+
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
-      socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
-      socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
-      socket.on("online_users", (users: number[]) => { setOnlineUsers(new Set(users)); });
-      socket.on("user_updated", ({ userId }) => { if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); if (active.server && user) fetchServers(user.id); if (user) fetchFriends(user.id); });
-      socket.on("request_accepted", () => { if (user) { fetchFriends(user.id); fetchRequests(user.id); } });
-      socket.on("friend_removed", () => { if (user) fetchFriends(user.id); });
+      
+      // 2. Status & Updates
+      socket.on("user_connected", (userId: number) => {
+          setOnlineUsers(prev => new Set(prev).add(userId));
+          // Refresh friends to get green dot immediately
+          if (user) fetchFriends(user.id); 
+      });
+      
+      socket.on("user_disconnected", (userId: number) => {
+          setOnlineUsers(prev => {
+              const next = new Set(prev);
+              next.delete(userId);
+              return next;
+          });
+      });
+      
+      socket.on("online_users", (users: number[]) => {
+          setOnlineUsers(new Set(users));
+      });
+
+      socket.on("user_updated", ({ userId }) => { 
+          if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId);
+          if (active.server && user) fetchServers(user.id);
+          if (user) fetchFriends(user.id);
+      });
+      
+      // ✅ NEW: Listen for accepted requests (Updates the requester's list)
+      socket.on("request_accepted", () => {
+          if (user) {
+              fetchFriends(user.id);   // Refresh Friend List
+              fetchRequests(user.id);  // Refresh Pending List
+          }
+      });
+      
+      // ✅ NEW: Listen for removed friends
+      socket.on("friend_removed", () => {
+          if (user) {
+              fetchFriends(user.id);
+          }
+      });
+
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
-      socket.on("server_updated", ({ serverId }) => { if (active.server?.id === serverId && user) { fetchServers(user.id); selectServer({ id: serverId }); } });
+      
+      socket.on("server_updated", ({ serverId }) => { 
+          if (active.server?.id === serverId && user) {
+              fetchServers(user.id); 
+              selectServer({ id: serverId }); 
+          }
+      });
+      
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_ended", () => { endCallSession(); });
       
       return () => { 
+          // cleanup all listeners
           socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); 
           socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); 
           socket.off("server_updated"); socket.off("new_server_invite"); socket.off("call_ended");
@@ -200,68 +322,180 @@ export default function DaChat() {
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
-  useEffect(() => { if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream; }, [screenStream, isScreenSharing]);
+  useEffect(() => {
+      if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream;
+  }, [screenStream, isScreenSharing]);
 
+  // --- AUTHENTICATION ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
-      const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm), });
+      const res = await fetch(`${BACKEND_URL}/${endpoint}`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(authForm),
+      });
       const data = await res.json();
-      if (data.success) { setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id); } else setError(data.message || "Auth failed");
+      if (data.success) {
+        setUser(data.user);
+        fetchServers(data.user.id);
+        fetchFriends(data.user.id);
+        fetchRequests(data.user.id);
+        socket.emit("setup", data.user.id);
+      } else setError(data.message || "Auth failed");
     } catch { setError("Connection failed"); }
   };
 
+  // --- DATA FETCHING ---
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
 
+  // --- NAVIGATION ---
   const selectServer = async (server: any) => {
-    setView("servers"); setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); setIsCallExpanded(false); 
+    setView("servers");
+    setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null }));
+    setIsCallExpanded(false); 
+    
     const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`);
     const chData = await res.json();
     setChannels(chData);
-    if(!active.channel && chData.length > 0) { const firstText = chData.find((c:any) => c.type === 'text'); if (firstText) joinChannel(firstText); }
+    
+    if(!active.channel && chData.length > 0) {
+        const firstText = chData.find((c:any) => c.type === 'text');
+        if (firstText) joinChannel(firstText);
+    }
     const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`);
     setServerMembers(await memRes.json());
   };
 
   const joinChannel = (channel: any) => {
     if (channel.type === 'voice') {
-      if (inCall && activeVoiceChannelId === channel.id.toString()) { setIsCallExpanded(true); } else { if (channel.id) joinVoiceRoom(channel.id.toString()); }
+      if (inCall && activeVoiceChannelId === channel.id.toString()) {
+          setIsCallExpanded(true);
+      } else {
+          if (channel.id) joinVoiceRoom(channel.id.toString());
+      }
     } else {
       setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null }));
-      setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); 
+      setChatHistory([]);
+      setIsCallExpanded(false); 
+      setShowMobileChat(true); // ✅ FIX: FORCE OPEN CHAT
       if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() });
     }
   };
 
   const selectFriend = (friend: any) => {
     setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null }));
-    setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true);
+    setChatHistory([]);
+    setIsCallExpanded(false); 
+    setShowMobileChat(true); // ✅ FIX: FORCE OPEN CHAT
     const ids = [user.id, friend.id].sort((a, b) => a - b);
     socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` });
   };
 
-  const selectRequest = (requestUser: any) => { setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null })); setIsCallExpanded(false); setShowMobileChat(true); };
+  const selectRequest = (requestUser: any) => {
+     setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null }));
+     setIsCallExpanded(false);
+     setShowMobileChat(true); // ✅ FIX: FORCE OPEN CHAT
+  };
 
-  const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); };
-  const handleAcceptRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest); };
-  const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
-  const handleRemoveFriend = async () => { if (!viewingProfile) return; if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id }) }); fetchFriends(user.id); setViewingProfile(null); };
+  // --- ACTIONS ---
+  const sendFriendRequest = async () => { 
+      const usernameToAdd = prompt("Enter username to request:"); 
+      if (!usernameToAdd) return; 
+      await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) });
+  };
 
+  const handleAcceptRequest = async () => {
+      if(!active.pendingRequest) return;
+      await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
+      fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest);
+  };
+
+  const handleDeclineRequest = async () => {
+      if(!active.pendingRequest) return;
+      await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) });
+      fetchRequests(user.id); setActive({...active, pendingRequest: null});
+  };
+
+  const handleRemoveFriend = async () => {
+      if (!viewingProfile) return;
+      if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return;
+      await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id }) });
+      fetchFriends(user.id); setViewingProfile(null);
+  };
+
+  // ✅ UPDATED: sendMessage with Optimistic UI
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
-      const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString() }; 
-      setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url }]);
-      if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
+      const payload: any = { 
+          content, 
+          senderId: user.id, 
+          senderName: user.username, 
+          fileUrl, 
+          avatar_url: user.avatar_url,
+          id: Date.now(),               // Temporary ID
+          created_at: new Date().toISOString()
+      }; 
+      
+      // 1. Show immediately (Optimistic Update)
+      setChatHistory(prev => [...prev, { 
+          ...payload, 
+          sender_id: user.id, 
+          sender_name: user.username,
+          file_url: fileUrl,
+          avatar_url: user.avatar_url 
+      }]);
+
+      // 2. Send to Server
+      if (view === "servers" && active.channel) { 
+          payload.channelId = active.channel.id; 
+          socket.emit("send_message", payload); 
+      } else if (view === "dms" && active.friend) { 
+          payload.recipientId = active.friend.id; 
+          socket.emit("send_message", payload); 
+      } 
+      
       setMessage(""); 
   };
 
-  const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
-  const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
-  const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); setShowProfileGifPicker(false); };
-  const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); setUser((prev:any) => ({...prev, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl})); setShowSettings(false); };
+  const handleFileUpload = async (e: any) => {
+      const file = e.target.files[0];
+      if(!file) return;
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+      const data = await res.json();
+      if(data.success) sendMessage(null, data.fileUrl);
+  };
 
+  const viewUserProfile = async (userId: number) => {
+      const res = await fetch(`${BACKEND_URL}/users/${userId}`);
+      const data = await res.json();
+      if (data.success) setViewingProfile(data.user);
+  };
+
+  const openSettings = () => {
+      setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url });
+      setShowSettings(true);
+      setShowProfileGifPicker(false);
+  };
+
+  const saveProfile = async () => {
+      let finalAvatarUrl = editForm.avatarUrl;
+      if (newAvatarFile) {
+          const formData = new FormData();
+          formData.append("file", newAvatarFile);
+          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+          const data = await res.json();
+          if (data.success) finalAvatarUrl = data.fileUrl;
+      }
+      await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) });
+      setUser((prev:any) => ({...prev, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl}));
+      setShowSettings(false);
+  };
+
+  // --- SERVER MANAGEMENT ---
   const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); } };
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) }); selectServer(active.server); } };
   const deleteChannel = async (channelId: number) => { if(!confirm("Delete channel?")) return; await fetch(`${BACKEND_URL}/delete-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) }); selectServer(active.server); };
@@ -275,45 +509,149 @@ export default function DaChat() {
   const isMod = getRole()?.is_admin;
   const isOwner = user && active.server?.owner_id === user.id;
 
-  const playSound = (type: 'join' | 'leave') => { const audio = type === 'join' ? joinSoundRef.current : leaveSoundRef.current; if (audio) { audio.currentTime = 0; audio.volume = 0.5; audio.play().catch(e => console.error(e)); } };
+  const playSound = (type: 'join' | 'leave') => {
+      const audio = type === 'join' ? joinSoundRef.current : leaveSoundRef.current;
+      if (audio) { audio.currentTime = 0; audio.volume = 0.5; audio.play().catch(e => console.error(e)); }
+  };
 
-  const startDMCall = () => { if (!active.friend) return; const ids = [user.id, active.friend.id].sort((a, b) => a - b); const roomId = `dm-call-${ids[0]}-${ids[1]}`; joinVoiceRoom(roomId); socket.emit("start_call", { senderId: user.id, recipientId: active.friend.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId }); };
+  // --- WEBRTC ---
+  const startDMCall = () => {
+      if (!active.friend) return;
+      const ids = [user.id, active.friend.id].sort((a, b) => a - b);
+      const roomId = `dm-call-${ids[0]}-${ids[1]}`;
+      joinVoiceRoom(roomId);
+      socket.emit("start_call", { senderId: user.id, recipientId: active.friend.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId });
+  };
+
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
-  const removePeer = (peerID: string) => { const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID); if (peerIdx > -1) { peersRef.current[peerIdx].peer.destroy(); peersRef.current.splice(peerIdx, 1); } setPeers(prev => prev.filter(p => p.peerID !== peerID)); setFocusedPeerId(current => (current === peerID ? null : current)); };
+
+  const removePeer = (peerID: string) => {
+      console.log("Removing peer:", peerID);
+      playSound('leave');
+      const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID);
+      if (peerIdx > -1) { peersRef.current[peerIdx].peer.destroy(); peersRef.current.splice(peerIdx, 1); }
+      setPeers(prev => prev.filter(p => p.peerID !== peerID));
+      setFocusedPeerId(current => (current === peerID ? null : current));
+  };
 
   const joinVoiceRoom = useCallback((roomId: string) => {
     if (!user) return;
     callStartTimeRef.current = Date.now();
-    setActiveVoiceChannelId(roomId); setIsCallExpanded(true); 
+    setActiveVoiceChannelId(roomId); 
+    setIsCallExpanded(true); 
+
     socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal");
+
     navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => {
       setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user });
+
       socket.on("all_users", (users) => {
         const peersArr: any[] = [];
-        users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); });
+        users.forEach((u: any) => {
+          const peer = createPeer(u.socketId, socket.id as string, stream, u.userData);
+          peersRef.current.push({ peerID: u.socketId, peer, info: u.userData });
+          peersArr.push({ peerID: u.socketId, peer, info: u.userData });
+        });
         setPeers(peersArr);
       });
+
       socket.on("user_joined", (payload) => {
-        playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; }
-        const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
+        playSound('join');
+        const item = peersRef.current.find(p => p.peerID === payload.callerID);
+        if (item) { item.peer.signal(payload.signal); return; }
+        const peer = addPeer(payload.signal, payload.callerID, stream);
+        peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData });
+        setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]);
       });
-      socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); });
+
+      socket.on("receiving_returned_signal", (payload) => {
+        const item = peersRef.current.find(p => p.peerID === payload.id);
+        if (item) item.peer.signal(payload.signal);
+      });
     }).catch(err => { console.error("Mic Error:", err); alert("Mic access denied"); });
   }, [user]);
 
-  const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
-  const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => { const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("returning_signal", { signal, callerID }); }); peer.on("close", () => removePeer(callerID)); peer.on("error", () => removePeer(callerID)); peer.signal(incomingSignal); return peer; };
-  const startScreenShare = async () => { try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setScreenStream(stream); setIsScreenSharing(true); const screenTrack = stream.getVideoTracks()[0]; if (myVideoRef.current) myVideoRef.current.srcObject = stream; peersRef.current.forEach((peerObj) => { const pc = (peerObj.peer as any)._pc; if (pc) { const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenTrack); else peerObj.peer.addTrack(screenTrack, myStream); } }); screenTrack.onended = () => stopScreenShare(); } catch(e) { console.error("Screen Share Error:", e); } };
-  const stopScreenShare = () => { screenStream?.getTracks().forEach(t => t.stop()); setScreenStream(null); setIsScreenSharing(false); if (focusedPeerId === 'local') setFocusedPeerId(null); if(myStream) { const webcamTrack = myStream.getVideoTracks()[0]; if(webcamTrack) { peersRef.current.forEach((peerObj) => { const pc = (peerObj.peer as any)._pc; if(pc) { const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video'); if(sender) sender.replaceTrack(webcamTrack); } }); } } };
-  const getCallDuration = () => { if (!callStartTimeRef.current) return "00:00"; const diff = Math.floor((Date.now() - callStartTimeRef.current) / 1000); return `${Math.floor(diff / 60).toString().padStart(2, '0')}:${(diff % 60).toString().padStart(2, '0')}`; };
-  const endCallSession = () => { if (inCall && callStartTimeRef.current) { const duration = getCallDuration(); setCallEndedData(duration); } if(isScreenSharing) stopScreenShare(); setInCall(false); setIncomingCall(null); setFocusedPeerId(null); setActiveVoiceChannelId(null); setIsCallExpanded(false); if(myStream) { myStream.getTracks().forEach(t => t.stop()); setMyStream(null); } setPeers([]); peersRef.current.forEach(p => { try { p.peer.destroy(); } catch(e){} }); peersRef.current = []; callStartTimeRef.current = null; };
+  const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => {
+    const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG });
+    peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); });
+    peer.on("close", () => removePeer(userToSignal));
+    peer.on("error", () => removePeer(userToSignal));
+    return peer;
+  };
+
+  const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => {
+    const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG });
+    peer.on("signal", (signal: any) => { socket.emit("returning_signal", { signal, callerID }); });
+    peer.on("close", () => removePeer(callerID));
+    peer.on("error", () => removePeer(callerID));
+    peer.signal(incomingSignal);
+    return peer;
+  };
+
+  const startScreenShare = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true });
+      setScreenStream(stream); setIsScreenSharing(true);
+      const screenTrack = stream.getVideoTracks()[0];
+      if (myVideoRef.current) myVideoRef.current.srcObject = stream;
+      peersRef.current.forEach((peerObj) => {
+        const pc = (peerObj.peer as any)._pc;
+        if (pc) {
+           const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+           if (sender) sender.replaceTrack(screenTrack);
+           else peerObj.peer.addTrack(screenTrack, myStream);
+        }
+      });
+      screenTrack.onended = () => stopScreenShare();
+    } catch(e) { console.error("Screen Share Error:", e); }
+  };
+
+  const stopScreenShare = () => {
+    screenStream?.getTracks().forEach(t => t.stop());
+    setScreenStream(null); setIsScreenSharing(false);
+    if (focusedPeerId === 'local') setFocusedPeerId(null);
+    if(myStream) {
+        const webcamTrack = myStream.getVideoTracks()[0];
+        if(webcamTrack) {
+            peersRef.current.forEach((peerObj) => {
+                const pc = (peerObj.peer as any)._pc;
+                if(pc) {
+                   const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video');
+                   if(sender) sender.replaceTrack(webcamTrack);
+                }
+            });
+        }
+    }
+  };
+
+  const getCallDuration = () => {
+      if (!callStartTimeRef.current) return "00:00";
+      const diff = Math.floor((Date.now() - callStartTimeRef.current) / 1000);
+      const m = Math.floor(diff / 60).toString().padStart(2, '0');
+      const s = (diff % 60).toString().padStart(2, '0');
+      return `${m}:${s}`;
+  };
+
+  const endCallSession = () => {
+      if (inCall && callStartTimeRef.current) { const duration = getCallDuration(); setCallEndedData(duration); }
+      if(isScreenSharing) stopScreenShare();
+      setInCall(false); setIncomingCall(null); setFocusedPeerId(null); setActiveVoiceChannelId(null); setIsCallExpanded(false);
+      if(myStream) { myStream.getTracks().forEach(t => t.stop()); setMyStream(null); }
+      setPeers([]);
+      peersRef.current.forEach(p => { try { p.peer.destroy(); } catch(e){} });
+      peersRef.current = [];
+      callStartTimeRef.current = null;
+  };
+
   const leaveCall = () => { endCallSession(); socket.emit("leave_voice"); };
 
+// 🌈 LOGIN SCREEN (Responsive Fix)
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px]"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px]"></div>
+      
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full"></div>
@@ -335,8 +673,8 @@ export default function DaChat() {
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
-      {/* 1. DOCK (Always visible in background on mobile) */}
-      <div className={`flex z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl`}>
+      {/* 1. DOCK (Hidden on mobile when chat is active) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
@@ -353,8 +691,8 @@ export default function DaChat() {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer hover:ring-2 ring-white/50" />
       </div>
 
-      {/* 2. SIDEBAR (Always visible in background on mobile) */}
-      <div className={`flex relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px]`}>
+      {/* 2. SIDEBAR (Full width on mobile, hidden when chat is active) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px]`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate">{active.server ? active.server.name : "Direct Messages"}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white">⚙️</button>}
@@ -367,8 +705,8 @@ export default function DaChat() {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
-                            <div key={ch.id} onClick={() => joinChannel(ch)} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between ${active.channel?.id === ch.id ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white"}`}>
-                                <div className="flex items-center gap-2 truncate flex-1 min-w-0"> 
+                            <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between ${active.channel?.id === ch.id ? "bg-white/10 text-white" : "text-white/50 hover:bg-white/5 hover:text-white"}`}>
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                     <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
                                     <span className="truncate">{ch.name}</span>
                                     {ch.type === 'voice' && activeMembers.length > 0 && (
@@ -400,11 +738,10 @@ export default function DaChat() {
                     {friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
                         
-                        // ✅ FIX: Moved onClick to the parent DIV so the entire row is tappable
                         return (
-                            <div key={f.id} onClick={()=>selectFriend(f)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> 
+                            <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 ${active.friend?.id===f.id?"bg-white/10":""}`}> 
                                 <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
-                                <div className="flex-1">
+                                <div className="flex-1" onClick={()=>selectFriend(f)}>
                                     <div className="text-xs font-bold">{f.username}</div>
                                     <div className={`text-[9px] ${isOnline ? "text-green-400" : "text-white/30"}`}>
                                         {isOnline ? "Online" : "Offline"}
@@ -418,11 +755,8 @@ export default function DaChat() {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT (✅ ANIMATED SLIDE PANEL FOR MOBILE) */}
-      <div 
-          className="flex flex-col relative min-w-0 bg-transparent fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-transparent md:z-auto"
-          style={{ transform: showMobileChat ? 'translateX(0)' : 'translateX(100%)', display: 'flex' }}
-      >
+      {/* 3. MAIN CONTENT (Full width on mobile when active) */}
+      <div className={`${showMobileChat ? 'flex' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
          
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
@@ -438,6 +772,7 @@ export default function DaChat() {
                  </div>
              )}
              
+             {/* Return to Call Banner */}
              {inCall && !isCallExpanded && (
                  <div onClick={() => setIsCallExpanded(true)} className="bg-green-600/20 text-green-400 p-2 text-center text-xs font-bold cursor-pointer hover:bg-green-600/30 border-b border-green-600/20 transition-all">
                      🔊 Call in Progress — Click to Return
@@ -446,6 +781,7 @@ export default function DaChat() {
 
              {active.pendingRequest ? (
                  <div className="flex-1 flex flex-col items-center justify-center gap-4">
+                     {/* Back Button for Request View on Mobile */}
                      <button className="md:hidden absolute top-4 left-4 text-white/50" onClick={() => setShowMobileChat(false)}>← Back</button>
                      <UserAvatar src={active.pendingRequest.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/10" />
                      <div className="text-xl font-bold">{active.pendingRequest.username}</div>
@@ -537,6 +873,7 @@ export default function DaChat() {
          )}
       </div>
 
+      {/* 4. MEMBER LIST (Hidden on Mobile) */}
       {view === "servers" && active.server && (
           <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20">
               <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
@@ -553,6 +890,7 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* MODALS (Responsive) */}
       {viewingProfile && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4" onClick={() => setViewingProfile(null)}>
               <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative" onClick={(e:any)=>e.stopPropagation()}>
@@ -625,6 +963,7 @@ export default function DaChat() {
   );
 }
 
+// ✅ ROBUST MEDIA PLAYER (Fixes frozen screens & updates layout)
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
@@ -638,7 +977,11 @@ const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
                 const checkVideo = () => {
                     const tracks = stream.getVideoTracks();
                     const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
-                    if (isVideoActive !== hasVideo) { setHasVideo(isVideoActive); if (onVideoChange) onVideoChange(isVideoActive); }
+                    
+                    if (isVideoActive !== hasVideo) {
+                        setHasVideo(isVideoActive);
+                        if (onVideoChange) onVideoChange(isVideoActive);
+                    }
                 };
                 
                 checkVideo();
@@ -657,13 +1000,20 @@ const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
 
     return (
         <div className="relative w-full h-full bg-zinc-900 flex items-center justify-center overflow-hidden">
-            <video ref={videoRef} autoPlay playsInline className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} />
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} 
+            />
+            
             {!hasVideo && (
                 <div className="flex flex-col items-center">
                     <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} />
                     {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>}
                 </div>
             )}
+
             <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
                 {userInfo?.username}
             </div>
