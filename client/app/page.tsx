@@ -97,7 +97,6 @@ export default function DaChat() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   
-  // 🔥 NEW: CONTEXT MENU STATE
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
       x: number;
@@ -105,7 +104,6 @@ export default function DaChat() {
       message: any | null;
   }>({ visible: false, x: 0, y: 0, message: null });
 
-  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
@@ -143,7 +141,6 @@ export default function DaChat() {
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
   useEffect(() => { if (typeof window !== 'undefined') { joinSoundRef.current = new Audio('/join.mp3'); leaveSoundRef.current = new Audio('/leave.mp3'); joinSoundRef.current.load(); leaveSoundRef.current.load(); } }, []);
 
-  // 🔥 NEW: Global Click Listener to Close Context Menu
   useEffect(() => {
       const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
       window.addEventListener("click", handleClick);
@@ -162,7 +159,21 @@ export default function DaChat() {
 
   // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
-      socket.on("receive_message", (msg) => { if (user && msg.sender_id === user.id) return; setChatHistory(prev => [...prev, msg]); });
+      // ✅ BUG FIX: Normalize message keys (camelCase from socket -> snake_case for frontend)
+      socket.on("receive_message", (msg) => { 
+          const normalized = {
+              ...msg,
+              sender_id: msg.sender_id || msg.senderId, // Fix mismatch
+              sender_name: msg.sender_name || msg.senderName,
+              file_url: msg.file_url || msg.fileUrl
+          };
+
+          // Prevents adding your own message again (it was already added optimistically)
+          if (user && normalized.sender_id === user.id) return; 
+          
+          setChatHistory(prev => [...prev, normalized]); 
+      });
+
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
@@ -239,18 +250,11 @@ export default function DaChat() {
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
   };
 
-  // 🔥 NEW: Right-Click Handler
   const handleContextMenu = (e: React.MouseEvent, msg: any) => {
-      e.preventDefault(); // STOP the browser menu
-      setContextMenu({
-          visible: true,
-          x: e.pageX,
-          y: e.pageY,
-          message: msg
-      });
+      e.preventDefault(); 
+      setContextMenu({ visible: true, x: e.pageX, y: e.pageY, message: msg });
   };
 
-  // 🔥 NEW: Copy Function
   const copyText = (text: string) => {
       navigator.clipboard.writeText(text);
       setContextMenu({ ...contextMenu, visible: false });
