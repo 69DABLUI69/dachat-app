@@ -107,6 +107,9 @@ export default function DaChat() {
   // 🎵 MUSIC STATE
   const [currentTrack, setCurrentTrack] = useState<any>(null);
 
+  // 🎮 STEAM STATE
+  const [steamStatuses, setSteamStatuses] = useState<Record<string, any>>({});
+
   // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
@@ -150,6 +153,45 @@ export default function DaChat() {
       window.addEventListener("click", handleClick);
       return () => window.removeEventListener("click", handleClick);
   }, [contextMenu]);
+
+  // 🎮 STEAM POLLING
+  useEffect(() => {
+      const fetchSteam = async () => {
+          if (!user) return;
+          const allUsers = [...friends, ...serverMembers];
+          // Collect Steam IDs from friends and server members
+          const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id);
+          if (steamIds.length === 0) return;
+
+          const uniqueIds = Array.from(new Set(steamIds));
+          const res = await fetch(`${BACKEND_URL}/users/steam-status`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ steamIds: uniqueIds })
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+              const statusMap: Record<string, any> = {};
+              data.players.forEach((p: any) => { statusMap[p.steamid] = p; });
+              setSteamStatuses(statusMap);
+          }
+      };
+      
+      fetchSteam(); // Initial fetch
+      const interval = setInterval(fetchSteam, 60000); // Poll every minute
+      return () => clearInterval(interval);
+  }, [friends, serverMembers, user]);
+
+  const saveSteamId = async () => {
+      const id = prompt("Enter your Steam ID64 (looks like 765611980...):");
+      if(!id) return;
+      await fetch(`${BACKEND_URL}/users/link-steam`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, steamId: id })
+      });
+      setUser({...user, steam_id: id});
+  };
 
   // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
@@ -308,7 +350,16 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const removePeer = (peerID: string) => { playSound('leave'); const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID); if (peerIdx > -1) { peersRef.current[peerIdx].peer.destroy(); peersRef.current.splice(peerIdx, 1); } setPeers(prev => prev.filter(p => p.peerID !== peerID)); setFocusedPeerId(current => (current === peerID ? null : current)); };
   
-  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { console.error("Mic Error:", err); alert("Mic access denied"); }); }, [user]);
+  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { 
+      console.error("Mic Error:", err); 
+      // 🔥 BETTER ERROR HANDLING FOR MOBILE
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        alert("Microphone requires HTTPS! Please use a secure connection or localhost.");
+      } else {
+        alert(`Mic Error: ${err.name} - ${err.message}`); 
+      }
+  }); }, [user]);
+
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => { const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("returning_signal", { signal, callerID }); }); peer.on("close", () => removePeer(callerID)); peer.on("error", () => removePeer(callerID)); peer.signal(incomingSignal); return peer; };
   const startScreenShare = async () => { try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setScreenStream(stream); setIsScreenSharing(true); const screenTrack = stream.getVideoTracks()[0]; if (myVideoRef.current) myVideoRef.current.srcObject = stream; peersRef.current.forEach((peerObj) => { const pc = (peerObj.peer as any)._pc; if (pc) { const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenTrack); else peerObj.peer.addTrack(screenTrack, myStream); } }); screenTrack.onended = () => stopScreenShare(); } catch(e) { console.error("Screen Share Error:", e); } };
@@ -408,15 +459,41 @@ export default function DaChat() {
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
                     {friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
-                        
+                        // 🎮 STEAM STATUS LOGIC
+                        const steamInfo = f.steam_id ? steamStatuses[f.steam_id] : null;
+                        const isPlaying = steamInfo?.gameextrainfo;
+                        const lobbyId = steamInfo?.lobbysteamid;
+
                         return (
                             <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`}> 
-                                <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
-                                <div className="flex-1" onClick={()=>selectFriend(f)}>
-                                    <div className="text-xs font-bold">{f.username}</div>
-                                    <div className={`text-[9px] transition-colors duration-300 ${isOnline ? "text-green-400" : "text-white/30"}`}>
-                                        {isOnline ? "Online" : "Offline"}
+                                <div className="relative">
+                                    <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className={`w-8 h-8 rounded-full ${isPlaying ? "ring-2 ring-green-500" : ""}`} /> 
+                                    {isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full"></div>}
+                                </div>
+                                
+                                <div className="flex-1 min-w-0" onClick={()=>selectFriend(f)}>
+                                    <div className="flex justify-between items-center">
+                                        <div className="text-xs font-bold truncate">{f.username}</div>
+                                        {isPlaying && <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3 opacity-50" />}
                                     </div>
+                                    
+                                    {isPlaying ? (
+                                        <div className="flex flex-col gap-1 mt-1">
+                                            <div className="text-[10px] text-green-400 font-bold truncate">Playing {steamInfo.gameextrainfo}</div>
+                                            {/* JOIN BUTTON */}
+                                            <a 
+                                                href={lobbyId ? `steam://joinlobby/${steamInfo.gameid}/${lobbyId}/${f.steam_id}` : `steam://run/${steamInfo.gameid}`}
+                                                className="bg-green-600/20 hover:bg-green-600/40 text-green-400 text-[9px] font-bold px-2 py-1 rounded border border-green-600/30 text-center transition-colors block"
+                                                onClick={(e) => e.stopPropagation()} 
+                                            >
+                                                {lobbyId ? "🚀 Join Lobby" : "▶ Launch Game"}
+                                            </a>
+                                        </div>
+                                    ) : (
+                                        <div className={`text-[9px] transition-colors duration-300 ${isOnline ? "text-green-400/50" : "text-white/30"}`}>
+                                            {isOnline ? "Online" : "Offline"}
+                                        </div>
+                                    )}
                                 </div> 
                             </div> 
                         );
@@ -653,6 +730,14 @@ export default function DaChat() {
                             className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
                          >
                             Choose GIF
+                         </button>
+                         {/* 🎮 NEW: STEAM BUTTON */}
+                         <button 
+                            onClick={saveSteamId}
+                            className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"
+                         >
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />
+                            {user.steam_id ? "Steam Linked" : "Link Steam"}
                          </button>
                       </div>
 

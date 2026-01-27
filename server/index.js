@@ -6,6 +6,7 @@ const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
 const yts = require("yt-search"); // 🎵 YouTube Search
+const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -290,6 +291,36 @@ app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
   
   const { data: publicData } = supabase.storage.from("uploads").getPublicUrl(fileName);
   res.json({ success: true, fileUrl: publicData.publicUrl });
+}));
+
+// 1. Link Steam ID to User
+app.post("/users/link-steam", safeRoute(async (req, res) => {
+    const { userId, steamId } = req.body;
+    // Validate Steam ID (Simple check length)
+    if (!steamId || steamId.length !== 17) return res.json({ success: false, message: "Invalid Steam ID64" });
+
+    const { data, error } = await supabase.from("users").update({ steam_id: steamId }).eq("id", userId).select().single();
+    if (error) return res.json({ success: false, message: error.message });
+    
+    // Broadcast update so others see the badge immediately
+    io.emit("user_updated", { userId });
+    res.json({ success: true, user: data });
+}));
+
+// 2. Get Steam Status (Rich Presence)
+app.post("/users/steam-status", safeRoute(async (req, res) => {
+    const { steamIds } = req.body; // Array of Steam IDs
+    if (!steamIds || steamIds.length === 0) return res.json({ success: true, players: [] });
+
+    // Steam API only allows comma-separated list
+    const idsString = steamIds.join(',');
+    const steamUrl = `http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${idsString}`;
+
+    const response = await fetch(steamUrl);
+    const data = await response.json();
+    
+    const players = data.response.players || [];
+    res.json({ success: true, players });
 }));
 
 // ----------------------------------------------------------------------
