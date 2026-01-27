@@ -50,7 +50,7 @@ const socket: Socket = io(BACKEND_URL, {
     transports: ["websocket", "polling"]
 });
 
-// 🎨 CUSTOM COMPONENTS (Updated with Animations)
+// 🎨 CUSTOM COMPONENTS
 const GlassPanel = ({ children, className, onClick }: any) => (
   <div onClick={onClick} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}>
     {children}
@@ -75,7 +75,8 @@ const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) =
 });
 UserAvatar.displayName = "UserAvatar";
 
-const GifPicker = ({ onSelect, onClose }: any) => {
+// 🔥 UPDATED GIF PICKER: Now accepts 'className' for reuse in Settings
+const GifPicker = ({ onSelect, onClose, className }: any) => {
   const [gifs, setGifs] = useState<any[]>([]);
   const [search, setSearch] = useState("");
 
@@ -93,7 +94,7 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   };
 
   return (
-    <GlassPanel className="absolute bottom-24 left-4 w-[90%] max-w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300 shadow-2xl ring-1 ring-white/10">
+    <GlassPanel className={className || "absolute bottom-24 left-4 w-[90%] max-w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300 shadow-2xl ring-1 ring-white/10"}>
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
         <input 
             className="w-full bg-black/40 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all"
@@ -122,7 +123,6 @@ const GifPicker = ({ onSelect, onClose }: any) => {
   );
 };
 
-// ✅ LOGO COMPONENT
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => (
   <img 
     src="/logo.png" 
@@ -144,7 +144,6 @@ export default function DaChat() {
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
 
-  // ✅ NEW: Online Status State
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
 
   const [view, setView] = useState("dms");
@@ -160,7 +159,6 @@ export default function DaChat() {
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   
-  // ✅ Call Timer State
   const [callEndedData, setCallEndedData] = useState<string | null>(null);
   const callStartTimeRef = useRef<number | null>(null);
   
@@ -174,13 +172,14 @@ export default function DaChat() {
   const myVideoRef = useRef<HTMLVideoElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ✅ Audio Refs
   const joinSoundRef = useRef<HTMLAudioElement | null>(null);
   const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
 
   // Settings State
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSettingsGifPicker, setShowSettingsGifPicker] = useState(false); // 🔥 NEW: GIF Picker State for Settings
+  
   const [showServerSettings, setShowServerSettings] = useState(false);
   
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
@@ -191,10 +190,7 @@ export default function DaChat() {
 
   const [tagline, setTagline] = useState("Next Gen Communication");
 
-  // ✅ NEW: Focused Stream State (for Big Screen layout)
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
-
-  // ✅ NEW: Mobile Responsiveness State
   const [showMobileChat, setShowMobileChat] = useState(false);
 
   useEffect(() => {
@@ -228,7 +224,7 @@ export default function DaChat() {
       const handleConnect = () => { 
           if (user) {
               socket.emit("setup", user.id);
-              socket.emit("get_online_users"); // Request initial status
+              socket.emit("get_online_users");
           }
       };
 
@@ -248,7 +244,6 @@ export default function DaChat() {
 
   // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
-      // 1. Existing listeners
       socket.on("receive_message", (msg) => {
           if (user && msg.sender_id === user.id) return; 
           setChatHistory(prev => [...prev, msg]);
@@ -257,7 +252,6 @@ export default function DaChat() {
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       
-      // 2. Status & Updates
       socket.on("user_connected", (userId: number) => {
           setOnlineUsers(prev => new Set(prev).add(userId));
           if (user) fetchFriends(user.id); 
@@ -331,16 +325,12 @@ export default function DaChat() {
       const data = await res.json();
       
       if (data.success) {
-        // 🔥 NEW: REQUEST MIC PERMISSION IMMEDIATELY ON LOGIN
-        // This acts as a "User Gesture" since it happens after a click event.
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // Permission secured! Now stop the tracks to release the mic.
             stream.getTracks().forEach(track => track.stop());
             console.log("✅ Microphone permission secured.");
         } catch (e) {
             console.warn("⚠️ Microphone permission denied or dismissed:", e);
-            // We proceed anyway, but user may need to enable it manually later.
         }
 
         setUser(data.user);
@@ -447,7 +437,7 @@ export default function DaChat() {
       setChatHistory(prev => [...prev, { 
           ...payload, 
           sender_id: user.id, 
-          sender_name: user.username,
+          sender_name: user.username, 
           file_url: fileUrl, 
           avatar_url: user.avatar_url 
       }]);
@@ -947,16 +937,58 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* 🔥 UPDATED SETTINGS MODAL */}
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative">
+                  
+                  {/* GIF PICKER OVERLAY */}
+                  {showSettingsGifPicker && (
+                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/95 rounded-[40px] animate-in fade-in zoom-in-95 duration-200 p-2">
+                         <GifPicker 
+                            className="w-full h-full rounded-[32px] border border-white/10 shadow-2xl" 
+                            onClose={() => setShowSettingsGifPicker(false)}
+                            onSelect={(url: string) => {
+                                setEditForm({ ...editForm, avatarUrl: url });
+                                setNewAvatarFile(null); // Clear any pending file upload
+                                setShowSettingsGifPicker(false);
+                            }}
+                         />
+                     </div>
+                  )}
+
                   <div className="flex flex-col items-center mb-4">
-                      <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-2 hover:scale-105 transition-transform cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
+                      <UserAvatar 
+                        src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
+                        className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
+                        onClick={()=>(document.getElementById('pUpload') as any).click()}
+                      />
+                      
+                      <div className="flex gap-2">
+                         <button 
+                            onClick={()=>(document.getElementById('pUpload') as any).click()}
+                            className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+                         >
+                            Upload Photo
+                         </button>
+                         <button 
+                            onClick={() => setShowSettingsGifPicker(true)}
+                            className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
+                         >
+                            Choose GIF
+                         </button>
+                      </div>
+
                       <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
                   </div>
+                  
                   <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
                   <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
-                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div>
+                  
+                  <div className="flex justify-end gap-2"> 
+                    <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
+                    <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
+                  </div>
               </GlassPanel>
           </div>
       )}
