@@ -5,6 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
+const yts = require("yt-search"); //
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -286,10 +287,19 @@ io.on("connection", (socket) => {
   });
 
   // --- 2. CHAT & ROOMS ---
-  socket.on("join_room", async ({ roomId }) => {
+socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
+    
+    // 🎵 NEW: Send current music state if playing
+    if (roomAudioState[roomId]) {
+        socket.emit("audio_state_update", roomAudioState[roomId]);
+    } else {
+        socket.emit("audio_state_clear");
+    }
+
     try {
       if (roomId.toString().startsWith("dm-")) {
+          // ... (existing DM logic) ...
           const parts = roomId.split("-");
           if(parts.length >= 3) {
               const u1 = parts[1];
@@ -302,6 +312,7 @@ io.on("connection", (socket) => {
               socket.emit("load_messages", data || []);
           }
       } else {
+          // ... (existing Channel logic) ...
           const { data } = await supabase
               .from("messages")
               .select("*")
@@ -400,6 +411,43 @@ io.on("connection", (socket) => {
     console.log("Disconnected:", socket.id);
   });
 });
+
+// ----------------------------------------------------------------------
+
+// 🎵 NEW: Simple Room State Store
+let roomAudioState = {};
+
+// 🎵 NEW: Route to Search & Play
+app.post("/channels/play", safeRoute(async (req, res) => {
+  const { channelId, query, action } = req.body;
+  const roomKey = channelId.toString();
+
+  if (action === 'stop') {
+      delete roomAudioState[roomKey];
+      io.to(roomKey).emit("audio_state_clear");
+      return res.json({ success: true });
+  }
+
+  // Search YouTube
+  const r = await yts(query);
+  const video = r.videos[0];
+
+  if (!video) return res.json({ success: false, message: "No results" });
+
+  // Update State
+  roomAudioState[roomKey] = {
+      videoId: video.videoId,
+      title: video.title,
+      image: video.thumbnail,
+      timestamp: Date.now(), // Helps sync start time
+      isPlaying: true
+  };
+
+  // Broadcast to everyone in this channel
+  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]);
+  
+  res.json({ success: true, track: roomAudioState[roomKey] });
+}));
 
 server.listen(PORT, () => {
   console.log(`✅ SERVER RUNNING ON PORT ${PORT}`);
