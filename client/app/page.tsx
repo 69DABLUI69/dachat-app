@@ -605,15 +605,16 @@ export default function DaChat() {
               {/* Added 'relative' to GlassPanel to contain the absolute positioned GIF picker */}
               <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative">
                   
-                  {/* 🔥 NEW: GIF PICKER OVERLAY */}
+{/* 🔥 FIXED: GIF PICKER OVERLAY */}
                   {showSettingsGifPicker && (
-                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/95 rounded-[40px] animate-in fade-in zoom-in-95 duration-200 p-2">
+                     <div className="absolute inset-0 z-[60] bg-[#050505] flex flex-col rounded-[32px] overflow-hidden animate-in fade-in duration-200">
                          <GifPicker 
-                            className="w-full h-full rounded-[32px] border border-white/10 shadow-2xl" 
+                            // ADDED 'flex flex-col' so the list knows to scroll!
+                            className="w-full h-full bg-transparent shadow-none border-none flex flex-col" 
                             onClose={() => setShowSettingsGifPicker(false)}
                             onSelect={(url: string) => {
                                 setEditForm({ ...editForm, avatarUrl: url });
-                                setNewAvatarFile(null); // Clear any pending file upload
+                                setNewAvatarFile(null); 
                                 setShowSettingsGifPicker(false);
                             }}
                          />
@@ -657,7 +658,7 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* 🔥 NEW: CUSTOM RIGHT-CLICK MENU */}
+      {/* NEW: CUSTOM RIGHT-CLICK MENU */}
       {contextMenu.visible && (
           <div 
             style={{ top: contextMenu.y, left: contextMenu.x }} 
