@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-const yts = require("yt-search"); // 🎵 NEW: YouTube Search
+const yts = require("yt-search"); // 🎵 YouTube Search
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -254,7 +254,7 @@ app.post("/channels/play", safeRoute(async (req, res) => {
 
   if (action === 'stop') {
       delete roomAudioState[roomKey];
-      io.to(roomKey).emit("audio_state_clear");
+      io.to(roomKey).emit("audio_state_clear"); // Only notifies people in THIS room
       return res.json({ success: true });
   }
 
@@ -269,11 +269,11 @@ app.post("/channels/play", safeRoute(async (req, res) => {
       videoId: video.videoId,
       title: video.title,
       image: video.thumbnail,
-      timestamp: Date.now(), // Helps sync start time
+      timestamp: Date.now(),
       isPlaying: true
   };
 
-  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]);
+  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]); // Only notifies people in THIS room
   res.json({ success: true, track: roomAudioState[roomKey] });
 }));
 
@@ -322,12 +322,7 @@ io.on("connection", (socket) => {
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
     
-    // 🎵 Send music state to new joiner
-    if (roomAudioState[roomId]) {
-        socket.emit("audio_state_update", roomAudioState[roomId]);
-    } else {
-        socket.emit("audio_state_clear");
-    }
+    // ❌ REMOVED audio state sync from here (this is for text channels)
 
     try {
       if (roomId.toString().startsWith("dm-")) {
@@ -357,7 +352,6 @@ io.on("connection", (socket) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
     
-    // ✅ Use timestamp as ID for simple synchronization
     const messagePayload = { ...data, id: data.id || Date.now(), created_at: new Date().toISOString() };
     
     if (room) io.to(room).emit("receive_message", messagePayload);
@@ -394,7 +388,16 @@ io.on("connection", (socket) => {
     voiceRooms[rId] = voiceRooms[rId].filter(u => u.socketId !== socket.id);
     voiceRooms[rId].push({ socketId: socket.id, userData });
     socketToUser[socket.id] = { roomId: rId, userData };
-    socket.join(rId);
+    
+    socket.join(rId); // Join the socket room for this voice channel
+
+    // 🎵 NEW: Sync Audio State ONLY for this voice channel
+    if (roomAudioState[rId]) {
+        socket.emit("audio_state_update", roomAudioState[rId]);
+    } else {
+        socket.emit("audio_state_clear");
+    }
+
     socket.emit("all_users", voiceRooms[rId].filter(u => u.socketId !== socket.id));
     io.emit("voice_state_update", { channelId: rId, users: voiceRooms[rId].map(u => u.userData.id) });
   });

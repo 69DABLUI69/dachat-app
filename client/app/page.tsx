@@ -257,20 +257,20 @@ export default function DaChat() {
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
   };
 
-  // 🎵 MUSIC HELPERS
+  // 🎵 MUSIC HELPERS (Strictly tied to activeVoiceChannelId)
   const playMusic = async (query: string) => {
-      if (!active.channel) return;
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId: active.channel.id, query, action: 'play' })
+          body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' })
       });
   };
 
   const stopMusic = async () => {
-      if (!active.channel) return;
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId: active.channel.id, action: 'stop' })
+          body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' })
       });
   };
 
@@ -425,8 +425,8 @@ export default function DaChat() {
             )}
         </div>
 
-        {/* 🔥 NEW: Persistent Music Player in Sidebar */}
-        {view === "servers" && active.channel && (
+        {/* 🔥 NEW: Persistent Music Player in Sidebar (VISIBLE ONLY WHEN IN A CALL) */}
+        {inCall && activeVoiceChannelId && (
             <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} />
         )}
       </div>
@@ -603,19 +603,7 @@ export default function DaChat() {
           </div>
       )}
 
-      {incomingCall && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in zoom-in duration-300">
-              <div className="flex flex-col items-center gap-6">
-                  <UserAvatar src={incomingCall.avatarUrl} className="w-32 h-32 rounded-full border-4 border-green-500 animate-[pulse_1s_ease-in-out_infinite]" />
-                  <div className="text-2xl font-bold text-center">{incomingCall.senderName} is calling...</div>
-                  <div className="flex gap-8">
-                      <button onClick={()=>setIncomingCall(null)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:rotate-90">✕</button>
-                      <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:-rotate-12">📞</button>
-                  </div>
-              </div>
-          </div>
-      )}
-
+      {/* CALL ENDED */}
       {callEndedData && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
               <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
