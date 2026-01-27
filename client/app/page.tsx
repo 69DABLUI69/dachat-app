@@ -104,6 +104,10 @@ export default function DaChat() {
       message: any | null;
   }>({ visible: false, x: 0, y: 0, message: null });
 
+  // 🎵 MUSIC STATE
+  const [currentTrack, setCurrentTrack] = useState<any>(null);
+
+  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
@@ -159,23 +163,25 @@ export default function DaChat() {
 
   // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
-      // ✅ BUG FIX: Normalize message keys (camelCase from socket -> snake_case for frontend)
+      // ✅ BUG FIX: Normalize and check sender
       socket.on("receive_message", (msg) => { 
           const normalized = {
               ...msg,
-              sender_id: msg.sender_id || msg.senderId, // Fix mismatch
+              sender_id: msg.sender_id || msg.senderId, 
               sender_name: msg.sender_name || msg.senderName,
               file_url: msg.file_url || msg.fileUrl
           };
-
-          // Prevents adding your own message again (it was already added optimistically)
           if (user && normalized.sender_id === user.id) return; 
-          
           setChatHistory(prev => [...prev, normalized]); 
       });
 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
+      
+      // 🎵 MUSIC LISTENERS
+      socket.on("audio_state_update", (track) => setCurrentTrack(track));
+      socket.on("audio_state_clear", () => setCurrentTrack(null));
+
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
       socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
@@ -194,6 +200,7 @@ export default function DaChat() {
           socket.off("server_updated"); socket.off("new_server_invite"); socket.off("call_ended");
           socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users");
           socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted");
+          socket.off("audio_state_update"); socket.off("audio_state_clear");
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
@@ -248,6 +255,23 @@ export default function DaChat() {
       const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`;
       socket.emit("delete_message", { messageId: msgId, roomId });
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
+  };
+
+  // 🎵 MUSIC HELPERS
+  const playMusic = async (query: string) => {
+      if (!active.channel) return;
+      await fetch(`${BACKEND_URL}/channels/play`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelId: active.channel.id, query, action: 'play' })
+      });
+  };
+
+  const stopMusic = async () => {
+      if (!active.channel) return;
+      await fetch(`${BACKEND_URL}/channels/play`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ channelId: active.channel.id, action: 'stop' })
+      });
   };
 
   const handleContextMenu = (e: React.MouseEvent, msg: any) => {
@@ -320,7 +344,7 @@ export default function DaChat() {
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
-      {/* 1. DOCK (Animated) */}
+      {/* 1. DOCK */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
@@ -338,7 +362,7 @@ export default function DaChat() {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      {/* 2. SIDEBAR (Animated) */}
+      {/* 2. SIDEBAR */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px] animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : "Direct Messages"}</span>
@@ -400,9 +424,14 @@ export default function DaChat() {
                 </>
             )}
         </div>
+
+        {/* 🔥 NEW: Persistent Music Player in Sidebar */}
+        {view === "servers" && active.channel && (
+            <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} />
+        )}
       </div>
 
-      {/* 3. MAIN CONTENT (Slide-In Animation for Mobile) */}
+      {/* 3. MAIN CONTENT */}
       <div className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
          
          {/* LAYER 1: CHAT UI */}
@@ -418,7 +447,6 @@ export default function DaChat() {
                  </div>
              )}
              
-             {/* Return to Call Banner */}
              {inCall && !isCallExpanded && (
                  <div onClick={() => setIsCallExpanded(true)} className="bg-green-600/20 text-green-400 p-2 text-center text-xs font-bold cursor-pointer hover:bg-green-600/30 border-b border-green-600/20 transition-all animate-pulse">
                      🔊 Call in Progress — Click to Return
@@ -439,7 +467,6 @@ export default function DaChat() {
                             <div 
                                 key={msg.id || i} 
                                 className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}
-                                // 🔥 RIGHT CLICK TRIGGER
                                 onContextMenu={(e) => handleContextMenu(e, msg)}
                             > 
                                 <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
@@ -470,7 +497,7 @@ export default function DaChat() {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">Select a Channel</div>}
          </div>
 
-         {/* LAYER 2: CALL UI (Smooth Entry) */}
+         {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col relative`}>
                  
@@ -527,7 +554,7 @@ export default function DaChat() {
          )}
       </div>
 
-      {/* 4. MEMBER LIST (Animated Entry) */}
+      {/* 4. MEMBER LIST */}
       {view === "servers" && active.server && (
           <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300">
               <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
@@ -544,7 +571,7 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* MODALS (Enhanced Animations) */}
+      {/* MODALS */}
       {viewingProfile && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}>
               <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}>
@@ -600,16 +627,14 @@ export default function DaChat() {
           </div>
       )}
 
-{showSettings && (
+      {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              {/* Added 'relative' to GlassPanel to contain the absolute positioned GIF picker */}
               <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative">
                   
-{/* 🔥 FIXED: GIF PICKER OVERLAY */}
+                  {/* GIF PICKER */}
                   {showSettingsGifPicker && (
                      <div className="absolute inset-0 z-[60] bg-[#050505] flex flex-col rounded-[32px] overflow-hidden animate-in fade-in duration-200">
                          <GifPicker 
-                            // ADDED 'flex flex-col' so the list knows to scroll!
                             className="w-full h-full bg-transparent shadow-none border-none flex flex-col" 
                             onClose={() => setShowSettingsGifPicker(false)}
                             onSelect={(url: string) => {
@@ -628,7 +653,6 @@ export default function DaChat() {
                         onClick={()=>(document.getElementById('pUpload') as any).click()}
                       />
                       
-                      {/* 🔥 NEW: Selection Buttons */}
                       <div className="flex gap-2">
                          <button 
                             onClick={()=>(document.getElementById('pUpload') as any).click()}
@@ -658,12 +682,12 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* NEW: CUSTOM RIGHT-CLICK MENU */}
+      {/* CONTEXT MENU */}
       {contextMenu.visible && (
           <div 
             style={{ top: contextMenu.y, left: contextMenu.x }} 
             className="fixed z-50 flex flex-col w-40 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left"
-            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+            onClick={(e) => e.stopPropagation()} 
           >
               <button 
                 onClick={() => copyText(contextMenu.message?.content || "")}
@@ -688,6 +712,63 @@ export default function DaChat() {
     </div>
   );
 }
+
+// ✅ NEW COMPONENT: Integrated Room Player (Sidebar Widget)
+const RoomPlayer = ({ track, onClose, onSearch }: any) => {
+    const [search, setSearch] = useState("");
+
+    return (
+        <div className="bg-gradient-to-b from-indigo-900/50 to-black/50 border-t border-white/10 p-4 flex flex-col gap-3 backdrop-blur-md">
+            {/* Player Controls */}
+            {track ? (
+                <div className="flex gap-3 items-center animate-in slide-in-from-bottom-2">
+                    {/* Hidden YouTube Embed */}
+                    <div className="w-12 h-12 rounded-lg overflow-hidden relative shrink-0 shadow-lg border border-white/10 group cursor-pointer">
+                        <img src={track.image} className="w-full h-full object-cover opacity-80" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                            <span className="text-[10px] animate-pulse">🎵</span>
+                        </div>
+                        {/* The Actual Player */}
+                        <iframe 
+                            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                            src={`https://www.youtube.com/embed/${track.videoId}?autoplay=1&controls=0&start=${Math.floor((Date.now() - track.timestamp)/1000)}`} 
+                            allow="autoplay"
+                        />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="text-xs font-bold text-white truncate">{track.title}</div>
+                        <div className="text-[10px] text-indigo-300 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> 
+                            Playing for everyone
+                        </div>
+                    </div>
+
+                    <button onClick={onClose} className="text-white/40 hover:text-red-400 transition-colors p-1">■</button>
+                </div>
+            ) : (
+                <div className="text-[10px] text-white/30 text-center uppercase font-bold tracking-widest">Room Audio Idle</div>
+            )}
+
+            {/* Search Bar */}
+            <div className="relative group">
+                <input 
+                    className="w-full bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 transition-all"
+                    placeholder="Search YouTube to Play..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && search.trim()) {
+                            onSearch(search);
+                            setSearch("");
+                        }
+                    }}
+                />
+                <div className="absolute right-2 top-1.5 text-[10px] text-white/20">↵</div>
+            </div>
+        </div>
+    );
+};
 
 // ... [Keep MediaPlayer Component exactly as it was] ...
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {

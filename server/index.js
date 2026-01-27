@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-const yts = require("yt-search"); //
+const yts = require("yt-search"); // 🎵 NEW: YouTube Search
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -245,6 +245,38 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
   res.json(formatted || []);
 }));
 
+// 🎵 NEW: Room Audio State
+let roomAudioState = {};
+
+app.post("/channels/play", safeRoute(async (req, res) => {
+  const { channelId, query, action } = req.body;
+  const roomKey = channelId.toString();
+
+  if (action === 'stop') {
+      delete roomAudioState[roomKey];
+      io.to(roomKey).emit("audio_state_clear");
+      return res.json({ success: true });
+  }
+
+  // Search YouTube
+  const r = await yts(query);
+  const video = r.videos[0];
+
+  if (!video) return res.json({ success: false, message: "No results" });
+
+  // Update State
+  roomAudioState[roomKey] = {
+      videoId: video.videoId,
+      title: video.title,
+      image: video.thumbnail,
+      timestamp: Date.now(), // Helps sync start time
+      isPlaying: true
+  };
+
+  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]);
+  res.json({ success: true, track: roomAudioState[roomKey] });
+}));
+
 // --- UPLOAD ---
 app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false });
@@ -287,10 +319,10 @@ io.on("connection", (socket) => {
   });
 
   // --- 2. CHAT & ROOMS ---
-socket.on("join_room", async ({ roomId }) => {
+  socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
     
-    // 🎵 NEW: Send current music state if playing
+    // 🎵 Send music state to new joiner
     if (roomAudioState[roomId]) {
         socket.emit("audio_state_update", roomAudioState[roomId]);
     } else {
@@ -299,7 +331,6 @@ socket.on("join_room", async ({ roomId }) => {
 
     try {
       if (roomId.toString().startsWith("dm-")) {
-          // ... (existing DM logic) ...
           const parts = roomId.split("-");
           if(parts.length >= 3) {
               const u1 = parts[1];
@@ -312,7 +343,6 @@ socket.on("join_room", async ({ roomId }) => {
               socket.emit("load_messages", data || []);
           }
       } else {
-          // ... (existing Channel logic) ...
           const { data } = await supabase
               .from("messages")
               .select("*")
@@ -327,14 +357,14 @@ socket.on("join_room", async ({ roomId }) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
     
-    // ✅ Use the passed ID (Date.now()) as the real DB ID so deletion works seamlessly
+    // ✅ Use timestamp as ID for simple synchronization
     const messagePayload = { ...data, id: data.id || Date.now(), created_at: new Date().toISOString() };
     
     if (room) io.to(room).emit("receive_message", messagePayload);
 
     try {
         await supabase.from("messages").insert([{
-            id: messagePayload.id, // Ensure DB uses the same ID as frontend
+            id: messagePayload.id,
             content,
             sender_id: senderId,
             sender_name: senderName,
@@ -346,15 +376,9 @@ socket.on("join_room", async ({ roomId }) => {
     } catch (err) { console.error("DB Save Error:", err); }
   });
 
-  // ✅ NEW: Delete Message Listener
   socket.on("delete_message", async ({ messageId, roomId }) => {
-      // 1. Delete from Supabase
       const { error } = await supabase.from("messages").delete().eq("id", messageId);
-      
-      // 2. Broadcast to everyone in the room
-      if (!error) {
-          io.to(roomId).emit("message_deleted", messageId);
-      }
+      if (!error) io.to(roomId).emit("message_deleted", messageId);
   });
 
   // --- 3. CALLS ---
@@ -411,43 +435,6 @@ socket.on("join_room", async ({ roomId }) => {
     console.log("Disconnected:", socket.id);
   });
 });
-
-// ----------------------------------------------------------------------
-
-// 🎵 NEW: Simple Room State Store
-let roomAudioState = {};
-
-// 🎵 NEW: Route to Search & Play
-app.post("/channels/play", safeRoute(async (req, res) => {
-  const { channelId, query, action } = req.body;
-  const roomKey = channelId.toString();
-
-  if (action === 'stop') {
-      delete roomAudioState[roomKey];
-      io.to(roomKey).emit("audio_state_clear");
-      return res.json({ success: true });
-  }
-
-  // Search YouTube
-  const r = await yts(query);
-  const video = r.videos[0];
-
-  if (!video) return res.json({ success: false, message: "No results" });
-
-  // Update State
-  roomAudioState[roomKey] = {
-      videoId: video.videoId,
-      title: video.title,
-      image: video.thumbnail,
-      timestamp: Date.now(), // Helps sync start time
-      isPlaying: true
-  };
-
-  // Broadcast to everyone in this channel
-  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]);
-  
-  res.json({ success: true, track: roomAudioState[roomKey] });
-}));
 
 server.listen(PORT, () => {
   console.log(`✅ SERVER RUNNING ON PORT ${PORT}`);
