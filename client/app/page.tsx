@@ -600,16 +600,59 @@ export default function DaChat() {
           </div>
       )}
 
-      {showSettings && (
+{showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+              {/* Added 'relative' to GlassPanel to contain the absolute positioned GIF picker */}
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative">
+                  
+                  {/* 🔥 NEW: GIF PICKER OVERLAY */}
+                  {showSettingsGifPicker && (
+                     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/95 rounded-[40px] animate-in fade-in zoom-in-95 duration-200 p-2">
+                         <GifPicker 
+                            className="w-full h-full rounded-[32px] border border-white/10 shadow-2xl" 
+                            onClose={() => setShowSettingsGifPicker(false)}
+                            onSelect={(url: string) => {
+                                setEditForm({ ...editForm, avatarUrl: url });
+                                setNewAvatarFile(null); // Clear any pending file upload
+                                setShowSettingsGifPicker(false);
+                            }}
+                         />
+                     </div>
+                  )}
+
                   <div className="flex flex-col items-center mb-4">
-                      <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-2 hover:scale-105 transition-transform cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
+                      <UserAvatar 
+                        src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
+                        className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
+                        onClick={()=>(document.getElementById('pUpload') as any).click()}
+                      />
+                      
+                      {/* 🔥 NEW: Selection Buttons */}
+                      <div className="flex gap-2">
+                         <button 
+                            onClick={()=>(document.getElementById('pUpload') as any).click()}
+                            className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+                         >
+                            Upload Photo
+                         </button>
+                         <button 
+                            onClick={() => setShowSettingsGifPicker(true)}
+                            className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
+                         >
+                            Choose GIF
+                         </button>
+                      </div>
+
                       <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
                   </div>
+                  
                   <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
                   <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
-                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div>
+                  
+                  <div className="flex justify-end gap-2"> 
+                    <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
+                    <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
+                  </div>
               </GlassPanel>
           </div>
       )}
