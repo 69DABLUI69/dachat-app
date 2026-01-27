@@ -120,15 +120,11 @@ app.get("/my-requests/:userId", safeRoute(async (req, res) => {
   res.json(senders || []);
 }));
 
-// ✅ UPDATED: Accept Request now notifies the sender
 app.post("/accept-request", safeRoute(async (req, res) => {
   const { myId, senderId } = req.body;
   await supabase.from("friends").insert([ { user_id: myId, friend_id: senderId }, { user_id: senderId, friend_id: myId } ]);
   await supabase.from("friend_requests").delete().match({ sender_id: senderId, receiver_id: myId });
-  
-  // 🔥 FIX: Notify the sender that their request was accepted!
   io.to(senderId.toString()).emit("request_accepted");
-
   res.json({ success: true });
 }));
 
@@ -264,13 +260,12 @@ app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
 }));
 
 // ----------------------------------------------------------------------
-// 🔥 SOCKET.IO LOGIC (MERGED & FIXED)
+// 🔥 SOCKET.IO LOGIC
 // ----------------------------------------------------------------------
 
-// GLOBAL TRACKING VARIABLES
-const onlineUsers = new Map(); // Tracks userId -> Set<socketId>
-let voiceRooms = {};           // Tracks roomId -> [ { socketId, userData } ]
-let socketToUser = {};         // Tracks socketId -> { roomId, userData }
+const onlineUsers = new Map(); 
+let voiceRooms = {};           
+let socketToUser = {};         
 
 io.on("connection", (socket) => {
   console.log("New connection:", socket.id);
@@ -278,18 +273,10 @@ io.on("connection", (socket) => {
   // --- 1. SETUP & ONLINE STATUS ---
   socket.on("setup", (userId) => {
     socket.userData = { id: userId };
-    
-    // Add to online tracking
-    if (!onlineUsers.has(userId)) {
-      onlineUsers.set(userId, new Set());
-    }
+    if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
     onlineUsers.get(userId).add(socket.id);
-
-    // Join their own room (for private messages)
     socket.join(userId.toString());
     socket.emit("connected");
-
-    // Broadcast "User X is Online"
     io.emit("user_connected", userId);
   });
 
@@ -301,15 +288,12 @@ io.on("connection", (socket) => {
   // --- 2. CHAT & ROOMS ---
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
-    
-    // Load history
     try {
       if (roomId.toString().startsWith("dm-")) {
           const parts = roomId.split("-");
           if(parts.length >= 3) {
               const u1 = parts[1];
               const u2 = parts[2];
-              
               const { data } = await supabase
                   .from("messages")
                   .select("*")
@@ -325,20 +309,21 @@ io.on("connection", (socket) => {
               .order("created_at", { ascending: true });
           socket.emit("load_messages", data || []);
       }
-    } catch (err) {
-      console.error("Message Fetch Error:", err);
-    }
+    } catch (err) { console.error("Message Fetch Error:", err); }
   });
 
   socket.on("send_message", async (data) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
-    const messagePayload = { ...data, id: Date.now(), created_at: new Date().toISOString() };
+    
+    // ✅ Use the passed ID (Date.now()) as the real DB ID so deletion works seamlessly
+    const messagePayload = { ...data, id: data.id || Date.now(), created_at: new Date().toISOString() };
     
     if (room) io.to(room).emit("receive_message", messagePayload);
 
     try {
         await supabase.from("messages").insert([{
+            id: messagePayload.id, // Ensure DB uses the same ID as frontend
             content,
             sender_id: senderId,
             sender_name: senderName,
@@ -350,6 +335,17 @@ io.on("connection", (socket) => {
     } catch (err) { console.error("DB Save Error:", err); }
   });
 
+  // ✅ NEW: Delete Message Listener
+  socket.on("delete_message", async ({ messageId, roomId }) => {
+      // 1. Delete from Supabase
+      const { error } = await supabase.from("messages").delete().eq("id", messageId);
+      
+      // 2. Broadcast to everyone in the room
+      if (!error) {
+          io.to(roomId).emit("message_deleted", messageId);
+      }
+  });
+
   // --- 3. CALLS ---
   socket.on("start_call", ({ senderId, recipientId, roomId, senderName, avatarUrl }) => {
     console.log(`📞 Call Request: ${senderName} -> ${recipientId}`);
@@ -359,30 +355,17 @@ io.on("connection", (socket) => {
   // --- 4. VOICE / VIDEO (WebRTC) ---
   socket.on("join_voice", ({ roomId, userData }) => {
     const rId = roomId.toString();
-    
     if (!voiceRooms[rId]) voiceRooms[rId] = [];
-    // Prevent duplicates
     voiceRooms[rId] = voiceRooms[rId].filter(u => u.socketId !== socket.id);
-    
     voiceRooms[rId].push({ socketId: socket.id, userData });
     socketToUser[socket.id] = { roomId: rId, userData };
-    
     socket.join(rId);
-    
-    // Send existing peers to new user
     socket.emit("all_users", voiceRooms[rId].filter(u => u.socketId !== socket.id));
-    
-    // Update sidebar for everyone
     io.emit("voice_state_update", { channelId: rId, users: voiceRooms[rId].map(u => u.userData.id) });
   });
 
-  socket.on("sending_signal", (payload) => {
-    io.to(payload.userToSignal).emit("user_joined", { signal: payload.signal, callerID: payload.callerID, userData: payload.userData });
-  });
-
-  socket.on("returning_signal", (payload) => {
-    io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id });
-  });
+  socket.on("sending_signal", (payload) => { io.to(payload.userToSignal).emit("user_joined", { signal: payload.signal, callerID: payload.callerID, userData: payload.userData }); });
+  socket.on("returning_signal", (payload) => { io.to(payload.callerID).emit("receiving_returned_signal", { signal: payload.signal, id: socket.id }); });
 
   const handleVoiceLeave = () => {
     const info = socketToUser[socket.id];
@@ -402,18 +385,12 @@ io.on("connection", (socket) => {
 
   // --- 5. DISCONNECT ---
   socket.on("disconnect", () => {
-    // A. Handle Voice Disconnect
     handleVoiceLeave();
-
-    // B. Handle Online Status Disconnect
     if (socket.userData && socket.userData.id) {
       const userId = socket.userData.id;
-      
       if (onlineUsers.has(userId)) {
         const userSockets = onlineUsers.get(userId);
         userSockets.delete(socket.id);
-
-        // If user has no more open sockets/tabs, they are officially offline
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
           io.emit("user_disconnected", userId);
