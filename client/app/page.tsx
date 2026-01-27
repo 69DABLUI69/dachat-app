@@ -37,8 +37,8 @@ const socket: Socket = io(BACKEND_URL, {
 });
 
 // 🎨 CUSTOM COMPONENTS
-const GlassPanel = ({ children, className, onClick }: any) => (
-  <div onClick={onClick} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}>
+const GlassPanel = ({ children, className, onClick, style }: any) => (
+  <div onClick={onClick} style={style} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}>
     {children}
   </div>
 );
@@ -97,6 +97,15 @@ export default function DaChat() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   
+  // 🔥 NEW: CONTEXT MENU STATE
+  const [contextMenu, setContextMenu] = useState<{
+      visible: boolean;
+      x: number;
+      y: number;
+      message: any | null;
+  }>({ visible: false, x: 0, y: 0, message: null });
+
+  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
@@ -134,6 +143,13 @@ export default function DaChat() {
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
   useEffect(() => { if (typeof window !== 'undefined') { joinSoundRef.current = new Audio('/join.mp3'); leaveSoundRef.current = new Audio('/leave.mp3'); joinSoundRef.current.load(); leaveSoundRef.current.load(); } }, []);
 
+  // 🔥 NEW: Global Click Listener to Close Context Menu
+  useEffect(() => {
+      const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
+      window.addEventListener("click", handleClick);
+      return () => window.removeEventListener("click", handleClick);
+  }, [contextMenu]);
+
   // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
@@ -148,12 +164,7 @@ export default function DaChat() {
   useEffect(() => { 
       socket.on("receive_message", (msg) => { if (user && msg.sender_id === user.id) return; setChatHistory(prev => [...prev, msg]); });
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      
-      // ✅ NEW: Listen for message deletion
-      socket.on("message_deleted", (messageId) => {
-          setChatHistory(prev => prev.filter(msg => msg.id !== messageId));
-      });
-
+      socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
       socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
@@ -222,12 +233,27 @@ export default function DaChat() {
       setMessage(""); 
   };
 
-  // ✅ NEW: Delete Function
   const deleteMessage = (msgId: number) => {
       const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`;
       socket.emit("delete_message", { messageId: msgId, roomId });
-      // Optimistically remove from UI
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
+  };
+
+  // 🔥 NEW: Right-Click Handler
+  const handleContextMenu = (e: React.MouseEvent, msg: any) => {
+      e.preventDefault(); // STOP the browser menu
+      setContextMenu({
+          visible: true,
+          x: e.pageX,
+          y: e.pageY,
+          message: msg
+      });
+  };
+
+  // 🔥 NEW: Copy Function
+  const copyText = (text: string) => {
+      navigator.clipboard.writeText(text);
+      setContextMenu({ ...contextMenu, visible: false });
   };
 
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
@@ -290,18 +316,25 @@ export default function DaChat() {
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
+      {/* 1. DOCK (Animated) */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
         <div className="w-8 h-[1px] bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar pt-2">
-            {servers.map(s => ( <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all duration-300 ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} /> </div> ))}
+            {servers.map(s => ( 
+                <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
+                    {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
+                    <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all duration-300 ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} /> 
+                </div> 
+            ))}
             <div onClick={createServer} className="w-12 h-12 rounded-[24px] border border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white hover:text-green-400 text-white/40 transition-all duration-300 hover:scale-105 hover:bg-white/5"> + </div>
         </div>
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
+      {/* 2. SIDEBAR (Animated) */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px] animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : "Direct Messages"}</span>
@@ -314,7 +347,21 @@ export default function DaChat() {
                     {channels.map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
-                        return ( <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}> <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> <span className="truncate">{ch.name}</span> {ch.type === 'voice' && activeMembers.length > 0 && ( <div className="flex -space-x-1 ml-auto mr-2 shrink-0 animate-in fade-in"> {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))} {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )} </div> )} </div> {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>} </div> );
+                        return ( 
+                            <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
+                                    <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
+                                    <span className="truncate">{ch.name}</span>
+                                    {ch.type === 'voice' && activeMembers.length > 0 && (
+                                        <div className="flex -space-x-1 ml-auto mr-2 shrink-0 animate-in fade-in">
+                                            {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
+                                            {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )}
+                                        </div>
+                                    )}
+                                </div>
+                                {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
+                            </div>
+                        );
                     })}
                     <div className="mt-6 px-2 space-y-2">
                         <button onClick={inviteUser} className="w-full py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-600/30 transition-all hover:scale-[1.02] active:scale-95">Invite People</button>
@@ -324,30 +371,55 @@ export default function DaChat() {
             ) : (
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>Requests</span> <button onClick={sendFriendRequest} className="text-lg hover:text-white transition-transform hover:scale-110">+</button> </div>
-                    {requests.map(req => ( <div key={req.id} onClick={() => selectRequest(req)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 ${active.pendingRequest?.id===req.id?"bg-white/10 scale-[1.02]":""}`}> <UserAvatar src={req.avatar_url} className="w-8 h-8 rounded-full" /> <div><div className="text-xs font-bold">{req.username}</div><div className="text-[9px] text-yellow-400 animate-pulse">Request</div></div> </div> ))}
+                    {requests.map(req => ( 
+                        <div key={req.id} onClick={() => selectRequest(req)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 ${active.pendingRequest?.id===req.id?"bg-white/10 scale-[1.02]":""}`}> 
+                            <UserAvatar src={req.avatar_url} className="w-8 h-8 rounded-full" /> 
+                            <div><div className="text-xs font-bold">{req.username}</div><div className="text-[9px] text-yellow-400 animate-pulse">Request</div></div> 
+                        </div> 
+                    ))}
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
                     {friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
-                        return ( <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`}> <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> <div className="flex-1" onClick={()=>selectFriend(f)}> <div className="text-xs font-bold">{f.username}</div> <div className={`text-[9px] transition-colors duration-300 ${isOnline ? "text-green-400" : "text-white/30"}`}> {isOnline ? "Online" : "Offline"} </div> </div> </div> );
+                        
+                        return (
+                            <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`}> 
+                                <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className="w-8 h-8 rounded-full" /> 
+                                <div className="flex-1" onClick={()=>selectFriend(f)}>
+                                    <div className="text-xs font-bold">{f.username}</div>
+                                    <div className={`text-[9px] transition-colors duration-300 ${isOnline ? "text-green-400" : "text-white/30"}`}>
+                                        {isOnline ? "Online" : "Offline"}
+                                    </div>
+                                </div> 
+                            </div> 
+                        );
                     })}
                 </>
             )}
         </div>
       </div>
 
+      {/* 3. MAIN CONTENT (Slide-In Animation for Mobile) */}
       <div className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
+         
+         {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
                  <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md animate-in fade-in slide-in-from-top-2"> 
                     <div className="flex items-center gap-3 font-bold text-lg overflow-hidden"> 
                         <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white transition-transform active:scale-90" onClick={() => setShowMobileChat(false)}>←</button>
-                        <span className="text-white/30">@</span> <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
+                        <span className="text-white/30">@</span> 
+                        <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
                     </div> 
                     {!active.channel && <button onClick={startDMCall} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
                  </div>
              )}
              
-             {inCall && !isCallExpanded && ( <div onClick={() => setIsCallExpanded(true)} className="bg-green-600/20 text-green-400 p-2 text-center text-xs font-bold cursor-pointer hover:bg-green-600/30 border-b border-green-600/20 transition-all animate-pulse"> 🔊 Call in Progress — Click to Return </div> )}
+             {/* Return to Call Banner */}
+             {inCall && !isCallExpanded && (
+                 <div onClick={() => setIsCallExpanded(true)} className="bg-green-600/20 text-green-400 p-2 text-center text-xs font-bold cursor-pointer hover:bg-green-600/30 border-b border-green-600/20 transition-all animate-pulse">
+                     🔊 Call in Progress — Click to Return
+                 </div>
+             )}
 
              {active.pendingRequest ? (
                  <div className="flex-1 flex flex-col items-center justify-center gap-4 animate-in fade-in zoom-in-95">
@@ -360,22 +432,16 @@ export default function DaChat() {
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {chatHistory.map((msg, i) => ( 
-                            <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}> 
+                            <div 
+                                key={msg.id || i} 
+                                className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`}
+                                // 🔥 RIGHT CLICK TRIGGER
+                                onContextMenu={(e) => handleContextMenu(e, msg)}
+                            > 
                                 <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
                                 <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
                                     <div className="flex items-center gap-2 mb-1"> 
                                       <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
-                                      
-                                      {/* ✅ DELETE BUTTON FOR OWN MESSAGES */}
-                                      {msg.sender_id === user.id && (
-                                        <button 
-                                          onClick={() => deleteMessage(msg.id)} 
-                                          className="text-xs text-red-500 opacity-0 group-hover:opacity-100 hover:text-red-400 transition-all ml-2"
-                                          title="Delete Message"
-                                        >
-                                          🗑️
-                                        </button>
-                                      )}
                                     </div> 
                                     
                                     <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
@@ -400,9 +466,10 @@ export default function DaChat() {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">Select a Channel</div>}
          </div>
 
-         {/* Call UI & Other layers remain unchanged... */}
+         {/* LAYER 2: CALL UI (Smooth Entry) */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col relative`}>
+                 
                  {focusedPeerId ? (
                     <div className="flex-1 flex flex-col relative">
                         <div className="flex-1 relative bg-zinc-950 flex items-center justify-center p-2">
@@ -412,36 +479,169 @@ export default function DaChat() {
                                     <div className="absolute bottom-4 left-4 bg-black/60 px-3 py-1 rounded text-white font-bold">You (Screen)</div>
                                     <button onClick={stopScreenShare} className="absolute bottom-4 right-4 px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg transition-transform hover:scale-105">Stop</button>
                                 </div>
-                            ) : ( (() => { const p = peers.find(x => x.peerID === focusedPeerId); return p ? <MediaPlayer peer={p.peer} userInfo={p.info} /> : null; })() )}
+                            ) : (
+                                (() => {
+                                    const p = peers.find(x => x.peerID === focusedPeerId);
+                                    return p ? <MediaPlayer peer={p.peer} userInfo={p.info} /> : null;
+                                })()
+                            )}
                         </div>
                         <div className="h-24 md:h-32 w-full bg-zinc-900/80 backdrop-blur-md flex items-center justify-center gap-4 px-4 overflow-x-auto border-t border-white/10 z-20">
-                            <div onClick={() => setFocusedPeerId('local')} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all hover:scale-105 ${focusedPeerId === 'local' ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}> {isScreenSharing ? ( <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserAvatar src={user.avatar_url} className="w-8 h-8 rounded-full" /></div> )} <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white shadow-black drop-shadow-md">You</span> </div>
-                            {peers.map(p => ( <div key={p.peerID} onClick={() => setFocusedPeerId(p.peerID)} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all hover:scale-105 ${focusedPeerId === p.peerID ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}> <MediaPlayer peer={p.peer} userInfo={p.info} isMini={true} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} /> </div> ))}
+                            <div onClick={() => setFocusedPeerId('local')} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all hover:scale-105 ${focusedPeerId === 'local' ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                {isScreenSharing ? ( <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-cover" /> ) : ( <div className="w-full h-full bg-zinc-800 flex items-center justify-center"><UserAvatar src={user.avatar_url} className="w-8 h-8 rounded-full" /></div> )}
+                                <span className="absolute bottom-1 left-2 text-[10px] font-bold text-white shadow-black drop-shadow-md">You</span>
+                            </div>
+                            {peers.map(p => (
+                                <div key={p.peerID} onClick={() => setFocusedPeerId(p.peerID)} className={`w-32 md:w-48 h-16 md:h-24 rounded-xl overflow-hidden cursor-pointer border-2 relative shrink-0 transition-all hover:scale-105 ${focusedPeerId === p.peerID ? "border-blue-500 opacity-50" : "border-white/10 hover:border-white/50"}`}>
+                                    <MediaPlayer peer={p.peer} userInfo={p.info} isMini={true} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
+                                </div>
+                            ))}
                         </div>
                     </div>
                  ) : (
                      <div className="flex-1 flex items-center justify-center p-4">
                         <div className="grid grid-cols-2 gap-4 w-full h-full max-w-5xl max-h-[80vh] animate-in zoom-in-95 duration-300">
-                            <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 flex items-center justify-center transition-all hover:border-white/30"> {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="flex flex-col items-center"><UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/5 mb-3" /><span className="text-xl font-bold">You</span></div>} <button onClick={isScreenSharing ? stopScreenShare : startScreenShare} className={`absolute bottom-4 right-4 p-3 rounded-full backdrop-blur-md transition-all hover:scale-110 active:scale-90 ${isScreenSharing ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/10 hover:bg-white/20"}`}>{isScreenSharing ? "🛑" : "🖥️"}</button> </div>
-                            {peers.map(p => ( <div key={p.peerID} className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 transition-all hover:border-white/30"> <MediaPlayer peer={p.peer} userInfo={p.info} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} /> </div> ))}
+                            <div className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 flex items-center justify-center transition-all hover:border-white/30">
+                                {isScreenSharing ? <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain" /> : <div className="flex flex-col items-center"><UserAvatar src={user.avatar_url} className="w-24 h-24 rounded-full border-4 border-white/5 mb-3" /><span className="text-xl font-bold">You</span></div>}
+                                <button onClick={isScreenSharing ? stopScreenShare : startScreenShare} className={`absolute bottom-4 right-4 p-3 rounded-full backdrop-blur-md transition-all hover:scale-110 active:scale-90 ${isScreenSharing ? "bg-red-500/20 text-red-500 hover:bg-red-500/30" : "bg-white/10 hover:bg-white/20"}`}>{isScreenSharing ? "🛑" : "🖥️"}</button>
+                            </div>
+                            {peers.map(p => (
+                                <div key={p.peerID} className="relative bg-zinc-900 rounded-3xl overflow-hidden border border-white/10 transition-all hover:border-white/30">
+                                    <MediaPlayer peer={p.peer} userInfo={p.info} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
+                                </div>
+                            ))}
                         </div>
                      </div>
                  )}
-                 <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50 w-full justify-center px-4 animate-in slide-in-from-top-4 duration-300"> <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">End Call</button> <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">📉 Minimize</button> {focusedPeerId && <button onClick={() => setFocusedPeerId(null)} className="hidden md:block px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg transition-all hover:scale-105">Show Grid</button>} </div>
+                 
+                 <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50 w-full justify-center px-4 animate-in slide-in-from-top-4 duration-300">
+                    <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">End Call</button>
+                    <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">📉 Minimize</button>
+                    {focusedPeerId && <button onClick={() => setFocusedPeerId(null)} className="hidden md:block px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg transition-all hover:scale-105">Show Grid</button>}
+                 </div>
              </div>
          )}
       </div>
 
-      {view === "servers" && active.server && ( <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300"> <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div> <div className="space-y-1"> {serverMembers.map(m => ( <div key={m.id} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div> {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>} </div> ))} </div> </div> )}
-      {viewingProfile && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}> <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}> <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" /> <h2 className="text-2xl font-bold">{viewingProfile.username}</h2> <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p> {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={handleRemoveFriend} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">Remove Friend</button>} {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && ( <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10"> <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div> <button onClick={() => promoteMember(viewingProfile.id)} className="w-full py-2 bg-blue-500/20 text-blue-300 rounded-lg font-bold text-sm hover:bg-blue-500/30 transition-all hover:scale-105">Toggle Moderator</button> </div> )} </GlassPanel> </div> )}
-      {showServerSettings && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300"> <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300"> <h2 className="text-xl font-bold">Server Settings</h2> <div className="flex justify-center mb-4 cursor-pointer group" onClick={()=>(document.getElementById('serverImg') as any).click()}> <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20 group-hover:border-white/50 transition-all group-hover:scale-105" /> <input id="serverImg" type="file" className="hidden" onChange={(e)=>e.target.files && setNewServerFile(e.target.files[0])} /> </div> <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={serverEditForm.name} onChange={e=>setServerEditForm({...serverEditForm, name: e.target.value})} /> <div className="flex justify-end gap-2"> <button onClick={()=>setShowServerSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveServerSettings} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div> </GlassPanel> </div> )}
-      {incomingCall && ( <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in zoom-in duration-300"> <div className="flex flex-col items-center gap-6"> <UserAvatar src={incomingCall.avatarUrl} className="w-32 h-32 rounded-full border-4 border-green-500 animate-[pulse_1s_ease-in-out_infinite]" /> <div className="text-2xl font-bold text-center">{incomingCall.senderName} is calling...</div> <div className="flex gap-8"> <button onClick={()=>setIncomingCall(null)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:rotate-90">✕</button> <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:-rotate-12">📞</button> </div> </div> </div> )}
-      {callEndedData && ( <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300"> <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300"> <div className="text-4xl mb-4 animate-bounce">📞</div> <h2 className="text-2xl font-bold mb-2">Call Ended</h2> <p className="text-white/50 mb-6">Duration: <span className="text-white font-mono">{callEndedData}</span></p> <button onClick={() => setCallEndedData(null)} className="px-8 py-2 bg-white/10 hover:bg-white/20 rounded-full font-bold transition-transform hover:scale-105">Close</button> </GlassPanel> </div> )}
-      {showSettings && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300"> <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative"> {showSettingsGifPicker && ( <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/95 rounded-[40px] animate-in fade-in zoom-in-95 duration-200 p-2"> <GifPicker className="w-full h-full rounded-[32px] border border-white/10 shadow-2xl" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false); }} /> </div> )} <div className="flex flex-col items-center mb-4"> <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" onClick={()=>(document.getElementById('pUpload') as any).click()} /> <div className="flex gap-2"> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors" > Upload Photo </button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg" > Choose GIF </button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> <div className="flex justify-end gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div> </GlassPanel> </div> )}
+      {/* 4. MEMBER LIST (Animated Entry) */}
+      {view === "servers" && active.server && (
+          <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300">
+              <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
+              <div className="space-y-1">
+                  {serverMembers.map(m => ( 
+                    <div key={m.id} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> 
+                        <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> 
+                        <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div>
+                        {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>}
+                        {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>}
+                    </div> 
+                  ))}
+              </div>
+          </div>
+      )}
+
+      {/* MODALS (Enhanced Animations) */}
+      {viewingProfile && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}>
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}>
+                  <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" />
+                  <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
+                  <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p>
+                  {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={handleRemoveFriend} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">Remove Friend</button>}
+                  {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && (
+                      <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10">
+                          <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div>
+                          <button onClick={() => promoteMember(viewingProfile.id)} className="w-full py-2 bg-blue-500/20 text-blue-300 rounded-lg font-bold text-sm hover:bg-blue-500/30 transition-all hover:scale-105">Toggle Moderator</button>
+                      </div>
+                  )}
+              </GlassPanel>
+          </div>
+      )}
+
+      {showServerSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+                  <h2 className="text-xl font-bold">Server Settings</h2>
+                  <div className="flex justify-center mb-4 cursor-pointer group" onClick={()=>(document.getElementById('serverImg') as any).click()}>
+                      <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20 group-hover:border-white/50 transition-all group-hover:scale-105" />
+                      <input id="serverImg" type="file" className="hidden" onChange={(e)=>e.target.files && setNewServerFile(e.target.files[0])} />
+                  </div>
+                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={serverEditForm.name} onChange={e=>setServerEditForm({...serverEditForm, name: e.target.value})} />
+                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowServerSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveServerSettings} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div>
+              </GlassPanel>
+          </div>
+      )}
+
+      {incomingCall && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-xl animate-in zoom-in duration-300">
+              <div className="flex flex-col items-center gap-6">
+                  <UserAvatar src={incomingCall.avatarUrl} className="w-32 h-32 rounded-full border-4 border-green-500 animate-[pulse_1s_ease-in-out_infinite]" />
+                  <div className="text-2xl font-bold text-center">{incomingCall.senderName} is calling...</div>
+                  <div className="flex gap-8">
+                      <button onClick={()=>setIncomingCall(null)} className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:rotate-90">✕</button>
+                      <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-2xl transition-transform hover:scale-125 hover:-rotate-12">📞</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
+      {callEndedData && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+              <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+                  <div className="text-4xl mb-4 animate-bounce">📞</div>
+                  <h2 className="text-2xl font-bold mb-2">Call Ended</h2>
+                  <p className="text-white/50 mb-6">Duration: <span className="text-white font-mono">{callEndedData}</span></p>
+                  <button onClick={() => setCallEndedData(null)} className="px-8 py-2 bg-white/10 hover:bg-white/20 rounded-full font-bold transition-transform hover:scale-105">Close</button>
+              </GlassPanel>
+          </div>
+      )}
+
+      {showSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+                  <div className="flex flex-col items-center mb-4">
+                      <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-2 hover:scale-105 transition-transform cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
+                      <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
+                  </div>
+                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
+                  <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
+                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div>
+              </GlassPanel>
+          </div>
+      )}
+
+      {/* 🔥 NEW: CUSTOM RIGHT-CLICK MENU */}
+      {contextMenu.visible && (
+          <div 
+            style={{ top: contextMenu.y, left: contextMenu.x }} 
+            className="fixed z-50 flex flex-col w-40 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left"
+            onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
+          >
+              <button 
+                onClick={() => copyText(contextMenu.message?.content || "")}
+                className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+              >
+                📋 Copy Text
+              </button>
+              
+              {contextMenu.message?.sender_id === user.id && (
+                  <button 
+                    onClick={() => {
+                        deleteMessage(contextMenu.message.id);
+                        setContextMenu({ ...contextMenu, visible: false });
+                    }}
+                    className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    🗑️ Delete Message
+                  </button>
+              )}
+          </div>
+      )}
     </div>
   );
 }
 
+// ... [Keep MediaPlayer Component exactly as it was] ...
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
@@ -478,9 +678,23 @@ const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
 
     return (
         <div className="relative w-full h-full bg-zinc-900 flex items-center justify-center overflow-hidden animate-in fade-in">
-            <video ref={videoRef} autoPlay playsInline className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} />
-            {!hasVideo && ( <div className="flex flex-col items-center animate-in zoom-in-95"> <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} /> {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>} </div> )}
-            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none"> {userInfo?.username} </div>
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} 
+            />
+            
+            {!hasVideo && (
+                <div className="flex flex-col items-center animate-in zoom-in-95">
+                    <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} />
+                    {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>}
+                </div>
+            )}
+
+            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
+                {userInfo?.username}
+            </div>
         </div>
     );
 };
