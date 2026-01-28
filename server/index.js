@@ -29,7 +29,12 @@ const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: ["https://dachat-app.onrender.com", "http://localhost:3000", "http://localhost:3001"],
+    // 👇 ADD YOUR VERCEL DOMAIN HERE so it can connect
+    origin: [
+        "https://dachat-app.onrender.com", 
+        "https://dachat-app.vercel.app", 
+        "http://localhost:3000"
+    ],
     methods: ["GET", "POST"]
   }
 });
