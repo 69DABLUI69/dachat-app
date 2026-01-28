@@ -564,15 +564,39 @@ export default function DaChat() {
                             </div> 
                         ))}
                     </div>
+                    {/* 👇 THIS IS THE FIXED SECTION FOR EMOJI PICKER 👇 */}
                     <div className="p-4 relative">
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
+                                <EmojiPicker
+                                    theme={Theme.DARK}
+                                    onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)}
+                                    lazyLoadEmojis={true}
+                                />
+                            </div>
+                        )}
+
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
+                        
                         <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
+                            
+                            <button 
+                                className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
+                                onClick={() => {
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                    setShowGifPicker(false);
+                                }}
+                            >
+                                😀
+                            </button>
+
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
                         </div>
                     </div>
+                    {/* 👆 END FIXED SECTION 👆 */}
                  </>
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">Select a Channel</div>}
          </div>
@@ -713,50 +737,6 @@ export default function DaChat() {
                          />
                      </div>
                   )}
-
-                  <div className="p-4 relative">
-                        {/* 1. Add the Emoji Picker here */}
-                        {showEmojiPicker && (
-                            <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
-                                <EmojiPicker
-                                    theme={Theme.DARK}
-                                    onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)}
-                                    lazyLoadEmojis={true}
-                                />
-                            </div>
-                        )}
-
-                        {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
-                        
-                        <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
-                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
-                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
-                            
-// ... inside the input area div ...
-
-<button className="..." onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
-
-{/* 👇 PASTE THIS BUTTON RIGHT HERE 👇 */}
-<button 
-    className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
-    onClick={() => {
-        setShowEmojiPicker(!showEmojiPicker);
-        setShowGifPicker(false);
-    }}
->
-    😀
-</button>
-
-                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
-                            <input 
-                                className="flex-1 bg-transparent outline-none px-2 min-w-0" 
-                                placeholder="Message..." 
-                                value={message} 
-                                onChange={e=>setMessage(e.target.value)} 
-                                onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} 
-                            /> 
-                        </div>
-                    </div>
 
                   <div className="flex flex-col items-center mb-4">
                       <UserAvatar 
