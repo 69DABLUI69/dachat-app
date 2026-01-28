@@ -322,6 +322,14 @@ export default function DaChat() {
     } catch { setError("Connection failed"); }
   };
 
+  // 👇 ADDED: LOGOUT FUNCTION
+  const handleLogout = () => {
+      if(confirm("Are you sure you want to log out?")) {
+          localStorage.removeItem("dachat_user");
+          window.location.reload();
+      }
+  };
+
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
@@ -1015,9 +1023,14 @@ export default function DaChat() {
                   <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
                   <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
                   
-                  <div className="flex justify-end gap-2"> 
-                    <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
-                    <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
+                  <div className="flex justify-between items-center mt-4"> 
+                    {/* 👇 ADDED LOGOUT BUTTON HERE */}
+                    <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors">Log Out</button>
+                    
+                    <div className="flex gap-2">
+                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
+                        <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
+                    </div>
                   </div>
               </GlassPanel>
           </div>
