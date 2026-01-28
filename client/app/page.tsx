@@ -110,6 +110,9 @@ export default function DaChat() {
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [setupStep, setSetupStep] = useState(0);
 
+  const [showPassword, setShowPassword] = useState(false); // For Login
+  const [showNewPassword, setShowNewPassword] = useState(false); // For Settings
+
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
   const [rememberMe, setRememberMe] = useState(false);
@@ -499,7 +502,24 @@ export default function DaChat() {
             {!is2FALogin ? (
                 <>
                     <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
-                    <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
+                    
+                    {/* 👇 UPDATED PASSWORD INPUT WITH TOGGLE */}
+                    <div className="relative">
+                        <input 
+                            className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40 pr-12" 
+                            type={showPassword ? "text" : "password"} 
+                            placeholder="Password" 
+                            onChange={e => setAuthForm({ ...authForm, password: e.target.value })} 
+                        />
+                        <button 
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xl"
+                        >
+                            {showPassword ? "🙈" : "👁️"}
+                        </button>
+                    </div>
+
                     {!isRegistering && (
                         <div className="flex items-center gap-2 px-2">
                              <input 
@@ -926,13 +946,24 @@ export default function DaChat() {
 
                           {showPassChange && (
                               <div className="flex flex-col gap-3 animate-in fade-in pt-2">
-                                  <input 
-                                      type="password"
-                                      className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" 
-                                      placeholder="New Password"
-                                      value={passChangeForm.newPassword}
-                                      onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})}
-                                  />
+                                  {/* 👇 UPDATED NEW PASSWORD INPUT */}
+                                  <div className="relative">
+                                      <input 
+                                          type={showNewPassword ? "text" : "password"}
+                                          className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" 
+                                          placeholder="New Password"
+                                          value={passChangeForm.newPassword}
+                                          onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})}
+                                      />
+                                      <button 
+                                          type="button"
+                                          onClick={() => setShowNewPassword(!showNewPassword)}
+                                          className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs"
+                                      >
+                                          {showNewPassword ? "🙈" : "👁️"}
+                                      </button>
+                                  </div>
+
                                   <input 
                                       className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" 
                                       placeholder="Auth Code (000 000)" 
