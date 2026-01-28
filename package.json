@@ -2,6 +2,8 @@
   "dependencies": {
     "@capacitor/android": "^8.0.1",
     "@capacitor/cli": "^8.0.1",
-    "@capacitor/core": "^8.0.1"
+    "@capacitor/core": "^8.0.1",
+    "qrcode": "^1.5.4",
+    "speakeasy": "^2.0.0"
   }
 }

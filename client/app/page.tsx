@@ -99,6 +99,14 @@ export default function DaChat() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  const [is2FALogin, setIs2FALogin] = useState(false); 
+  const [twoFACode, setTwoFACode] = useState("");
+  const [tempUserId, setTempUserId] = useState<number | null>(null);
+
+  // For Setup Settings
+  const [qrCodeUrl, setQrCodeUrl] = useState("");
+  const [setupStep, setSetupStep] = useState(0);
+
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
   const [rememberMe, setRememberMe] = useState(false);
@@ -270,19 +278,39 @@ export default function DaChat() {
 
   // --- AUTH ---
   const handleAuth = async () => {
-    if (!authForm.username.trim() || !authForm.password.trim()) {
-        setError("Please enter both a username and a password.");
+    if (is2FALogin) {
+        // Handle 2FA Verification
+        const res = await fetch(`${BACKEND_URL}/auth/2fa/login`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ userId: tempUserId, token: twoFACode })
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
+            setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id);
+        } else {
+            setError(data.message || "Invalid Code");
+        }
         return;
     }
+
+    // Normal Login
+    if (!authForm.username.trim() || !authForm.password.trim()) { setError("Enter credentials"); return; }
     const endpoint = isRegistering ? "register" : "login";
+    
     try {
       const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
       const data = await res.json();
+
+      if (data.requires2FA) {
+          setTempUserId(data.userId);
+          setIs2FALogin(true);
+          setError("");
+          return;
+      }
+
       if (data.success) {
-        if (rememberMe) {
-            localStorage.setItem("dachat_user", JSON.stringify(data.user));
-        }
-        try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); } catch (e) {}
+        if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
         setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id);
       } else setError(data.message || "Auth failed");
     } catch { setError("Connection failed"); }
@@ -359,6 +387,33 @@ export default function DaChat() {
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
   const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); setUser((prev:any) => ({...prev, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl})); setShowSettings(false); };
 
+  // 🔐 2FA HELPER FUNCTIONS (Moved from JSX)
+  const start2FASetup = async () => {
+      const res = await fetch(`${BACKEND_URL}/auth/2fa/generate`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+          setQrCodeUrl(data.qrCode);
+          setSetupStep(1);
+      }
+  };
+
+  const verify2FASetup = async () => {
+      const res = await fetch(`${BACKEND_URL}/auth/2fa/enable`, {
+          method: "POST", headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, token: twoFACode })
+      });
+      const data = await res.json();
+      if (data.success) {
+          setSetupStep(2);
+          alert("2FA Enabled!");
+      } else {
+          alert("Invalid Code");
+      }
+  };
+
   const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); } };
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) }); selectServer(active.server); } };
   const deleteChannel = async (channelId: number) => { if(!confirm("Delete channel?")) return; await fetch(`${BACKEND_URL}/delete-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) }); selectServer(active.server); };
@@ -408,26 +463,51 @@ export default function DaChat() {
         </div>
         <div> <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-linear-to-r from-white to-white/60">DaChat</h1> <p className="text-white/40 text-sm mt-2">{tagline}</p> </div>
         {error && <div className="bg-red-500/20 text-red-200 text-xs py-3 rounded-xl border border-red-500/20 animate-in slide-in-from-top-2">{error}</div>}
+        
+        {/* LOGIN FORM */}
         <div className="space-y-3">
-            <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
-            <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
-            {!isRegistering && (
-                <div className="flex items-center gap-2 px-2">
+            {!is2FALogin ? (
+                <>
+                    <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
+                    <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
+                    {!isRegistering && (
+                        <div className="flex items-center gap-2 px-2">
+                             <input 
+                                type="checkbox" 
+                                id="remember" 
+                                checked={rememberMe}
+                                onChange={(e) => setRememberMe(e.target.checked)}
+                                className="w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer accent-blue-600"
+                            />
+                            <label htmlFor="remember" className="text-xs text-white/50 cursor-pointer select-none hover:text-white transition-colors">
+                                Remember me
+                            </label>
+                        </div>
+                    )}
+                </>
+            ) : (
+                <div className="animate-in slide-in-from-right-4">
+                    <div className="text-center text-white/50 mb-2 text-xs">Enter code from Authenticator</div>
                     <input 
-                        type="checkbox" 
-                        id="remember" 
-                        checked={rememberMe}
-                        onChange={(e) => setRememberMe(e.target.checked)}
-                        className="w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer accent-blue-600"
+                        className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50" 
+                        placeholder="000 000" 
+                        maxLength={6}
+                        onChange={e => setTwoFACode(e.target.value)} 
                     />
-                    <label htmlFor="remember" className="text-xs text-white/50 cursor-pointer select-none hover:text-white transition-colors">
-                        Remember me
-                    </label>
+                    <button onClick={() => setIs2FALogin(false)} className="w-full text-xs text-white/30 mt-2 hover:text-white">Back to Login</button>
                 </div>
             )}
         </div>
-        <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95 duration-200">{isRegistering ? "Create Account" : "Log in"}</button>
-        <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Back to Login" : "Create an Account"}</p>
+        
+        <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95 duration-200">
+            {is2FALogin ? "Verify 2FA" : (isRegistering ? "Create Account" : "Log in")}
+        </button>
+
+        {!is2FALogin && (
+            <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>
+                {isRegistering ? "Back to Login" : "Create an Account"}
+            </p>
+        )}
       </GlassPanel>
     </div>
   );
@@ -777,6 +857,34 @@ export default function DaChat() {
                          />
                      </div>
                   )}
+                  
+                  {/* 2FA SECTION */}
+                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
+                      <div className="flex justify-between items-center">
+                          <span className="font-bold text-sm">Two-Factor Auth</span>
+                          <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}>
+                              {user.is_2fa_enabled ? "ENABLED" : "DISABLED"}
+                          </span>
+                      </div>
+
+                      {!user.is_2fa_enabled && setupStep === 0 && (
+                          <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded hover:bg-blue-600/30">Setup 2FA</button>
+                      )}
+
+                      {setupStep === 1 && (
+                          <div className="flex flex-col items-center gap-3 animate-in fade-in">
+                              <img src={qrCodeUrl} className="w-32 h-32 rounded-lg border-4 border-white" />
+                              <p className="text-[10px] text-white/50 text-center">Scan with Google Authenticator</p>
+                              <input 
+                                  className="w-full bg-black/40 p-2 text-center rounded font-mono" 
+                                  placeholder="123456" 
+                                  maxLength={6}
+                                  onChange={(e) => setTwoFACode(e.target.value)}
+                              />
+                              <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">Verify & Enable</button>
+                          </div>
+                      )}
+                  </div>
 
                   <div className="flex flex-col items-center mb-4">
                       <UserAvatar 

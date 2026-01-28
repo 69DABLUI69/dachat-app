@@ -8,6 +8,9 @@ const { createClient } = require("@supabase/supabase-js");
 const yts = require("yt-search"); // 🎵 YouTube Search
 const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
 
+const speakeasy = require("speakeasy");
+const QRCode = require("qrcode");
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -78,7 +81,68 @@ if (!username || !password || username.trim() === "" || password.trim() === "") 
 
   if (error) return res.json({ success: false, message: "Database error" });
   if (!user) return res.json({ success: false, message: "Invalid credentials" });
+if (user.is_2fa_enabled) {
+      // Don't send user data yet! Tell frontend to ask for code.
+      return res.json({ success: false, requires2FA: true, userId: user.id }); 
+  }
+
   res.json({ success: true, user });
+}));
+
+// --- 2FA ROUTES ---
+
+// 1. Generate Secret & QR Code (Setup)
+app.post("/auth/2fa/generate", safeRoute(async (req, res) => {
+    const { userId } = req.body;
+    const secret = speakeasy.generateSecret({ name: "DaChat App" });
+    
+    // Save temporary secret to DB (or just send to client to send back for verification)
+    // Here we will update the user temporarily
+    await supabase.from("users").update({ two_factor_secret: secret.base32 }).eq("id", userId);
+
+    QRCode.toDataURL(secret.otpauth_url, (err, data_url) => {
+        res.json({ success: true, secret: secret.base32, qrCode: data_url });
+    });
+}));
+
+// 2. Verify & Enable 2FA
+app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
+    const { userId, token } = req.body;
+    
+    // Get the secret from DB
+    const { data: user } = await supabase.from("users").select("two_factor_secret").eq("id", userId).single();
+    
+    const verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: "base32",
+        token: token
+    });
+
+    if (verified) {
+        await supabase.from("users").update({ is_2fa_enabled: true }).eq("id", userId);
+        res.json({ success: true });
+    } else {
+        res.json({ success: false, message: "Invalid Code" });
+    }
+}));
+
+// 3. Login with 2FA
+app.post("/auth/2fa/login", safeRoute(async (req, res) => {
+    const { userId, token } = req.body;
+    
+    const { data: user } = await supabase.from("users").select("*").eq("id", userId).single();
+    
+    const verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: "base32",
+        token: token
+    });
+
+    if (verified) {
+        res.json({ success: true, user });
+    } else {
+        res.json({ success: false, message: "Invalid 2FA Code" });
+    }
 }));
 
 // --- USER & FRIEND ROUTES ---
