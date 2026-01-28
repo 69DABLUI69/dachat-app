@@ -100,7 +100,8 @@ export default function DaChat() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
-  const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "💩", "👻", "🤖", "🤡", "🤠"];
+  const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
+  const [rememberMe, setRememberMe] = useState(false);
 
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
@@ -190,6 +191,13 @@ export default function DaChat() {
       const interval = setInterval(fetchSteam, 60000); // Poll every minute
       return () => clearInterval(interval);
   }, [friends, serverMembers, user]);
+
+  useEffect(() => {
+      const savedUser = localStorage.getItem("dachat_user");
+      if (savedUser) {
+          setUser(JSON.parse(savedUser));
+      }
+  }, []);
 
   const saveSteamId = async () => {
       const id = prompt("Enter your Steam ID64 (looks like 765611980...):");
