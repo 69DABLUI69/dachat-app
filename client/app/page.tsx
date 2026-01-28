@@ -4,7 +4,6 @@ import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 
-// --- CONSTANTS & CONFIG ---
 const TAGLINES = [
   "Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER",
   "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela",
@@ -20,6 +19,7 @@ if (typeof window !== 'undefined') {
     (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; 
 }
 
+// 🌐 CONFIG
 const BACKEND_URL = "https://dachat-app.onrender.com"; 
 const KLIPY_API_KEY = "bfofoQzlu5Uu8tpvTAnOn0ZC64MyxoVBAgJv52RbIRqKnjidRZ6IPbQqnULhIIi9"; 
 const KLIPY_BASE_URL = "https://api.klipy.com/v2";
@@ -37,8 +37,7 @@ const socket: Socket = io(BACKEND_URL, {
     transports: ["websocket", "polling"]
 });
 
-// --- HELPER COMPONENTS (MOVED TO TOP) ---
-
+// 🎨 CUSTOM COMPONENTS
 const GlassPanel = ({ children, className, onClick, style }: any) => (
   <div onClick={onClick} style={style} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}>
     {children}
@@ -55,8 +54,6 @@ const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) =
   );
 });
 UserAvatar.displayName = "UserAvatar";
-
-const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
 const GifPicker = ({ onSelect, onClose, className }: any) => {
   const [gifs, setGifs] = useState<any[]>([]);
@@ -78,103 +75,10 @@ const GifPicker = ({ onSelect, onClose, className }: any) => {
   );
 };
 
-const RoomPlayer = ({ track, onClose, onSearch }: any) => {
-    const [search, setSearch] = useState("");
-
-    return (
-        <div className="bg-gradient-to-b from-indigo-900/50 to-black/50 border-t border-white/10 p-4 flex flex-col gap-3 backdrop-blur-md">
-            {track ? (
-                <div className="flex gap-3 items-center animate-in slide-in-from-bottom-2">
-                    <div className="w-12 h-12 rounded-lg overflow-hidden relative shrink-0 shadow-lg border border-white/10 group cursor-pointer">
-                        <img src={track.image} className="w-full h-full object-cover opacity-80" />
-                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
-                            <span className="text-[10px] animate-pulse">🎵</span>
-                        </div>
-                        <iframe 
-                            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
-                            src={`https://www.youtube.com/embed/${track.videoId}?autoplay=1&controls=0&start=${Math.floor((Date.now() - track.timestamp)/1000)}`} 
-                            allow="autoplay"
-                        />
-                    </div>
-                    <div className="flex-1 min-w-0 flex flex-col justify-center">
-                        <div className="text-xs font-bold text-white truncate">{track.title}</div>
-                        <div className="text-[10px] text-indigo-300 flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> 
-                            Playing for everyone
-                        </div>
-                    </div>
-                    <button onClick={onClose} className="text-white/40 hover:text-red-400 transition-colors p-1">■</button>
-                </div>
-            ) : (
-                <div className="text-[10px] text-white/30 text-center uppercase font-bold tracking-widest">Room Audio Idle</div>
-            )}
-            <div className="relative group">
-                <input 
-                    className="w-full bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 transition-all"
-                    placeholder="Search YouTube to Play..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    onKeyDown={(e) => {
-                        if (e.key === 'Enter' && search.trim()) {
-                            onSearch(search);
-                            setSearch("");
-                        }
-                    }}
-                />
-                <div className="absolute right-2 top-1.5 text-[10px] text-white/20">↵</div>
-            </div>
-        </div>
-    );
-};
-
-const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
-    const videoRef = useRef<HTMLVideoElement>(null);
-    const [hasVideo, setHasVideo] = useState(false);
-
-    useEffect(() => {
-        const handleStream = (stream: MediaStream) => {
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
-                const checkVideo = () => {
-                    const tracks = stream.getVideoTracks();
-                    const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
-                    if (isVideoActive !== hasVideo) {
-                        setHasVideo(isVideoActive);
-                        if (onVideoChange) onVideoChange(isVideoActive);
-                    }
-                };
-                checkVideo();
-                stream.onaddtrack = checkVideo;
-                stream.onremovetrack = () => setTimeout(checkVideo, 100);
-                const interval = setInterval(checkVideo, 1000);
-                return () => clearInterval(interval);
-            }
-        };
-        peer.on("stream", handleStream);
-        if ((peer as any)._remoteStreams?.[0]) handleStream((peer as any)._remoteStreams[0]);
-        return () => { peer.off("stream", handleStream); };
-    }, [peer, hasVideo, onVideoChange]);
-
-    return (
-        <div className="relative w-full h-full bg-zinc-900 flex items-center justify-center overflow-hidden animate-in fade-in">
-            <video ref={videoRef} autoPlay playsInline className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} />
-            {!hasVideo && (
-                <div className="flex flex-col items-center animate-in zoom-in-95">
-                    <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} />
-                    {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>}
-                </div>
-            )}
-            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
-                {userInfo?.username}
-            </div>
-        </div>
-    );
-};
-
-// --- MAIN COMPONENT ---
+const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
 export default function DaChat() {
+  // --- STATE ---
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
@@ -195,6 +99,7 @@ export default function DaChat() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
       x: number;
@@ -252,12 +157,15 @@ export default function DaChat() {
       return () => window.removeEventListener("click", handleClick);
   }, [contextMenu]);
 
+  // 🎮 STEAM POLLING
   useEffect(() => {
       const fetchSteam = async () => {
           if (!user) return;
           const allUsers = [...friends, ...serverMembers];
+          // Collect Steam IDs from friends and server members
           const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id);
           if (steamIds.length === 0) return;
+
           const uniqueIds = Array.from(new Set(steamIds));
           const res = await fetch(`${BACKEND_URL}/users/steam-status`, {
               method: "POST",
@@ -265,14 +173,16 @@ export default function DaChat() {
               body: JSON.stringify({ steamIds: uniqueIds })
           });
           const data = await res.json();
+          
           if (data.success) {
               const statusMap: Record<string, any> = {};
               data.players.forEach((p: any) => { statusMap[p.steamid] = p; });
               setSteamStatuses(statusMap);
           }
       };
-      fetchSteam();
-      const interval = setInterval(fetchSteam, 60000);
+      
+      fetchSteam(); // Initial fetch
+      const interval = setInterval(fetchSteam, 60000); // Poll every minute
       return () => clearInterval(interval);
   }, [friends, serverMembers, user]);
 
@@ -286,6 +196,7 @@ export default function DaChat() {
       setUser({...user, steam_id: id});
   };
 
+  // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
       const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
@@ -295,7 +206,9 @@ export default function DaChat() {
       return () => { socket.off("connect", handleConnect); socket.disconnect(); }; 
   }, [user]); 
 
+  // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
+      // ✅ BUG FIX: Normalize and check sender
       socket.on("receive_message", (msg) => { 
           const normalized = {
               ...msg,
@@ -309,8 +222,11 @@ export default function DaChat() {
 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
+      
+      // 🎵 MUSIC LISTENERS
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
+
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
       socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
@@ -335,6 +251,7 @@ export default function DaChat() {
 
   useEffect(() => { if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream; }, [screenStream, isScreenSharing]);
 
+  // --- AUTH ---
   const handleAuth = async () => {
     const endpoint = isRegistering ? "register" : "login";
     try {
@@ -385,8 +302,9 @@ export default function DaChat() {
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
   };
 
+  // 🎵 MUSIC HELPERS (Strictly tied to activeVoiceChannelId)
   const playMusic = async (query: string) => {
-      if (!activeVoiceChannelId) return;
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' })
@@ -394,15 +312,23 @@ export default function DaChat() {
   };
 
   const stopMusic = async () => {
-      if (!activeVoiceChannelId) return;
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' })
       });
   };
 
-  const handleContextMenu = (e: React.MouseEvent, msg: any) => { e.preventDefault(); setContextMenu({ visible: true, x: e.pageX, y: e.pageY, message: msg }); };
-  const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
+  const handleContextMenu = (e: React.MouseEvent, msg: any) => {
+      e.preventDefault(); 
+      setContextMenu({ visible: true, x: e.pageX, y: e.pageY, message: msg });
+  };
+
+  const copyText = (text: string) => {
+      navigator.clipboard.writeText(text);
+      setContextMenu({ ...contextMenu, visible: false });
+  };
+
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
@@ -429,7 +355,12 @@ export default function DaChat() {
   
   const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { 
       console.error("Mic Error:", err); 
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') { alert("Microphone requires HTTPS!"); } else { alert(`Mic Error: ${err.name} - ${err.message}`); }
+      // 🔥 BETTER ERROR HANDLING FOR MOBILE
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        alert("Microphone requires HTTPS! Please use a secure connection or localhost.");
+      } else {
+        alert(`Mic Error: ${err.name} - ${err.message}`); 
+      }
   }); }, [user]);
 
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
@@ -445,6 +376,7 @@ export default function DaChat() {
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] animate-blob"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
+      
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full animate-pulse"></div>
@@ -530,6 +462,7 @@ export default function DaChat() {
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
                     {friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
+                        // 🎮 STEAM STATUS LOGIC
                         const steamInfo = f.steam_id ? steamStatuses[f.steam_id] : null;
                         const isPlaying = steamInfo?.gameextrainfo;
                         const lobbyId = steamInfo?.lobbysteamid;
@@ -540,14 +473,17 @@ export default function DaChat() {
                                     <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className={`w-8 h-8 rounded-full ${isPlaying ? "ring-2 ring-green-500" : ""}`} /> 
                                     {isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full"></div>}
                                 </div>
+                                
                                 <div className="flex-1 min-w-0" onClick={()=>selectFriend(f)}>
                                     <div className="flex justify-between items-center">
                                         <div className="text-xs font-bold truncate">{f.username}</div>
                                         {isPlaying && <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3 opacity-50" />}
                                     </div>
+                                    
                                     {isPlaying ? (
                                         <div className="flex flex-col gap-1 mt-1">
                                             <div className="text-[10px] text-green-400 font-bold truncate">Playing {steamInfo.gameextrainfo}</div>
+                                            {/* JOIN BUTTON */}
                                             <a 
                                                 href={lobbyId ? `steam://joinlobby/${steamInfo.gameid}/${lobbyId}/${f.steam_id}` : `steam://run/${steamInfo.gameid}`}
                                                 className="bg-green-600/20 hover:bg-green-600/40 text-green-400 text-[9px] font-bold px-2 py-1 rounded border border-green-600/30 text-center transition-colors block"
@@ -568,7 +504,11 @@ export default function DaChat() {
                 </>
             )}
         </div>
-        {inCall && activeVoiceChannelId && ( <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} /> )}
+
+        {/* 🔥 NEW: Persistent Music Player in Sidebar (VISIBLE ONLY WHEN IN A CALL) */}
+        {inCall && activeVoiceChannelId && (
+            <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} />
+        )}
       </div>
 
       {/* 3. MAIN CONTENT */}
@@ -614,70 +554,23 @@ export default function DaChat() {
                                     <div className="flex items-center gap-2 mb-1"> 
                                       <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
                                     </div> 
+                                    
                                     <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
                                         {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" /> : msg.content} 
                                     </div> 
+                                    
                                     {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[250px] rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
                                 </div> 
                             </div> 
                         ))}
                     </div>
-
                     <div className="p-4 relative">
-                        {/* 1. GIF PICKER */}
-                        {showGifPicker && (
-                            <div className="absolute bottom-20 left-4 z-50 w-full animate-in fade-in slide-in-from-bottom-4 duration-200">
-                                <GifPicker 
-                                    onSelect={(u: string)=>{sendMessage(null,u); setShowGifPicker(false)}} 
-                                    onClose={()=>setShowGifPicker(false)} 
-                                />
-                            </div>
-                        )}
-
-                        {/* 2. EMOJI PICKER (NEW) */}
-                        {showEmojiPicker && (
-                            <div className="absolute bottom-24 left-4 z-50 shadow-2xl rounded-[32px] overflow-hidden animate-in fade-in slide-in-from-bottom-4 duration-200 ring-1 ring-white/10">
-                                <EmojiPicker
-                                    theme={Theme.DARK}
-                                    onEmojiClick={(emojiData) => { setMessage((prev) => prev + emojiData.emoji); }}
-                                    searchDisabled={false}
-                                    width={350}
-                                    height={450}
-                                    previewConfig={{ showPreview: false }} 
-                                />
-                            </div>
-                        )}
-
-                        {/* INPUT BAR */}
+                        {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
                         <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
-                            
-                            {/* File Upload */}
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
-                            
-                            {/* Emoji Toggle (Desktop Only) */}
-                            <button 
-                                className="hidden md:block w-10 h-10 rounded-full hover:bg-white/10 text-xl grayscale hover:grayscale-0 transition-transform hover:scale-110 active:scale-90" 
-                                onClick={() => { setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false); }}
-                            >
-                                😀
-                            </button>
-
-                            {/* GIF Toggle */}
-                            <button 
-                                className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" 
-                                onClick={()=>{ setShowGifPicker(!showGifPicker); setShowEmojiPicker(false); }}
-                            >
-                                GIF
-                            </button> 
-                            
+                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
-                            <input 
-                                className="flex-1 bg-transparent outline-none px-2 min-w-0 placeholder-white/30" 
-                                placeholder="Message..." 
-                                value={message} 
-                                onChange={e=>setMessage(e.target.value)} 
-                                onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} 
-                            /> 
+                            <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
                         </div>
                     </div>
                  </>
@@ -687,6 +580,7 @@ export default function DaChat() {
          {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col relative`}>
+                 
                  {focusedPeerId ? (
                     <div className="flex-1 flex flex-col relative">
                         <div className="flex-1 relative bg-zinc-950 flex items-center justify-center p-2">
@@ -730,6 +624,7 @@ export default function DaChat() {
                         </div>
                      </div>
                  )}
+                 
                  <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-4 z-50 w-full justify-center px-4 animate-in slide-in-from-top-4 duration-300">
                     <button onClick={leaveCall} className="px-6 py-2 bg-red-600 hover:bg-red-500 text-white rounded-full font-bold shadow-lg shadow-red-900/20 transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">End Call</button>
                     <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-700 hover:bg-zinc-600 text-white rounded-full font-bold shadow-lg transition-all hover:scale-105 active:scale-95 text-sm whitespace-nowrap">📉 Minimize</button>
@@ -788,6 +683,7 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* CALL ENDED */}
       {callEndedData && (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
               <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
@@ -802,33 +698,208 @@ export default function DaChat() {
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
               <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative">
+                  
+                  {/* GIF PICKER */}
                   {showSettingsGifPicker && (
                      <div className="absolute inset-0 z-[60] bg-[#050505] flex flex-col rounded-[32px] overflow-hidden animate-in fade-in duration-200">
-                         <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false); }} />
+                         <GifPicker 
+                            className="w-full h-full bg-transparent shadow-none border-none flex flex-col" 
+                            onClose={() => setShowSettingsGifPicker(false)}
+                            onSelect={(url: string) => {
+                                setEditForm({ ...editForm, avatarUrl: url });
+                                setNewAvatarFile(null); 
+                                setShowSettingsGifPicker(false);
+                            }}
+                         />
                      </div>
                   )}
+
                   <div className="flex flex-col items-center mb-4">
-                      <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" onClick={()=>(document.getElementById('pUpload') as any).click()} />
+                      <UserAvatar 
+                        src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
+                        className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
+                        onClick={()=>(document.getElementById('pUpload') as any).click()}
+                      />
+                      
                       <div className="flex gap-2">
-                         <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors">Upload Photo</button>
-                         <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg">Choose GIF</button>
-                         <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Steam Linked" : "Link Steam"}</button>
+                         <button 
+                            onClick={()=>(document.getElementById('pUpload') as any).click()}
+                            className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+                         >
+                            Upload Photo
+                         </button>
+                         <button 
+                            onClick={() => setShowSettingsGifPicker(true)}
+                            className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
+                         >
+                            Choose GIF
+                         </button>
+                         {/* 🎮 NEW: STEAM BUTTON */}
+                         <button 
+                            onClick={saveSteamId}
+                            className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"
+                         >
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />
+                            {user.steam_id ? "Steam Linked" : "Link Steam"}
+                         </button>
                       </div>
+
                       <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
                   </div>
+                  
                   <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
                   <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
-                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div>
+                  
+                  <div className="flex justify-end gap-2"> 
+                    <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
+                    <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
+                  </div>
               </GlassPanel>
           </div>
       )}
 
+      {/* CONTEXT MENU */}
       {contextMenu.visible && (
-          <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-40 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left" onClick={(e) => e.stopPropagation()}>
-              <button onClick={() => copyText(contextMenu.message?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2">📋 Copy Text</button>
-              {contextMenu.message?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.message.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2">🗑️ Delete Message</button> )}
+          <div 
+            style={{ top: contextMenu.y, left: contextMenu.x }} 
+            className="fixed z-50 flex flex-col w-40 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left"
+            onClick={(e) => e.stopPropagation()} 
+          >
+              <button 
+                onClick={() => copyText(contextMenu.message?.content || "")}
+                className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+              >
+                📋 Copy Text
+              </button>
+              
+              {contextMenu.message?.sender_id === user.id && (
+                  <button 
+                    onClick={() => {
+                        deleteMessage(contextMenu.message.id);
+                        setContextMenu({ ...contextMenu, visible: false });
+                    }}
+                    className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    🗑️ Delete Message
+                  </button>
+              )}
           </div>
       )}
     </div>
   );
 }
+
+// ✅ NEW COMPONENT: Integrated Room Player (Sidebar Widget)
+const RoomPlayer = ({ track, onClose, onSearch }: any) => {
+    const [search, setSearch] = useState("");
+
+    return (
+        <div className="bg-gradient-to-b from-indigo-900/50 to-black/50 border-t border-white/10 p-4 flex flex-col gap-3 backdrop-blur-md">
+            {/* Player Controls */}
+            {track ? (
+                <div className="flex gap-3 items-center animate-in slide-in-from-bottom-2">
+                    {/* Hidden YouTube Embed */}
+                    <div className="w-12 h-12 rounded-lg overflow-hidden relative shrink-0 shadow-lg border border-white/10 group cursor-pointer">
+                        <img src={track.image} className="w-full h-full object-cover opacity-80" />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                            <span className="text-[10px] animate-pulse">🎵</span>
+                        </div>
+                        {/* The Actual Player */}
+                        <iframe 
+                            className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+                            src={`https://www.youtube.com/embed/${track.videoId}?autoplay=1&controls=0&start=${Math.floor((Date.now() - track.timestamp)/1000)}`} 
+                            allow="autoplay"
+                        />
+                    </div>
+                    
+                    <div className="flex-1 min-w-0 flex flex-col justify-center">
+                        <div className="text-xs font-bold text-white truncate">{track.title}</div>
+                        <div className="text-[10px] text-indigo-300 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"/> 
+                            Playing for everyone
+                        </div>
+                    </div>
+
+                    <button onClick={onClose} className="text-white/40 hover:text-red-400 transition-colors p-1">■</button>
+                </div>
+            ) : (
+                <div className="text-[10px] text-white/30 text-center uppercase font-bold tracking-widest">Room Audio Idle</div>
+            )}
+
+            {/* Search Bar */}
+            <div className="relative group">
+                <input 
+                    className="w-full bg-black/40 border border-white/5 rounded-lg px-3 py-2 text-xs text-white placeholder-white/20 focus:outline-none focus:border-indigo-500/50 transition-all"
+                    placeholder="Search YouTube to Play..."
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && search.trim()) {
+                            onSearch(search);
+                            setSearch("");
+                        }
+                    }}
+                />
+                <div className="absolute right-2 top-1.5 text-[10px] text-white/20">↵</div>
+            </div>
+        </div>
+    );
+};
+
+// ... [Keep MediaPlayer Component exactly as it was] ...
+const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
+    const videoRef = useRef<HTMLVideoElement>(null);
+    const [hasVideo, setHasVideo] = useState(false);
+
+    useEffect(() => {
+        const handleStream = (stream: MediaStream) => {
+            if (videoRef.current) {
+                videoRef.current.srcObject = stream;
+                videoRef.current.play().catch(e => console.error("Autoplay blocked:", e));
+                
+                const checkVideo = () => {
+                    const tracks = stream.getVideoTracks();
+                    const isVideoActive = tracks.length > 0 && tracks[0].readyState === 'live' && tracks[0].enabled;
+                    
+                    if (isVideoActive !== hasVideo) {
+                        setHasVideo(isVideoActive);
+                        if (onVideoChange) onVideoChange(isVideoActive);
+                    }
+                };
+                
+                checkVideo();
+                stream.onaddtrack = checkVideo;
+                stream.onremovetrack = () => setTimeout(checkVideo, 100);
+                const interval = setInterval(checkVideo, 1000);
+                return () => clearInterval(interval);
+            }
+        };
+
+        peer.on("stream", handleStream);
+        if ((peer as any)._remoteStreams?.[0]) handleStream((peer as any)._remoteStreams[0]);
+
+        return () => { peer.off("stream", handleStream); };
+    }, [peer, hasVideo, onVideoChange]);
+
+    return (
+        <div className="relative w-full h-full bg-zinc-900 flex items-center justify-center overflow-hidden animate-in fade-in">
+            <video 
+                ref={videoRef} 
+                autoPlay 
+                playsInline 
+                className={`w-full h-full ${isMini ? "object-cover" : "object-contain"} ${hasVideo ? "block" : "hidden"}`} 
+            />
+            
+            {!hasVideo && (
+                <div className="flex flex-col items-center animate-in zoom-in-95">
+                    <UserAvatar src={userInfo?.avatar_url} className={`${isMini ? "w-10 h-10" : "w-24 h-24"} rounded-full border-2 border-white/10 mb-2`} />
+                    {!isMini && <span className="font-bold text-white drop-shadow-md">{userInfo?.username}</span>}
+                </div>
+            )}
+
+            <div className="absolute bottom-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
+                {userInfo?.username}
+            </div>
+        </div>
+    );
+};
