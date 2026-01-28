@@ -99,6 +99,9 @@ export default function DaChat() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
+  const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
+  const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "💩", "👻", "🤖", "🤡", "🤠"];
+
   
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
@@ -582,15 +585,17 @@ export default function DaChat() {
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             
-                            <button 
-                                className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
-                                onClick={() => {
-                                    setShowEmojiPicker(!showEmojiPicker);
-                                    setShowGifPicker(false);
-                                }}
-                            >
-                                😀
-                            </button>
+<button 
+    className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
+    onClick={() => {
+        setShowEmojiPicker(!showEmojiPicker);
+        setShowGifPicker(false);
+    }}
+    // 👇 THIS EVENT CHANGES THE ICON ON HOVER 👇
+    onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}
+>
+    {emojiBtnIcon} {/* 👈 This now uses the state variable instead of a fixed emoji */}
+</button>
 
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
