@@ -71,6 +71,11 @@ app.post("/register", safeRoute(async (req, res) => {
 app.post("/login", safeRoute(async (req, res) => {
   const { username, password } = req.body;
   const { data: user, error } = await supabase.from("users").select("*").eq("username", username).eq("password", password).maybeSingle(); 
+
+if (!username || !password || username.trim() === "" || password.trim() === "") {
+      return res.json({ success: false, message: "Username and password are required" });
+  }
+
   if (error) return res.json({ success: false, message: "Database error" });
   if (!user) return res.json({ success: false, message: "Invalid credentials" });
   res.json({ success: true, user });
