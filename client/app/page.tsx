@@ -732,16 +732,20 @@ export default function DaChat() {
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             
-                            {/* 2. Add the Emoji Toggle Button here */}
-                            <button 
-                                className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
-                                onClick={() => {
-                                    setShowEmojiPicker(!showEmojiPicker);
-                                    setShowGifPicker(false); // Close GIF picker if open
-                                }}
-                            >
-                                😀
-                            </button>
+// ... inside the input area div ...
+
+<button className="..." onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
+
+{/* 👇 PASTE THIS BUTTON RIGHT HERE 👇 */}
+<button 
+    className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
+    onClick={() => {
+        setShowEmojiPicker(!showEmojiPicker);
+        setShowGifPicker(false);
+    }}
+>
+    😀
+</button>
 
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input 
