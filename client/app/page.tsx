@@ -263,8 +263,6 @@ export default function DaChat() {
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream; }, [screenStream, isScreenSharing]);
-
-  // 👇 2. ADDED SCROLL EFFECT HERE
   useEffect(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, active.channel, active.friend]);
@@ -281,6 +279,9 @@ export default function DaChat() {
       const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
       const data = await res.json();
       if (data.success) {
+        if (rememberMe) {
+            localStorage.setItem("dachat_user", JSON.stringify(data.user));
+        }
         try { const stream = await navigator.mediaDevices.getUserMedia({ audio: true }); stream.getTracks().forEach(track => track.stop()); } catch (e) {}
         setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id);
       } else setError(data.message || "Auth failed");
@@ -410,6 +411,20 @@ export default function DaChat() {
         <div className="space-y-3">
             <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
             <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" type="password" placeholder="Password" onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
+            {!isRegistering && (
+                <div className="flex items-center gap-2 px-2">
+                    <input 
+                        type="checkbox" 
+                        id="remember" 
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer accent-blue-600"
+                    />
+                    <label htmlFor="remember" className="text-xs text-white/50 cursor-pointer select-none hover:text-white transition-colors">
+                        Remember me
+                    </label>
+                </div>
+            )}
         </div>
         <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95 duration-200">{isRegistering ? "Create Account" : "Log in"}</button>
         <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? "Back to Login" : "Create an Account"}</p>
