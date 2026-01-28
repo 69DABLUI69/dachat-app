@@ -13,6 +13,7 @@
     "@capacitor/android": "^8.0.1",
     "@capacitor/cli": "^8.0.1",
     "@capacitor/core": "^8.0.1",
+    "emoji-picker-react": "^4.17.2",
     "next": "16.1.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",
