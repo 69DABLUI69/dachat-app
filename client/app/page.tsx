@@ -102,7 +102,6 @@ export default function DaChat() {
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "💩", "👻", "🤖", "🤡", "🤠"];
 
-  
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
       x: number;
@@ -135,6 +134,9 @@ export default function DaChat() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const joinSoundRef = useRef<HTMLAudioElement | null>(null);
   const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
+  
+  // 👇 1. ADDED REF FOR AUTO SCROLL
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
@@ -253,6 +255,12 @@ export default function DaChat() {
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream; }, [screenStream, isScreenSharing]);
+
+  // 👇 2. ADDED SCROLL EFFECT HERE
+  useEffect(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [chatHistory, active.channel, active.friend]);
+
 
   // --- AUTH ---
   const handleAuth = async () => {
@@ -566,8 +574,10 @@ export default function DaChat() {
                                 </div> 
                             </div> 
                         ))}
+                        {/* 👇 3. ADDED SCROLL ANCHOR */}
+                        <div ref={messagesEndRef} />
                     </div>
-                    {/* 👇 THIS IS THE FIXED SECTION FOR EMOJI PICKER 👇 */}
+
                     <div className="p-4 relative">
                         {showEmojiPicker && (
                             <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
@@ -585,23 +595,21 @@ export default function DaChat() {
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             
-<button 
-    className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
-    onClick={() => {
-        setShowEmojiPicker(!showEmojiPicker);
-        setShowGifPicker(false);
-    }}
-    // 👇 THIS EVENT CHANGES THE ICON ON HOVER 👇
-    onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}
->
-    {emojiBtnIcon} {/* 👈 This now uses the state variable instead of a fixed emoji */}
-</button>
+                            <button 
+                                className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
+                                onClick={() => {
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                    setShowGifPicker(false);
+                                }}
+                                onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}
+                            >
+                                {emojiBtnIcon} 
+                            </button>
 
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
                         </div>
                     </div>
-                    {/* 👆 END FIXED SECTION 👆 */}
                  </>
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">Select a Channel</div>}
          </div>
