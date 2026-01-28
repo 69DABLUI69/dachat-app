@@ -2,7 +2,6 @@
 import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
-import EmojiPicker, { Theme } from 'emoji-picker-react'; // ✅ NEW IMPORT
 
 const TAGLINES = [
   "Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER",
@@ -97,7 +96,6 @@ export default function DaChat() {
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
-  const [showEmojiPicker, setShowEmojiPicker] = useState(false); // ✅ NEW STATE
   
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
@@ -145,36 +143,6 @@ export default function DaChat() {
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
 
-  // ✅ HELPER: Format Messages (Links & Images)
-  const formatMessage = (content: string) => {
-    if (!content) return null;
-    
-    // 1. If it's explicitly an image URL, show the image
-    if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
-        return <img src={content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" alt="attachment" />;
-    }
-
-    // 2. Otherwise, look for URLs inside the text and make them clickable
-    const urlRegex = /(https?:\/\/[^\s]+)/g;
-    const parts = content.split(urlRegex);
-    
-    return parts.map((part, i) => {
-        if (part.match(urlRegex)) {
-            return (
-                <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all" onClick={(e) => e.stopPropagation()}>
-                    {part}
-                </a>
-            );
-        }
-        return <span key={i}>{part}</span>;
-    });
-  };
-
-  const onEmojiClick = (emojiData: any) => {
-    setMessage((prev) => prev + emojiData.emoji);
-    setShowEmojiPicker(false);
-  };
-
   useEffect(() => { if (isScreenSharing) setFocusedPeerId('local'); else if (focusedPeerId === 'local') setFocusedPeerId(null); }, [isScreenSharing]);
   const handleRemoteVideo = useCallback((peerId: string, hasVideo: boolean) => { if (hasVideo) setFocusedPeerId(peerId); else if (focusedPeerId === peerId) setFocusedPeerId(null); }, [focusedPeerId]);
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
@@ -191,6 +159,7 @@ export default function DaChat() {
       const fetchSteam = async () => {
           if (!user) return;
           const allUsers = [...friends, ...serverMembers];
+          // Collect Steam IDs from friends and server members
           const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id);
           if (steamIds.length === 0) return;
 
@@ -209,8 +178,8 @@ export default function DaChat() {
           }
       };
       
-      fetchSteam();
-      const interval = setInterval(fetchSteam, 60000); 
+      fetchSteam(); // Initial fetch
+      const interval = setInterval(fetchSteam, 60000); // Poll every minute
       return () => clearInterval(interval);
   }, [friends, serverMembers, user]);
 
@@ -236,6 +205,7 @@ export default function DaChat() {
 
   // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
+      // ✅ BUG FIX: Normalize and check sender
       socket.on("receive_message", (msg) => { 
           const normalized = {
               ...msg,
@@ -250,6 +220,7 @@ export default function DaChat() {
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       
+      // 🎵 MUSIC LISTENERS
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
 
@@ -328,8 +299,9 @@ export default function DaChat() {
       setChatHistory(prev => prev.filter(m => m.id !== msgId));
   };
 
+  // 🎵 MUSIC HELPERS (Strictly tied to activeVoiceChannelId)
   const playMusic = async (query: string) => {
-      if (!activeVoiceChannelId) return; 
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' })
@@ -337,7 +309,7 @@ export default function DaChat() {
   };
 
   const stopMusic = async () => {
-      if (!activeVoiceChannelId) return; 
+      if (!activeVoiceChannelId) return; // ✅ Must be in voice
       await fetch(`${BACKEND_URL}/channels/play`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' })
@@ -380,7 +352,12 @@ export default function DaChat() {
   
   const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { 
       console.error("Mic Error:", err); 
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') { alert("Microphone requires HTTPS! Please use a secure connection or localhost."); } else { alert(`Mic Error: ${err.name} - ${err.message}`); }
+      // 🔥 BETTER ERROR HANDLING FOR MOBILE
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        alert("Microphone requires HTTPS! Please use a secure connection or localhost.");
+      } else {
+        alert(`Mic Error: ${err.name} - ${err.message}`); 
+      }
   }); }, [user]);
 
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
@@ -396,6 +373,7 @@ export default function DaChat() {
       <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] animate-blob"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
+      
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full animate-pulse"></div>
@@ -449,8 +427,8 @@ export default function DaChat() {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
-                            <div key={ch.id} onClick={() => joinChannel(ch)} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
-                                <div className="flex items-center gap-2 truncate flex-1 min-w-0"> 
+                            <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                     <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
                                     <span className="truncate">{ch.name}</span>
                                     {ch.type === 'voice' && activeMembers.length > 0 && (
@@ -481,6 +459,7 @@ export default function DaChat() {
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">Friends</div>
                     {friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
+                        // 🎮 STEAM STATUS LOGIC
                         const steamInfo = f.steam_id ? steamStatuses[f.steam_id] : null;
                         const isPlaying = steamInfo?.gameextrainfo;
                         const lobbyId = steamInfo?.lobbysteamid;
@@ -501,6 +480,7 @@ export default function DaChat() {
                                     {isPlaying ? (
                                         <div className="flex flex-col gap-1 mt-1">
                                             <div className="text-[10px] text-green-400 font-bold truncate">Playing {steamInfo.gameextrainfo}</div>
+                                            {/* JOIN BUTTON */}
                                             <a 
                                                 href={lobbyId ? `steam://joinlobby/${steamInfo.gameid}/${lobbyId}/${f.steam_id}` : `steam://run/${steamInfo.gameid}`}
                                                 className="bg-green-600/20 hover:bg-green-600/40 text-green-400 text-[9px] font-bold px-2 py-1 rounded border border-green-600/30 text-center transition-colors block"
@@ -522,16 +502,14 @@ export default function DaChat() {
             )}
         </div>
 
+        {/* 🔥 NEW: Persistent Music Player in Sidebar (VISIBLE ONLY WHEN IN A CALL) */}
         {inCall && activeVoiceChannelId && (
             <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} />
         )}
       </div>
 
       {/* 3. MAIN CONTENT */}
-      <div 
-          className="flex flex-col relative min-w-0 bg-transparent fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-transparent md:z-auto"
-          style={{ transform: showMobileChat ? 'translateX(0)' : 'translateX(100%)', display: 'flex' }}
-      >
+      <div className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
          
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
@@ -574,31 +552,20 @@ export default function DaChat() {
                                       <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
                                     </div> 
                                     
-                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md transition-all ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
-                                        {formatMessage(msg.content)} {/* ✅ USE NEW FORMATTER */}
-                                        {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[200px] rounded-lg border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
+                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
+                                        {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" /> : msg.content} 
                                     </div> 
+                                    
+                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[250px] rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
                                 </div> 
                             </div> 
                         ))}
                     </div>
                     <div className="p-4 relative">
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
-                        
-                        {/* ✅ EMOJI PICKER UI */}
-                        {showEmojiPicker && (
-                            <div className="absolute bottom-20 right-4 z-50">
-                                <EmojiPicker theme={Theme.DARK} onEmojiClick={onEmojiClick} />
-                            </div>
-                        )}
-
                         <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
-                            
-                            {/* ✅ EMOJI BUTTON */}
-                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-lg transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowEmojiPicker(!showEmojiPicker)}>😊</button> 
-
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder="Message..." value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
                         </div>
@@ -764,7 +731,7 @@ export default function DaChat() {
                          >
                             Choose GIF
                          </button>
-                         {/* 🎮 STEAM BUTTON */}
+                         {/* 🎮 NEW: STEAM BUTTON */}
                          <button 
                             onClick={saveSteamId}
                             className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"
@@ -876,6 +843,7 @@ const RoomPlayer = ({ track, onClose, onSearch }: any) => {
     );
 };
 
+// ... [Keep MediaPlayer Component exactly as it was] ...
 const MediaPlayer = ({ peer, userInfo, onVideoChange, isMini }: any) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [hasVideo, setHasVideo] = useState(false);
