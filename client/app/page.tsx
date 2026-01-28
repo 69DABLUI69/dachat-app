@@ -61,7 +61,7 @@ const GifPicker = ({ onSelect, onClose, className }: any) => {
   useEffect(() => { fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`).then(r => r.json()).then(d => setGifs(d.results || [])); }, []);
   const searchGifs = async (q: string) => { if(!q) return; const res = await fetch(`${KLIPY_BASE_URL}/search?q=${q}&key=${KLIPY_API_KEY}&limit=20`); const data = await res.json(); setGifs(data.results || []); };
   return (
-    <GlassPanel className={className || "absolute bottom-24 left-4 w-[90%] max-w-[360px] h-[480px] rounded-[32px] flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300 shadow-2xl ring-1 ring-white/10"}>
+    <GlassPanel className={className || "absolute bottom-24 left-4 w-[90%] max-w-90 h-120 rounded-4xl flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300 shadow-2xl ring-1 ring-white/10"}>
       <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center">
         <input className="w-full bg-black/40 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all" placeholder="Search GIFs..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)} autoFocus />
         <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 transition-colors active:scale-90">✕</button>
@@ -373,16 +373,16 @@ export default function DaChat() {
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
-      <div className="absolute top-[-20%] left-[-10%] w-[600px] h-[600px] bg-blue-600/20 rounded-full blur-[120px] animate-blob"></div>
-      <div className="absolute bottom-[-20%] right-[-10%] w-[600px] h-[600px] bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
+      <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
+      <div className="absolute top-[-20%] left-[-10%] w-150 h-150 bg-blue-600/20 rounded-full blur-[120px] animate-blob"></div>
+      <div className="absolute bottom-[-20%] right-[-10%] w-150 h-150 bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
       
-      <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-[400px] rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
+      <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full animate-pulse"></div>
-            <img src="/logo.png" alt="DaChat" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-[32px]" />
+            <img src="/logo.png" alt="DaChat" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-4xl" />
         </div>
-        <div> <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white to-white/60">DaChat</h1> <p className="text-white/40 text-sm mt-2">{tagline}</p> </div>
+        <div> <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-linear-to-r from-white to-white/60">DaChat</h1> <p className="text-white/40 text-sm mt-2">{tagline}</p> </div>
         {error && <div className="bg-red-500/20 text-red-200 text-xs py-3 rounded-xl border border-red-500/20 animate-in slide-in-from-top-2">{error}</div>}
         <div className="space-y-3">
             <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder="Username" onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
@@ -396,28 +396,28 @@ export default function DaChat() {
 
   return (
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
-      <div className="absolute inset-0 bg-gradient-to-br from-indigo-900/40 via-black to-black z-0"></div>
+      <div className="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
       {/* 1. DOCK */}
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-[90px] h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
-        <div className="w-8 h-[1px] bg-white/10" />
+        <div className="w-8 h-px bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar pt-2">
             {servers.map(s => ( 
                 <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
                     {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
-                    <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all duration-300 ${active.server?.id === s.id ? "rounded-2xl" : "rounded-[24px] group-hover:rounded-2xl"}`} /> 
+                    <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all duration-300 ${active.server?.id === s.id ? "rounded-2xl" : "rounded-3xl group-hover:rounded-2xl"}`} /> 
                 </div> 
             ))}
-            <div onClick={createServer} className="w-12 h-12 rounded-[24px] border border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white hover:text-green-400 text-white/40 transition-all duration-300 hover:scale-105 hover:bg-white/5"> + </div>
+            <div onClick={createServer} className="w-12 h-12 rounded-3xl border border-dashed border-white/20 flex items-center justify-center cursor-pointer hover:border-white hover:text-green-400 text-white/40 transition-all duration-300 hover:scale-105 hover:bg-white/5"> + </div>
         </div>
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
       {/* 2. SIDEBAR */}
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-[260px] md:ml-[90px] w-[calc(100vw-90px)] ml-[90px] animate-in fade-in duration-500`}>
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : "Direct Messages"}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
@@ -556,10 +556,10 @@ export default function DaChat() {
                                     </div> 
                                     
                                     <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
-                                        {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" /> : msg.content} 
+                                        {msg.content?.startsWith("http") ? <img src={msg.content} className="max-w-50 md:max-w-62.5 rounded-lg transition-transform hover:scale-105" /> : msg.content} 
                                     </div> 
                                     
-                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-[250px] rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
+                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
                                 </div> 
                             </div> 
                         ))}
@@ -636,7 +636,7 @@ export default function DaChat() {
 
       {/* 4. MEMBER LIST */}
       {view === "servers" && active.server && (
-          <div className="w-[240px] border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300">
+          <div className="w-60 border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300">
               <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
               <div className="space-y-1">
                   {serverMembers.map(m => ( 
@@ -685,7 +685,7 @@ export default function DaChat() {
 
       {/* CALL ENDED */}
       {callEndedData && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
               <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
                   <div className="text-4xl mb-4 animate-bounce">📞</div>
                   <h2 className="text-2xl font-bold mb-2">Call Ended</h2>
@@ -701,7 +701,7 @@ export default function DaChat() {
                   
                   {/* GIF PICKER */}
                   {showSettingsGifPicker && (
-                     <div className="absolute inset-0 z-[60] bg-[#050505] flex flex-col rounded-[32px] overflow-hidden animate-in fade-in duration-200">
+                     <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200">
                          <GifPicker 
                             className="w-full h-full bg-transparent shadow-none border-none flex flex-col" 
                             onClose={() => setShowSettingsGifPicker(false)}
@@ -713,6 +713,46 @@ export default function DaChat() {
                          />
                      </div>
                   )}
+
+                  <div className="p-4 relative">
+                        {/* 1. Add the Emoji Picker here */}
+                        {showEmojiPicker && (
+                            <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200">
+                                <EmojiPicker
+                                    theme={Theme.DARK}
+                                    onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)}
+                                    lazyLoadEmojis={true}
+                                />
+                            </div>
+                        )}
+
+                        {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
+                        
+                        <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
+                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
+                            <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
+                            
+                            {/* 2. Add the Emoji Toggle Button here */}
+                            <button 
+                                className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} 
+                                onClick={() => {
+                                    setShowEmojiPicker(!showEmojiPicker);
+                                    setShowGifPicker(false); // Close GIF picker if open
+                                }}
+                            >
+                                😀
+                            </button>
+
+                            <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
+                            <input 
+                                className="flex-1 bg-transparent outline-none px-2 min-w-0" 
+                                placeholder="Message..." 
+                                value={message} 
+                                onChange={e=>setMessage(e.target.value)} 
+                                onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} 
+                            /> 
+                        </div>
+                    </div>
 
                   <div className="flex flex-col items-center mb-4">
                       <UserAvatar 
@@ -730,7 +770,7 @@ export default function DaChat() {
                          </button>
                          <button 
                             onClick={() => setShowSettingsGifPicker(true)}
-                            className="text-xs bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
+                            className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
                          >
                             Choose GIF
                          </button>
@@ -794,7 +834,7 @@ const RoomPlayer = ({ track, onClose, onSearch }: any) => {
     const [search, setSearch] = useState("");
 
     return (
-        <div className="bg-gradient-to-b from-indigo-900/50 to-black/50 border-t border-white/10 p-4 flex flex-col gap-3 backdrop-blur-md">
+        <div className="bg-linear-to-b from-indigo-900/50 to-black/50 border-t border-white/10 p-4 flex flex-col gap-3 backdrop-blur-md">
             {/* Player Controls */}
             {track ? (
                 <div className="flex gap-3 items-center animate-in slide-in-from-bottom-2">
