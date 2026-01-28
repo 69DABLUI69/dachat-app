@@ -2,7 +2,7 @@
 import { useEffect, useState, useRef, memo, useCallback } from "react";
 import { io, Socket } from "socket.io-client";
 import Peer from "simple-peer";
-import EmojiPicker, { Theme } from 'emoji-picker-react'; 
+import EmojiPicker, { Theme } from 'emoji-picker-react';
 
 const TAGLINES = [
   "Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER",
@@ -265,7 +265,7 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const removePeer = (peerID: string) => { playSound('leave'); const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID); if (peerIdx > -1) { peersRef.current[peerIdx].peer.destroy(); peersRef.current.splice(peerIdx, 1); } setPeers(prev => prev.filter(p => p.peerID !== peerID)); setFocusedPeerId(current => (current === peerID ? null : current)); };
   
-  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { console.error("Mic Error:", err); if (location.protocol !== 'https:' && location.hostname !== 'localhost') { alert("Microphone requires HTTPS!"); } else { alert(`Mic Error: ${err.message}`); } }); }, [user]);
+  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { console.error("Mic Error:", err); if (location.protocol !== 'https:' && location.hostname !== 'localhost') { alert("Microphone requires HTTPS!"); } else { alert(`Mic Error: ${err.name} - ${err.message}`); } }); }, [user]);
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => { const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("returning_signal", { signal, callerID }); }); peer.on("close", () => removePeer(callerID)); peer.on("error", () => removePeer(callerID)); peer.signal(incomingSignal); return peer; };
   const startScreenShare = async () => { try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setScreenStream(stream); setIsScreenSharing(true); const screenTrack = stream.getVideoTracks()[0]; if (myVideoRef.current) myVideoRef.current.srcObject = stream; peersRef.current.forEach((peerObj) => { const pc = (peerObj.peer as any)._pc; if (pc) { const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenTrack); else peerObj.peer.addTrack(screenTrack, myStream); } }); screenTrack.onended = () => stopScreenShare(); } catch(e) { console.error("Screen Share Error:", e); } };
@@ -410,11 +410,13 @@ export default function DaChat() {
         )}
       </div>
 
-      {/* 3. MAIN CONTENT */}
-      <div 
-          className="flex flex-col relative min-w-0 bg-transparent fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 ease-in-out md:static md:translate-x-0 md:bg-transparent md:z-auto md:h-full"
-          style={{ transform: showMobileChat ? 'translateX(0)' : 'translateX(100%)', display: 'flex' }}
-      >
+      {/* 3. MAIN CONTENT (✅ FIXED LAYOUT) */}
+      <div className={`
+          flex flex-col relative min-w-0 bg-transparent 
+          fixed inset-0 z-50 bg-[#050505] transition-transform duration-300 ease-in-out 
+          ${showMobileChat ? 'translate-x-0' : 'translate-x-full'} 
+          md:static md:translate-x-0 md:bg-transparent md:z-auto md:h-full
+      `}>
          
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
@@ -470,10 +472,8 @@ export default function DaChat() {
                             {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
                             
                             {showEmojiPicker && (
-                                // ✅ DESKTOP ONLY: Positioned absolutely above the input
-                                // HIDDEN ON MOBILE to use native keyboard
-                                <div className="hidden md:block absolute bottom-full right-0 mb-2 z-50 w-full max-w-[350px]">
-                                    <div className="emoji-picker-container shadow-2xl rounded-2xl overflow-hidden border border-white/10">
+                                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 md:absolute md:inset-auto md:bottom-full md:right-0 md:bg-transparent md:w-auto md:mb-2" onClick={() => setShowEmojiPicker(false)}>
+                                    <div className="emoji-picker-container shadow-2xl rounded-2xl overflow-hidden border border-white/10 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
                                         <EmojiPicker width="100%" theme={Theme.DARK} onEmojiClick={onEmojiClick} />
                                     </div>
                                 </div>
@@ -484,9 +484,9 @@ export default function DaChat() {
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90 shrink-0" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90 shrink-0" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             
-                            {/* ✅ HIDDEN ON MOBILE: Use native keyboard instead */}
+                            {/* ✅ EMOJI BUTTON: Visible on Mobile & Desktop */}
                             <button 
-                                className="hidden md:block w-10 h-10 rounded-full hover:bg-white/10 text-lg transition-transform hover:scale-110 active:scale-90 shrink-0 emoji-btn" 
+                                className="w-10 h-10 rounded-full hover:bg-white/10 text-lg transition-transform hover:scale-110 active:scale-90 shrink-0 emoji-btn" 
                                 onClick={(e) => { e.stopPropagation(); setShowEmojiPicker(!showEmojiPicker); }}
                             >
                                 😊
