@@ -147,6 +147,40 @@ app.post("/auth/2fa/login", safeRoute(async (req, res) => {
     } else {
         res.json({ success: false, message: "Invalid 2FA Code" });
     }
+
+    // 4. Change Password (Protected by 2FA)
+app.post("/auth/change-password", safeRoute(async (req, res) => {
+    const { userId, newPassword, token } = req.body;
+    
+    if (!newPassword || newPassword.length < 4) {
+        return res.json({ success: false, message: "Password too short" });
+    }
+
+    // 1. Get user secret
+    const { data: user } = await supabase.from("users").select("two_factor_secret, is_2fa_enabled").eq("id", userId).single();
+    
+    if (!user || !user.is_2fa_enabled) {
+        return res.json({ success: false, message: "2FA must be enabled to use this feature." });
+    }
+
+    // 2. Verify 2FA Code
+    const verified = speakeasy.totp.verify({
+        secret: user.two_factor_secret,
+        encoding: "base32",
+        token: token
+    });
+
+    if (!verified) {
+        return res.json({ success: false, message: "Invalid Authenticator Code" });
+    }
+
+    // 3. Update Password
+    const { error } = await supabase.from("users").update({ password: newPassword }).eq("id", userId);
+    
+    if (error) return res.json({ success: false, message: "Database Update Failed" });
+    
+    res.json({ success: true });
+}));
 }));
 
 // --- USER & FRIEND ROUTES ---

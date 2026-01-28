@@ -103,6 +103,9 @@ export default function DaChat() {
   const [twoFACode, setTwoFACode] = useState("");
   const [tempUserId, setTempUserId] = useState<number | null>(null);
 
+  const [showPassChange, setShowPassChange] = useState(false);
+  const [passChangeForm, setPassChangeForm] = useState({ newPassword: "", code: "" });
+
   // For Setup Settings
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [setupStep, setSetupStep] = useState(0);
@@ -386,6 +389,33 @@ export default function DaChat() {
 
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
   const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); setUser((prev:any) => ({...prev, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl})); setShowSettings(false); };
+  const handleChangePassword = async () => {
+      if (!passChangeForm.newPassword || !passChangeForm.code) {
+          alert("Please fill in both fields");
+          return;
+      }
+
+      const res = await fetch(`${BACKEND_URL}/auth/change-password`, {
+          method: "POST", 
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+              userId: user.id, 
+              newPassword: passChangeForm.newPassword, 
+              token: passChangeForm.code 
+          })
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+          alert("Password Changed Successfully! Logging you out...");
+          // Logout Logic
+          localStorage.removeItem("dachat_user");
+          window.location.reload(); // Reloads the page to force logout state
+      } else {
+          alert(data.message || "Failed to change password");
+      }
+  };
 
   // 🔐 2FA HELPER FUNCTIONS (Moved from JSX)
   const start2FASetup = async () => {
@@ -886,7 +916,39 @@ export default function DaChat() {
                       )}
                   </div>
 
-                  <div className="flex flex-col items-center mb-4">
+                  {/* 👇 NEW CHANGE PASSWORD SECTION (Only if 2FA is ON) */}
+                  {user.is_2fa_enabled && (
+                      <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2">
+                          <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowPassChange(!showPassChange)}>
+                              <span className="font-bold text-sm text-yellow-500">Change Password</span>
+                              <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span>
+                          </div>
+
+                          {showPassChange && (
+                              <div className="flex flex-col gap-3 animate-in fade-in pt-2">
+                                  <input 
+                                      type="password"
+                                      className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" 
+                                      placeholder="New Password"
+                                      value={passChangeForm.newPassword}
+                                      onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})}
+                                  />
+                                  <input 
+                                      className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" 
+                                      placeholder="Auth Code (000 000)" 
+                                      maxLength={6}
+                                      value={passChangeForm.code}
+                                      onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}
+                                  />
+                                  <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">
+                                      Confirm & Logout
+                                  </button>
+                              </div>
+                          )}
+                      </div>
+                  )}
+
+                  <div className="flex flex-col items-center mb-4 mt-4">
                       <UserAvatar 
                         src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
                         className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
