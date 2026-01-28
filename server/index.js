@@ -50,6 +50,10 @@ const safeRoute = (handler) => async (req, res, next) => {
 // --- AUTH ROUTES ---
 app.post("/register", safeRoute(async (req, res) => {
   const { username, password } = req.body;
+
+  if (!username || !password || username.trim() === "" || password.trim() === "") {
+      return res.json({ success: false, message: "Username and password are required" });
+  }
   const { data: existing } = await supabase.from("users").select("*").eq("username", username).maybeSingle();
   if (existing) return res.json({ success: false, message: "Username taken" });
 

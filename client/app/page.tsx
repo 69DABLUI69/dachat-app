@@ -264,6 +264,10 @@ export default function DaChat() {
 
   // --- AUTH ---
   const handleAuth = async () => {
+    if (!authForm.username.trim() || !authForm.password.trim()) {
+        setError("Please enter both a username and a password.");
+        return;
+    }
     const endpoint = isRegistering ? "register" : "login";
     try {
       const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
