@@ -125,12 +125,14 @@ export default function DaChat() {
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
   const [rememberMe, setRememberMe] = useState(false);
 
+  // ✅ UPDATED CONTEXT MENU STATE
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
       x: number;
       y: number;
-      message: any | null;
-  }>({ visible: false, x: 0, y: 0, message: null });
+      type: 'message' | 'user' | null;
+      data: any | null;
+  }>({ visible: false, x: 0, y: 0, type: null, data: null });
 
   // 🎵 MUSIC STATE
   const [currentTrack, setCurrentTrack] = useState<any>(null);
@@ -162,7 +164,6 @@ export default function DaChat() {
   const joinSoundRef = useRef<HTMLAudioElement | null>(null);
   const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
   
-  // 👇 1. ADDED REF FOR AUTO SCROLL
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [viewingProfile, setViewingProfile] = useState<any>(null);
@@ -182,29 +183,23 @@ export default function DaChat() {
   const handleRemoteVideo = useCallback((peerId: string, hasVideo: boolean) => { if (hasVideo) setFocusedPeerId(peerId); else if (focusedPeerId === peerId) setFocusedPeerId(null); }, [focusedPeerId]);
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
   
-  // 🔊 INIT SOUNDS
   useEffect(() => { 
       if (typeof window !== 'undefined') { 
           joinSoundRef.current = new Audio('/join.mp3'); 
           leaveSoundRef.current = new Audio('/leave.mp3'); 
           joinSoundRef.current.load(); 
           leaveSoundRef.current.load();
-          
-          // Load saved ringtone
           const savedRingtone = localStorage.getItem("dachat_ringtone");
           if (savedRingtone) setSelectedRingtone(savedRingtone);
       } 
   }, []);
 
-  // 🔔 PLAY RINGTONE LOGIC
   useEffect(() => {
-      // Initialize audio object whenever selection changes
       ringtoneAudioRef.current = new Audio(selectedRingtone);
       ringtoneAudioRef.current.loop = true;
   }, [selectedRingtone]);
 
   useEffect(() => {
-      // Play/Pause based on incoming call state
       if (incomingCall) {
           ringtoneAudioRef.current?.play().catch(e => console.error("Ringtone blocked:", e));
       } else {
@@ -219,52 +214,34 @@ export default function DaChat() {
       return () => window.removeEventListener("click", handleClick);
   }, [contextMenu]);
 
-  // 🎮 STEAM POLLING
   useEffect(() => {
       const fetchSteam = async () => {
           if (!user) return;
           const allUsers = [...friends, ...serverMembers];
           const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id);
           if (steamIds.length === 0) return;
-
           const uniqueIds = Array.from(new Set(steamIds));
-          const res = await fetch(`${BACKEND_URL}/users/steam-status`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ steamIds: uniqueIds })
-          });
+          const res = await fetch(`${BACKEND_URL}/users/steam-status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steamIds: uniqueIds }) });
           const data = await res.json();
-          
-          if (data.success) {
-              const statusMap: Record<string, any> = {};
-              data.players.forEach((p: any) => { statusMap[p.steamid] = p; });
-              setSteamStatuses(statusMap);
-          }
+          if (data.success) { const statusMap: Record<string, any> = {}; data.players.forEach((p: any) => { statusMap[p.steamid] = p; }); setSteamStatuses(statusMap); }
       };
-      
-      fetchSteam(); // Initial fetch
-      const interval = setInterval(fetchSteam, 60000); // Poll every minute
+      fetchSteam(); 
+      const interval = setInterval(fetchSteam, 60000); 
       return () => clearInterval(interval);
   }, [friends, serverMembers, user]);
 
   useEffect(() => {
       const savedUser = localStorage.getItem("dachat_user");
-      if (savedUser) {
-          setUser(JSON.parse(savedUser));
-      }
+      if (savedUser) setUser(JSON.parse(savedUser));
   }, []);
 
   const saveSteamId = async () => {
       const id = prompt("Enter your Steam ID64 (looks like 765611980...):");
       if(!id) return;
-      await fetch(`${BACKEND_URL}/users/link-steam`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, steamId: id })
-      });
+      await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) });
       setUser({...user, steam_id: id});
   };
 
-  // --- 1. INIT & RECONNECTION LOGIC ---
   useEffect(() => { 
       socket.connect(); 
       const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
@@ -274,50 +251,30 @@ export default function DaChat() {
       return () => { socket.off("connect", handleConnect); socket.disconnect(); }; 
   }, [user]); 
 
-  // --- 2. GLOBAL EVENT LISTENERS ---
   useEffect(() => { 
-      // ✅ BUG FIX: Normalize and check sender
       socket.on("receive_message", (msg) => { 
-          const normalized = {
-              ...msg,
-              sender_id: msg.sender_id || msg.senderId, 
-              sender_name: msg.sender_name || msg.senderName,
-              file_url: msg.file_url || msg.fileUrl
-          };
+          const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl };
           if (user && normalized.sender_id === user.id) return; 
           setChatHistory(prev => [...prev, normalized]); 
       });
-
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
-      
-      // 🎵 MUSIC LISTENERS
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
-
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
       socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
       socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
       socket.on("online_users", (users: number[]) => { setOnlineUsers(new Set(users)); });
-      // ... inside useEffect ...
-  socket.on("user_updated", ({ userId }) => { 
-      // 1. Existing logic for viewing other profiles
-      if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); 
-      if (active.server && user) fetchServers(user.id); 
-      if (user) fetchFriends(user.id); 
-
-      // ✅ ADD THIS: If the updated user is ME, refresh my own data (syncs 2FA across tabs)
-      if (user && user.id === userId) {
-          fetch(`${BACKEND_URL}/users/${userId}`)
-              .then(res => res.json())
-              .then(data => {
-                  if (data.success) {
-                      setUser((prev: any) => ({ ...prev, ...data.user }));
-                      localStorage.setItem("dachat_user", JSON.stringify(data.user));
-                  }
+      socket.on("user_updated", ({ userId }) => { 
+          if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); 
+          if (active.server && user) fetchServers(user.id); 
+          if (user) fetchFriends(user.id); 
+          if (user && user.id === userId) {
+              fetch(`${BACKEND_URL}/users/${userId}`).then(res => res.json()).then(data => {
+                  if (data.success) { setUser((prev: any) => ({ ...prev, ...data.user })); localStorage.setItem("dachat_user", JSON.stringify(data.user)); }
               });
-      }
-  });
+          }
+      });
       socket.on("request_accepted", () => { if (user) { fetchFriends(user.id); fetchRequests(user.id); } });
       socket.on("friend_removed", () => { if (user) { fetchFriends(user.id); } });
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
@@ -333,73 +290,35 @@ export default function DaChat() {
           socket.off("server_updated"); socket.off("new_server_invite"); socket.off("call_ended");
           socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users");
           socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted");
-          socket.off("audio_state_update"); socket.off("audio_state_clear");
-          socket.off("call_rejected");
+          socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected");
       }; 
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { if (myVideoRef.current && screenStream) myVideoRef.current.srcObject = screenStream; }, [screenStream, isScreenSharing]);
-  useEffect(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [chatHistory, active.channel, active.friend]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
 
-  // 🔥 NEW EFFECT: AUTOMATICALLY FETCH DATA WHEN USER IS SET
   useEffect(() => {
-      if (user) {
-          fetchServers(user.id);
-          fetchFriends(user.id);
-          fetchRequests(user.id);
-      }
+      if (user) { fetchServers(user.id); fetchFriends(user.id); fetchRequests(user.id); }
   }, [user]);
 
-
-  // --- AUTH ---
   const handleAuth = async () => {
     if (is2FALogin) {
-        // Handle 2FA Verification
-        const res = await fetch(`${BACKEND_URL}/auth/2fa/login`, {
-            method: "POST", headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ userId: tempUserId, token: twoFACode })
-        });
+        const res = await fetch(`${BACKEND_URL}/auth/2fa/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: tempUserId, token: twoFACode }) });
         const data = await res.json();
-        if (data.success) {
-            if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
-            setUser(data.user);
-        } else {
-            setError(data.message || "Invalid Code");
-        }
+        if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else { setError(data.message || "Invalid Code"); }
         return;
     }
-
-    // Normal Login
     if (!authForm.username.trim() || !authForm.password.trim()) { setError("Enter credentials"); return; }
     const endpoint = isRegistering ? "register" : "login";
-    
     try {
       const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
       const data = await res.json();
-
-      if (data.requires2FA) {
-          setTempUserId(data.userId);
-          setIs2FALogin(true);
-          setError("");
-          return;
-      }
-
-      if (data.success) {
-        if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
-        setUser(data.user); 
-      } else setError(data.message || "Auth failed");
+      if (data.requires2FA) { setTempUserId(data.userId); setIs2FALogin(true); setError(""); return; }
+      if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else setError(data.message || "Auth failed");
     } catch { setError("Connection failed"); }
   };
 
-  // 👇 LOGOUT FUNCTION
-  const handleLogout = () => {
-      if(confirm("Are you sure you want to log out?")) {
-          localStorage.removeItem("dachat_user");
-          window.location.reload();
-      }
-  };
+  const handleLogout = () => { if(confirm("Are you sure you want to log out?")) { localStorage.removeItem("dachat_user"); window.location.reload(); } };
 
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
@@ -423,7 +342,17 @@ export default function DaChat() {
   const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); };
   const handleAcceptRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest); };
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
-  const handleRemoveFriend = async () => { if (!viewingProfile) return; if (!confirm(`Are you sure you want to remove ${viewingProfile.username} from your friends?`)) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: viewingProfile.id }) }); fetchFriends(user.id); setViewingProfile(null); };
+  
+  // ✅ UPDATED REMOVE FRIEND (Can now accept an ID)
+  const handleRemoveFriend = async (targetId: number | null = null) => { 
+      const idToRemove = targetId || viewingProfile?.id;
+      if (!idToRemove) return;
+      if (!confirm("Are you sure you want to remove this friend?")) return; 
+      await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); 
+      fetchFriends(user.id); 
+      if (viewingProfile?.id === idToRemove) setViewingProfile(null);
+      if (active.friend?.id === idToRemove) setActive({ ...active, friend: null });
+  };
 
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
@@ -433,140 +362,39 @@ export default function DaChat() {
       setMessage(""); 
   };
 
-  const deleteMessage = (msgId: number) => {
-      const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`;
-      socket.emit("delete_message", { messageId: msgId, roomId });
-      setChatHistory(prev => prev.filter(m => m.id !== msgId));
-  };
+  const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
+  const playMusic = async (query: string) => { if (!activeVoiceChannelId) return; await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' }) }); };
+  const stopMusic = async () => { if (!activeVoiceChannelId) return; await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' }) }); };
 
-  // 🎵 MUSIC HELPERS (Strictly tied to activeVoiceChannelId)
-  const playMusic = async (query: string) => {
-      if (!activeVoiceChannelId) return; // ✅ Must be in voice
-      await fetch(`${BACKEND_URL}/channels/play`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' })
-      });
-  };
-
-  const stopMusic = async () => {
-      if (!activeVoiceChannelId) return; // ✅ Must be in voice
-      await fetch(`${BACKEND_URL}/channels/play`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' })
-      });
-  };
-
-  const handleContextMenu = (e: React.MouseEvent, msg: any) => {
+  // ✅ UPDATED CONTEXT MENU HANDLER
+  const handleContextMenu = (e: React.MouseEvent, type: 'message' | 'user', data: any) => {
       e.preventDefault(); 
-      setContextMenu({ visible: true, x: e.pageX, y: e.pageY, message: msg });
+      setContextMenu({ visible: true, x: e.pageX, y: e.pageY, type, data });
   };
 
-  const copyText = (text: string) => {
-      navigator.clipboard.writeText(text);
-      setContextMenu({ ...contextMenu, visible: false });
-  };
-
+  const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
   
-  // 👇👇👇 UPDATED SAVE PROFILE FUNCTION 👇👇👇
   const saveProfile = async () => {
     let finalAvatarUrl = editForm.avatarUrl;
-
-    if (newAvatarFile) {
-      const formData = new FormData();
-      formData.append("file", newAvatarFile);
-      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
-      const data = await res.json();
-      if (data.success) finalAvatarUrl = data.fileUrl;
-    }
-
-    const res = await fetch(`${BACKEND_URL}/update-profile`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl })
-    });
+    if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; }
+    const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) });
     const data = await res.json();
-
-    if (data.success) {
-        const updatedUser = {
-            ...user,
-            username: editForm.username,
-            bio: editForm.bio,
-            avatar_url: finalAvatarUrl
-        };
-        setUser(updatedUser);
-        localStorage.setItem("dachat_user", JSON.stringify(updatedUser));
-        setShowSettings(false);
-        setNewAvatarFile(null);
-    } else {
-        alert("Failed to update profile.");
-    }
+    if (data.success) { const updatedUser = { ...user, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl }; setUser(updatedUser); localStorage.setItem("dachat_user", JSON.stringify(updatedUser)); setShowSettings(false); setNewAvatarFile(null); } else { alert("Failed to update profile."); }
   };
 
   const handleChangePassword = async () => {
-      if (!passChangeForm.newPassword || !passChangeForm.code) {
-          alert("Please fill in both fields");
-          return;
-      }
-
-      const res = await fetch(`${BACKEND_URL}/auth/change-password`, {
-          method: "POST", 
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ 
-              userId: user.id, 
-              newPassword: passChangeForm.newPassword, 
-              token: passChangeForm.code 
-          })
-      });
-
+      if (!passChangeForm.newPassword || !passChangeForm.code) { alert("Please fill in both fields"); return; }
+      const res = await fetch(`${BACKEND_URL}/auth/change-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, newPassword: passChangeForm.newPassword, token: passChangeForm.code }) });
       const data = await res.json();
-
-      if (data.success) {
-          alert("Password Changed Successfully! Logging you out...");
-          localStorage.removeItem("dachat_user");
-          window.location.reload(); 
-      } else {
-          alert(data.message || "Failed to change password");
-      }
+      if (data.success) { alert("Password Changed Successfully! Logging you out..."); localStorage.removeItem("dachat_user"); window.location.reload(); } else { alert(data.message || "Failed to change password"); }
   };
 
-  // 🔐 2FA HELPER FUNCTIONS
-  const start2FASetup = async () => {
-      const res = await fetch(`${BACKEND_URL}/auth/2fa/generate`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id })
-      });
-      const data = await res.json();
-      if (data.success) {
-          setQrCodeUrl(data.qrCode);
-          setSetupStep(1);
-      }
-  };
-
-const verify2FASetup = async () => {
-      const res = await fetch(`${BACKEND_URL}/auth/2fa/enable`, {
-          method: "POST", headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, token: twoFACode })
-      });
-      const data = await res.json();
-      if (data.success) {
-          setSetupStep(2);
-          
-          // ✅ ADD THIS: Update local state immediately so you don't have to refresh
-          setUser((prev: any) => {
-              const updated = { ...prev, is_2fa_enabled: true };
-              localStorage.setItem("dachat_user", JSON.stringify(updated));
-              return updated;
-          });
-
-          alert("2FA Enabled!");
-      } else {
-          alert("Invalid Code");
-      }
-  };
+  const start2FASetup = async () => { const res = await fetch(`${BACKEND_URL}/auth/2fa/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) }); const data = await res.json(); if (data.success) { setQrCodeUrl(data.qrCode); setSetupStep(1); } };
+  const verify2FASetup = async () => { const res = await fetch(`${BACKEND_URL}/auth/2fa/enable`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, token: twoFACode }) }); const data = await res.json(); if (data.success) { setSetupStep(2); setUser((prev: any) => { const updated = { ...prev, is_2fa_enabled: true }; localStorage.setItem("dachat_user", JSON.stringify(updated)); return updated; }); alert("2FA Enabled!"); } else { alert("Invalid Code"); } };
 
   const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); } };
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) }); selectServer(active.server); } };
@@ -582,35 +410,21 @@ const verify2FASetup = async () => {
 
   const playSound = (type: 'join' | 'leave') => { const audio = type === 'join' ? joinSoundRef.current : leaveSoundRef.current; if (audio) { audio.currentTime = 0; audio.volume = 0.5; audio.play().catch(e => console.error(e)); } };
 
-  const startDMCall = () => { if (!active.friend) return; const ids = [user.id, active.friend.id].sort((a, b) => a - b); const roomId = `dm-call-${ids[0]}-${ids[1]}`; joinVoiceRoom(roomId); socket.emit("start_call", { senderId: user.id, recipientId: active.friend.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId }); };
+  // ✅ UPDATED START CALL (Can accept target user)
+  const startDMCall = (targetUser: any = active.friend) => { 
+      if (!targetUser) return;
+      const ids = [user.id, targetUser.id].sort((a, b) => a - b);
+      const roomId = `dm-call-${ids[0]}-${ids[1]}`;
+      joinVoiceRoom(roomId);
+      socket.emit("start_call", { senderId: user.id, recipientId: targetUser.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId });
+  };
   
-  // 👇 ANSWER CALL (Stops Ringtone)
-  const answerCall = () => { 
-      if (incomingCall) { 
-          joinVoiceRoom(incomingCall.roomId); 
-          setIncomingCall(null); 
-      } 
-  };
-
-  // 👇 REJECT CALL
-  const rejectCall = () => {
-      if (!incomingCall) return;
-      socket.emit("reject_call", { callerId: incomingCall.senderId });
-      setIncomingCall(null);
-  };
+  const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
+  const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
 
   const removePeer = (peerID: string) => { playSound('leave'); const peerIdx = peersRef.current.findIndex(p => p.peerID === peerID); if (peerIdx > -1) { peersRef.current[peerIdx].peer.destroy(); peersRef.current.splice(peerIdx, 1); } setPeers(prev => prev.filter(p => p.peerID !== peerID)); setFocusedPeerId(current => (current === peerID ? null : current)); };
   
-  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { 
-      console.error("Mic Error:", err); 
-      // 🔥 BETTER ERROR HANDLING FOR MOBILE
-      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-        alert("Microphone requires HTTPS! Please use a secure connection or localhost.");
-      } else {
-        alert(`Mic Error: ${err.name} - ${err.message}`); 
-      }
-  }); }, [user]);
-
+  const joinVoiceRoom = useCallback((roomId: string) => { if (!user) return; callStartTimeRef.current = Date.now(); setActiveVoiceChannelId(roomId); setIsCallExpanded(true); socket.off("all_users"); socket.off("user_joined"); socket.off("receiving_returned_signal"); navigator.mediaDevices.getUserMedia({ video: false, audio: true }).then(stream => { setInCall(true); setMyStream(stream); socket.emit("join_voice", { roomId, userData: user }); socket.on("all_users", (users) => { const peersArr: any[] = []; users.forEach((u: any) => { const peer = createPeer(u.socketId, socket.id as string, stream, u.userData); peersRef.current.push({ peerID: u.socketId, peer, info: u.userData }); peersArr.push({ peerID: u.socketId, peer, info: u.userData }); }); setPeers(peersArr); }); socket.on("user_joined", (payload) => { playSound('join'); const item = peersRef.current.find(p => p.peerID === payload.callerID); if (item) { item.peer.signal(payload.signal); return; } const peer = addPeer(payload.signal, payload.callerID, stream); peersRef.current.push({ peerID: payload.callerID, peer, info: payload.userData }); setPeers(users => [...users, { peerID: payload.callerID, peer, info: payload.userData }]); }); socket.on("receiving_returned_signal", (payload) => { const item = peersRef.current.find(p => p.peerID === payload.id); if (item) item.peer.signal(payload.signal); }); }).catch(err => { console.error("Mic Error:", err); if (location.protocol !== 'https:' && location.hostname !== 'localhost') { alert("Microphone requires HTTPS! Please use a secure connection or localhost."); } else { alert(`Mic Error: ${err.name} - ${err.message}`); } }); }, [user]);
   const createPeer = (userToSignal: string, callerID: string, stream: MediaStream, userData: any) => { const peer = new Peer({ initiator: true, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("sending_signal", { userToSignal, callerID, signal, userData: user }); }); peer.on("close", () => removePeer(userToSignal)); peer.on("error", () => removePeer(userToSignal)); return peer; };
   const addPeer = (incomingSignal: any, callerID: string, stream: MediaStream) => { const peer = new Peer({ initiator: false, trickle: false, stream, config: PEER_CONFIG }); peer.on("signal", (signal: any) => { socket.emit("returning_signal", { signal, callerID }); }); peer.on("close", () => removePeer(callerID)); peer.on("error", () => removePeer(callerID)); peer.signal(incomingSignal); return peer; };
   const startScreenShare = async () => { try { const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: true }); setScreenStream(stream); setIsScreenSharing(true); const screenTrack = stream.getVideoTracks()[0]; if (myVideoRef.current) myVideoRef.current.srcObject = stream; peersRef.current.forEach((peerObj) => { const pc = (peerObj.peer as any)._pc; if (pc) { const sender = pc.getSenders().find((s: any) => s.track && s.track.kind === 'video'); if (sender) sender.replaceTrack(screenTrack); else peerObj.peer.addTrack(screenTrack, myStream); } }); screenTrack.onended = () => stopScreenShare(); } catch(e) { console.error("Screen Share Error:", e); } };
@@ -621,11 +435,10 @@ const verify2FASetup = async () => {
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
-      {/* ... [AUTH SCREEN CODE - UNCHANGED] ... */}
+      {/* AUTH SCREEN UI UNCHANGED */}
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <div className="absolute top-[-20%] left-[-10%] w-150 h-150 bg-blue-600/20 rounded-full blur-[120px] animate-blob"></div>
       <div className="absolute bottom-[-20%] right-[-10%] w-150 h-150 bg-purple-600/20 rounded-full blur-[120px] animate-blob animation-delay-2000"></div>
-      
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <div className="absolute inset-0 bg-blue-500/20 blur-[30px] rounded-full animate-pulse"></div>
@@ -633,8 +446,6 @@ const verify2FASetup = async () => {
         </div>
         <div> <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-linear-to-r from-white to-white/60">DaChat</h1> <p className="text-white/40 text-sm mt-2">{tagline}</p> </div>
         {error && <div className="bg-red-500/20 text-red-200 text-xs py-3 rounded-xl border border-red-500/20 animate-in slide-in-from-top-2">{error}</div>}
-        
-        {/* LOGIN FORM */}
         <div className="space-y-3">
             {!is2FALogin ? (
                 <>
@@ -690,7 +501,6 @@ const verify2FASetup = async () => {
 
       {/* 2. SIDEBAR */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
-        {/* ... [SIDEBAR CONTENT - SAME AS BEFORE] ... */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : "Direct Messages"}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
@@ -740,7 +550,12 @@ const verify2FASetup = async () => {
                         const lobbyId = steamInfo?.lobbysteamid;
 
                         return (
-                            <div key={f.id} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`}> 
+                            <div 
+                                key={f.id} 
+                                // ✅ RIGHT CLICK TRIGGER
+                                onContextMenu={(e) => handleContextMenu(e, 'user', f)}
+                                className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`}
+                            > 
                                 <div className="relative">
                                     <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className={`w-8 h-8 rounded-full ${isPlaying ? "ring-2 ring-green-500" : ""}`} /> 
                                     {isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full"></div>}
@@ -776,7 +591,6 @@ const verify2FASetup = async () => {
 
       {/* 3. MAIN CONTENT */}
       <div className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
-         {/* ... [MAIN CONTENT SAME AS BEFORE] ... */}
          {/* LAYER 1: CHAT UI */}
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
@@ -786,7 +600,7 @@ const verify2FASetup = async () => {
                         <span className="text-white/30">@</span> 
                         <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
                     </div> 
-                    {!active.channel && <button onClick={startDMCall} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
+                    {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
                  </div>
              )}
              
@@ -807,7 +621,7 @@ const verify2FASetup = async () => {
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {chatHistory.map((msg, i) => ( 
-                            <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, msg)}> 
+                            <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
                                 <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
                                 <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
                                     <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> 
@@ -836,7 +650,7 @@ const verify2FASetup = async () => {
          {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col relative`}>
-                 {/* ... [KEEP ALL CALL UI CONTENT HERE UNCHANGED] ... */}
+                 {/* ... [CALL UI UNCHANGED] ... */}
                  {focusedPeerId ? (
                     <div className="flex-1 flex flex-col relative">
                         <div className="flex-1 relative bg-zinc-950 flex items-center justify-center p-2">
@@ -907,7 +721,6 @@ const verify2FASetup = async () => {
       )}
 
       {/* MODALS */}
-      {/* 👇 5. ADDED INCOMING CALL POPUP */}
       {incomingCall && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
               <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
@@ -915,19 +728,13 @@ const verify2FASetup = async () => {
                       <div className="absolute inset-0 bg-blue-500/30 blur-[60px] rounded-full animate-pulse-slow"></div>
                       <UserAvatar src={incomingCall.avatarUrl} className="w-40 h-40 rounded-full border-4 border-white/20 shadow-2xl relative z-10 animate-bounce-slow" />
                   </div>
-                  
                   <div className="text-center z-10">
                       <h2 className="text-3xl font-bold text-white mb-2">{incomingCall.senderName}</h2>
                       <p className="text-white/50 text-lg animate-pulse">Incoming Call...</p>
                   </div>
-
                   <div className="flex gap-8 z-10">
-                      <button onClick={rejectCall} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-95">
-                          <span className="text-2xl">📞</span>
-                      </button>
-                      <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(22,163,74,0.4)] active:scale-95 animate-wiggle">
-                          <span className="text-2xl">📞</span>
-                      </button>
+                      <button onClick={rejectCall} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-95"> <span className="text-2xl">📞</span> </button>
+                      <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(22,163,74,0.4)] active:scale-95 animate-wiggle"> <span className="text-2xl">📞</span> </button>
                   </div>
               </div>
           </div>
@@ -939,7 +746,7 @@ const verify2FASetup = async () => {
                   <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" />
                   <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
                   <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p>
-                  {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={handleRemoveFriend} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">Remove Friend</button>}
+                  {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={() => handleRemoveFriend(viewingProfile.id)} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">Remove Friend</button>}
                   {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && (
                       <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10">
                           <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div>
@@ -953,94 +760,26 @@ const verify2FASetup = async () => {
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
               <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
-                  {/* ... [EXISTING SETTINGS CODE] ... */}
-                  {showSettingsGifPicker && (
-                     <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200">
-                         <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/>
-                     </div>
-                  )}
-                  
-                  {/* 2FA SECTION */}
+                  {/* ... [SETTINGS MODAL UNCHANGED] ... */}
+                  {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
-                      <div className="flex justify-between items-center">
-                          <span className="font-bold text-sm">Two-Factor Auth</span>
-                          <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}>
-                              {user.is_2fa_enabled ? "ENABLED" : "DISABLED"}
-                          </span>
-                      </div>
+                      <div className="flex justify-between items-center"> <span className="font-bold text-sm">Two-Factor Auth</span> <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> </div>
                       {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded hover:bg-blue-600/30">Setup 2FA</button>}
-                      {setupStep === 1 && (
-                          <div className="flex flex-col items-center gap-3 animate-in fade-in">
-                              <img src={qrCodeUrl} className="w-32 h-32 rounded-lg border-4 border-white" />
-                              <p className="text-[10px] text-white/50 text-center">Scan with Google Authenticator</p>
-                              <input className="w-full bg-black/40 p-2 text-center rounded font-mono" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/>
-                              <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">Verify & Enable</button>
-                          </div>
-                      )}
+                      {setupStep === 1 && ( <div className="flex flex-col items-center gap-3 animate-in fade-in"> <img src={qrCodeUrl} className="w-32 h-32 rounded-lg border-4 border-white" /> <p className="text-[10px] text-white/50 text-center">Scan with Google Authenticator</p> <input className="w-full bg-black/40 p-2 text-center rounded font-mono" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">Verify & Enable</button> </div> )}
                   </div>
-
-                  {/* 👇 6. ADDED RINGTONE SETTINGS */}
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2">
                       <span className="font-bold text-sm text-indigo-400">Incoming Call Ringtone</span>
-                      <select 
-                          className="w-full bg-black/40 p-2 rounded text-sm text-white border border-white/5 focus:border-indigo-500/50 outline-none"
-                          value={selectedRingtone}
-                          onChange={(e) => {
-                              const newTone = e.target.value;
-                              setSelectedRingtone(newTone);
-                              localStorage.setItem("dachat_ringtone", newTone);
-                              // Preview sound
-                              const audio = new Audio(newTone);
-                              audio.volume = 0.5;
-                              audio.play();
-                          }}
-                      >
-                          {RINGTONES.map(r => (
-                              <option key={r.url} value={r.url}>{r.name}</option>
-                          ))}
-                      </select>
+                      <select className="w-full bg-black/40 p-2 rounded text-sm text-white border border-white/5 focus:border-indigo-500/50 outline-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select>
                   </div>
-
-                  {/* CHANGE PASSWORD */}
-                  {user.is_2fa_enabled && (
-                      <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2">
-                          <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowPassChange(!showPassChange)}>
-                              <span className="font-bold text-sm text-yellow-500">Change Password</span>
-                              <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span>
-                          </div>
-                          {showPassChange && (
-                              <div className="flex flex-col gap-3 animate-in fade-in pt-2">
-                                  <div className="relative">
-                                      <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder="New Password" value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} />
-                                      <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button>
-                                  </div>
-                                  <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code (000 000)" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/>
-                                  <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">Confirm & Logout</button>
-                              </div>
-                          )}
-                      </div>
-                  )}
-
+                  {user.is_2fa_enabled && ( <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2"> <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowPassChange(!showPassChange)}> <span className="font-bold text-sm text-yellow-500">Change Password</span> <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> </div> {showPassChange && ( <div className="flex flex-col gap-3 animate-in fade-in pt-2"> <div className="relative"> <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder="New Password" value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> </div> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code (000 000)" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">Confirm & Logout</button> </div> )} </div> )}
                   <div className="flex flex-col items-center mb-4 mt-4">
                       <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
-                      <div className="flex gap-2">
-                         <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors">Upload Photo</button>
-                         <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg">Choose GIF</button>
-                         <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Steam Linked" : "Link Steam"}</button>
-                      </div>
+                      <div className="flex gap-2"> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors">Upload Photo</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg">Choose GIF</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Steam Linked" : "Link Steam"}</button> </div>
                       <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
                   </div>
-                  
                   <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
                   <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
-                  
-                  <div className="flex justify-between items-center mt-4"> 
-                    <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors">Log Out</button>
-                    <div className="flex gap-2">
-                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> 
-                        <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> 
-                    </div>
-                  </div>
+                  <div className="flex justify-between items-center mt-4"> <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors">Log Out</button> <div className="flex gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">Cancel</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">Save</button> </div> </div>
               </GlassPanel>
           </div>
       )}
@@ -1072,15 +811,63 @@ const verify2FASetup = async () => {
           </div>
       )}
 
-      {/* CONTEXT MENU */}
+      {/* ✅ UPDATED CONTEXT MENU (Now handles both Messages & Users) */}
       {contextMenu.visible && (
           <div 
             style={{ top: contextMenu.y, left: contextMenu.x }} 
-            className="fixed z-50 flex flex-col w-40 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left"
+            className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden"
             onClick={(e) => e.stopPropagation()} 
           >
-              <button onClick={() => copyText(contextMenu.message?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2">📋 Copy Text</button>
-              {contextMenu.message?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.message.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2">🗑️ Delete Message</button> )}
+              {/* --- MESSAGE MENU --- */}
+              {contextMenu.type === 'message' && (
+                  <>
+                      <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2">
+                          <span>📋</span> Copy Text
+                      </button>
+                      {contextMenu.data?.sender_id === user.id && (
+                          <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2">
+                              <span>🗑️</span> Delete Message
+                          </button>
+                      )}
+                  </>
+              )}
+
+              {/* --- USER MENU (FRIEND LIST) --- */}
+              {contextMenu.type === 'user' && (
+                  <>
+                      <button 
+                          onClick={() => { viewUserProfile(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} 
+                          className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                          <span>👤</span> Profile
+                      </button>
+                      
+                      <button 
+                          onClick={() => { startDMCall(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} 
+                          className="text-left px-3 py-2 text-sm text-green-400 hover:bg-green-500/20 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                          <span>📞</span> Start Call
+                      </button>
+
+                      <div className="h-px bg-white/10 my-1 mx-2"></div>
+
+                      <button 
+                          onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} 
+                          className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                          <span>🆔</span> Copy User ID
+                      </button>
+
+                      <div className="h-px bg-white/10 my-1 mx-2"></div>
+
+                      <button 
+                          onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} 
+                          className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"
+                      >
+                          <span>🚫</span> Remove Friend
+                      </button>
+                  </>
+              )}
           </div>
       )}
     </div>
