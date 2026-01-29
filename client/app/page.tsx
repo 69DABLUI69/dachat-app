@@ -148,6 +148,16 @@ const TAGLINES = [
   "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"
 ];
 
+// 🚀 UPDATE THIS SECTION BEFORE EVERY DEPLOY
+const APP_VERSION = "1.2.0"; 
+const WHATS_NEW = [
+  "🎉 Added Emoji Picker!",
+  "📱 Fixed Mobile Layout bugs",
+  "🌍 Added Multi-language Support",
+  "🎨 Redesigned Settings Menu",
+  "🔊 New Ringtone Options"
+];
+
 // 🎵 AVAILABLE RINGTONES
 const RINGTONES = [
     { name: "Default (Classic)", url: "/ringtones/classic.mp3" },
@@ -222,13 +232,11 @@ const GifPicker = ({ onSelect, onClose, className }: any) => {
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
 export default function DaChat() {
-  // --- STATE ---
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
 
-  // 🌍 LANGUAGE STATE
   const [lang, setLang] = useState("en");
 
   const [servers, setServers] = useState<any[]>([]);
@@ -253,18 +261,19 @@ export default function DaChat() {
   const [showPassChange, setShowPassChange] = useState(false);
   const [passChangeForm, setPassChangeForm] = useState({ newPassword: "", code: "" });
 
-  // For Setup Settings
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [setupStep, setSetupStep] = useState(0);
 
-  const [showPassword, setShowPassword] = useState(false); // For Login
-  const [showNewPassword, setShowNewPassword] = useState(false); // For Settings
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
 
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
   const [rememberMe, setRememberMe] = useState(false);
 
-  // CONTEXT MENU STATE
+  // 📢 UPDATES
+  const [showChangelog, setShowChangelog] = useState(false);
+
   const [contextMenu, setContextMenu] = useState<{
       visible: boolean;
       x: number;
@@ -273,13 +282,9 @@ export default function DaChat() {
       data: any | null;
   }>({ visible: false, x: 0, y: 0, type: null, data: null });
 
-  // 🎵 MUSIC STATE
   const [currentTrack, setCurrentTrack] = useState<any>(null);
-
-  // 🎮 STEAM STATE
   const [steamStatuses, setSteamStatuses] = useState<Record<string, any>>({});
 
-  // Voice & Video State
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
@@ -287,7 +292,6 @@ export default function DaChat() {
   const [callEndedData, setCallEndedData] = useState<string | null>(null);
   const callStartTimeRef = useRef<number | null>(null);
   
-  // 🔔 RINGTONE STATE
   const [selectedRingtone, setSelectedRingtone] = useState(RINGTONES[0].url);
   const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -318,12 +322,10 @@ export default function DaChat() {
   const [focusedPeerId, setFocusedPeerId] = useState<string | null>(null);
   const [showMobileChat, setShowMobileChat] = useState(false);
 
-  // 🌍 TRANSLATION HELPER
   const t = (key: string) => {
       return TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
   };
 
-  // ✅ MESSAGE FORMATTER
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -356,11 +358,20 @@ export default function DaChat() {
           const savedRingtone = localStorage.getItem("dachat_ringtone");
           if (savedRingtone) setSelectedRingtone(savedRingtone);
           
-          // Load Language
           const savedLang = localStorage.getItem("dachat_lang");
           if (savedLang) setLang(savedLang);
+
+          const storedVersion = localStorage.getItem("dachat_version");
+          if (storedVersion !== APP_VERSION) {
+              setShowChangelog(true);
+          }
       } 
   }, []);
+
+  const closeChangelog = () => {
+      localStorage.setItem("dachat_version", APP_VERSION);
+      setShowChangelog(false);
+  };
 
   useEffect(() => {
       ringtoneAudioRef.current = new Audio(selectedRingtone);
@@ -919,93 +930,152 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* 📢 UPDATE ANNOUNCEMENT MODAL */}
+      {showChangelog && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-500">
+              <GlassPanel className="w-full max-w-sm p-8 flex flex-col items-center text-center border-2 border-indigo-500/50 shadow-[0_0_50px_rgba(99,102,241,0.3)]">
+                  <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-lg animate-bounce">
+                      🚀
+                  </div>
+                  <h2 className="text-2xl font-bold text-white mb-1">Update Available!</h2>
+                  <p className="text-indigo-300 text-sm font-mono mb-6">v{APP_VERSION}</p>
+                  
+                  <div className="w-full bg-white/5 rounded-xl p-4 text-left space-y-3 mb-6 border border-white/5">
+                      {WHATS_NEW.map((item, i) => (
+                          <div key={i} className="flex gap-3 text-sm text-white/80">
+                              <span className="text-indigo-400">➤</span>
+                              {item}
+                          </div>
+                      ))}
+                  </div>
+
+                  <button 
+                      onClick={closeChangelog}
+                      className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg"
+                  >
+                      Awesome, Let's Go!
+                  </button>
+              </GlassPanel>
+          </div>
+      )}
+
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
+              <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   
-                  {/* --- ✅ MOVED TO TOP: Profile Picture & Name/Bio --- */}
-                  <div className="flex flex-col items-center mb-4 mt-4">
-                      <UserAvatar 
-                        src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
-                        className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
-                        onClick={()=>(document.getElementById('pUpload') as any).click()}
-                      />
+                  <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
+
+                  {/* --- CATEGORY 1: USER PROFILE --- */}
+                  <div>
+                      <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3>
+                      <div className="flex flex-col md:flex-row gap-6 items-start">
+                          
+                          {/* LEFT: Avatar & Actions */}
+                          <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0">
+                               <UserAvatar 
+                                 src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
+                                 className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" 
+                                 onClick={()=>(document.getElementById('pUpload') as any).click()}
+                               />
+                               <div className="flex flex-col gap-2 w-full">
+                                  <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button>
+                                  <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button>
+                                  <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button>
+                               </div>
+                               <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
+                          </div>
+
+                          {/* RIGHT: Inputs */}
+                          <div className="flex-1 w-full flex flex-col gap-4">
+                              <div className="space-y-1">
+                                  <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label>
+                                  <input 
+                                    className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" 
+                                    value={editForm.username} 
+                                    onChange={e=>setEditForm({...editForm, username: e.target.value})} 
+                                  />
+                              </div>
+                              <div className="space-y-1">
+                                  <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label>
+                                  <textarea 
+                                    className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" 
+                                    value={editForm.bio} 
+                                    onChange={e=>setEditForm({...editForm, bio: e.target.value})} 
+                                  />
+                              </div>
+                          </div>
+                      </div>
+                  </div>
+
+                  <div className="h-px bg-white/10 w-full" />
+
+                  {/* --- CATEGORY 2: APP & SECURITY GRID --- */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       
-                      <div className="flex gap-2">
-                         <button 
-                            onClick={()=>(document.getElementById('pUpload') as any).click()}
-                            className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
-                         >
-                            {t('set_upload')}
-                         </button>
-                         <button 
-                            onClick={() => setShowSettingsGifPicker(true)}
-                            className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
-                         >
-                            {t('set_gif')}
-                         </button>
-                         {/* 🎮 STEAM BUTTON */}
-                         <button 
-                            onClick={saveSteamId}
-                            className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"
-                         >
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />
-                            {user.steam_id ? t('set_steam_linked') : t('set_steam')}
-                         </button>
+                      {/* App Preferences */}
+                      <div className="space-y-4">
+                          <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3>
+                          
+                          <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                              <div className="space-y-1">
+                                  <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label>
+                                  <select 
+                                      className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none"
+                                      value={lang}
+                                      onChange={(e) => {
+                                          setLang(e.target.value);
+                                          localStorage.setItem("dachat_lang", e.target.value);
+                                      }}
+                                  >
+                                      <option value="en">English (Default)</option>
+                                      <option value="ro">Română (Romanian)</option>
+                                      <option value="de">Deutsch (German)</option>
+                                      <option value="pl">Polski (Polish)</option>
+                                      <option value="it">Italiano (Italian)</option>
+                                      <option value="es">Español (Spanish)</option>
+                                      <option value="pt">Português (Portuguese)</option>
+                                      <option value="sv">Svenska (Swedish)</option>
+                                      <option value="bg">Български (Bulgarian)</option>
+                                      <option value="jp">日本語 (Japanese)</option>
+                                      <option value="zh">中文 (Chinese)</option>
+                                  </select>
+                              </div>
+
+                              <div className="space-y-1">
+                                  <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label>
+                                  <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select>
+                              </div>
+                          </div>
                       </div>
 
-                      <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
-                  </div>
-                  
-                  <input 
-                    className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
-                    value={editForm.username} 
-                    onChange={e=>setEditForm({...editForm, username: e.target.value})} 
-                  />
-                  <textarea 
-                    className="bg-white/10 p-3 rounded text-white h-auto resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
-                    value={editForm.bio} 
-                    onChange={e=>setEditForm({...editForm, bio: e.target.value})} 
-                  />
-                  
-                  {/* LANGUAGE SELECTOR */}
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
-                      <span className="font-bold text-sm text-indigo-400">{t('set_lang')}</span>
-                      <select 
-                          className="w-full bg-black/40 p-2 rounded text-sm text-white border border-white/5 focus:border-indigo-500/50 outline-none"
-                          value={lang}
-                          onChange={(e) => {
-                              setLang(e.target.value);
-                              localStorage.setItem("dachat_lang", e.target.value);
-                          }}
-                      >
-                          <option value="en">English (Default)</option>
-                          <option value="ro">Română (Romanian)</option>
-                          <option value="de">Deutsch (German)</option>
-                          <option value="pl">Polski (Polish)</option>
-                          <option value="it">Italiano (Italian)</option>
-                          <option value="es">Español (Spanish)</option>
-                          <option value="pt">Português (Portuguese)</option>
-                          <option value="sv">Svenska (Swedish)</option>
-                          <option value="bg">Български (Bulgarian)</option>
-                          <option value="jp">日本語 (Japanese)</option>
-                          <option value="zh">中文 (Chinese)</option>
-                      </select>
+                      {/* Security */}
+                      <div className="space-y-4">
+                          <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3>
+                          
+                          <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4">
+                              <div className="flex justify-between items-center"> <span className="font-bold text-sm">{t('set_2fa')}</span> <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> </div>
+                              {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg hover:bg-blue-600/30 transition-colors">{t('set_setup_2fa')}</button>}
+                              {setupStep === 1 && ( <div className="flex flex-col items-center gap-3 animate-in fade-in"> <img src={qrCodeUrl} className="w-24 h-24 rounded-lg border-2 border-white" /> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> </div> )}
+
+                              {user.is_2fa_enabled && ( 
+                                <div className="pt-2 border-t border-white/10"> 
+                                    <div className="flex justify-between items-center cursor-pointer hover:opacity-80" onClick={() => setShowPassChange(!showPassChange)}> <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> </div> 
+                                    {showPassChange && ( <div className="flex flex-col gap-3 animate-in fade-in pt-3"> <div className="relative"> <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> </div> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> </div> )} 
+                                </div> 
+                              )}
+                          </div>
+                      </div>
                   </div>
 
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
-                      <div className="flex justify-between items-center"> <span className="font-bold text-sm">{t('set_2fa')}</span> <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> </div>
-                      {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded hover:bg-blue-600/30">{t('set_setup_2fa')}</button>}
-                      {setupStep === 1 && ( <div className="flex flex-col items-center gap-3 animate-in fade-in"> <img src={qrCodeUrl} className="w-32 h-32 rounded-lg border-4 border-white" /> <p className="text-[10px] text-white/50 text-center">{t('set_scan')}</p> <input className="w-full bg-black/40 p-2 text-center rounded font-mono" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> </div> )}
+                  {/* Footer */}
+                  <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
+                      <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> 
+                      <div className="flex gap-3"> 
+                          <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> 
+                          <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
+                      </div> 
                   </div>
-                  <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2">
-                      <span className="font-bold text-sm text-indigo-400">{t('set_ringtone')}</span>
-                      <select className="w-full bg-black/40 p-2 rounded text-sm text-white border border-white/5 focus:border-indigo-500/50 outline-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select>
-                  </div>
-                  {user.is_2fa_enabled && ( <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2"> <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowPassChange(!showPassChange)}> <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> </div> {showPassChange && ( <div className="flex flex-col gap-3 animate-in fade-in pt-2"> <div className="relative"> <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> </div> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code (000 000)" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> </div> )} </div> )}
-                  
-                  <div className="flex justify-between items-center mt-4"> <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors">{t('set_logout')}</button> <div className="flex gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">{t('btn_cancel')}</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">{t('btn_save')}</button> </div> </div>
               </GlassPanel>
           </div>
       )}
