@@ -323,7 +323,7 @@ export default function DaChat() {
       return TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
   };
 
-  // ✅ MESSAGE FORMATTER (Fixes the "Cannot find name formatMessage" error)
+  // ✅ MESSAGE FORMATTER
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -924,6 +924,51 @@ export default function DaChat() {
               <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   
+                  {/* --- ✅ MOVED TO TOP: Profile Picture & Name/Bio --- */}
+                  <div className="flex flex-col items-center mb-4 mt-4">
+                      <UserAvatar 
+                        src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} 
+                        className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" 
+                        onClick={()=>(document.getElementById('pUpload') as any).click()}
+                      />
+                      
+                      <div className="flex gap-2">
+                         <button 
+                            onClick={()=>(document.getElementById('pUpload') as any).click()}
+                            className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors"
+                         >
+                            {t('set_upload')}
+                         </button>
+                         <button 
+                            onClick={() => setShowSettingsGifPicker(true)}
+                            className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg"
+                         >
+                            {t('set_gif')}
+                         </button>
+                         {/* 🎮 STEAM BUTTON */}
+                         <button 
+                            onClick={saveSteamId}
+                            className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"
+                         >
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />
+                            {user.steam_id ? t('set_steam_linked') : t('set_steam')}
+                         </button>
+                      </div>
+
+                      <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
+                  </div>
+                  
+                  <input 
+                    className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
+                    value={editForm.username} 
+                    onChange={e=>setEditForm({...editForm, username: e.target.value})} 
+                  />
+                  <textarea 
+                    className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
+                    value={editForm.bio} 
+                    onChange={e=>setEditForm({...editForm, bio: e.target.value})} 
+                  />
+                  
                   {/* LANGUAGE SELECTOR */}
                   <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3">
                       <span className="font-bold text-sm text-indigo-400">{t('set_lang')}</span>
@@ -959,13 +1004,7 @@ export default function DaChat() {
                       <select className="w-full bg-black/40 p-2 rounded text-sm text-white border border-white/5 focus:border-indigo-500/50 outline-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select>
                   </div>
                   {user.is_2fa_enabled && ( <div className="bg-white/5 p-4 rounded-xl border border-white/5 flex flex-col gap-3 mt-2"> <div className="flex justify-between items-center cursor-pointer" onClick={() => setShowPassChange(!showPassChange)}> <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> </div> {showPassChange && ( <div className="flex flex-col gap-3 animate-in fade-in pt-2"> <div className="relative"> <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> </div> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code (000 000)" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> </div> )} </div> )}
-                  <div className="flex flex-col items-center mb-4 mt-4">
-                      <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full mb-3 hover:scale-105 transition-transform cursor-pointer border-4 border-white/5 hover:border-white/20" onClick={()=>(document.getElementById('pUpload') as any).click()}/>
-                      <div className="flex gap-2"> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded-full transition-colors">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-1 rounded-full transition-all font-bold shadow-lg">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-1 rounded-full transition-all font-bold shadow-lg flex items-center gap-2"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? t('set_steam_linked') : t('set_steam')}</button> </div>
-                      <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} />
-                  </div>
-                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} />
-                  <textarea className="bg-white/10 p-3 rounded text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} />
+                  
                   <div className="flex justify-between items-center mt-4"> <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors">{t('set_logout')}</button> <div className="flex gap-2"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">{t('btn_cancel')}</button> <button onClick={saveProfile} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">{t('btn_save')}</button> </div> </div>
               </GlassPanel>
           </div>
