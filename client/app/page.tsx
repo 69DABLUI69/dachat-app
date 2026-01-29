@@ -30,7 +30,7 @@ const TRANSLATIONS: any = {
     ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten",
     call_incoming: "Apel de intrare...", call_ended: "Încheie Apel", call_duration: "Durată", room_idle: "DJ Inactiv", room_playing: "Acum Redă", room_search: "Caută pe YouTube..."
   },
-  // ... (Other languages omitted for brevity but logic supports them)
+  // ... other languages are supported via the 't' function fallback
 };
 
 const TAGLINES = [
@@ -865,6 +865,33 @@ export default function DaChat() {
                           <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
                       </div> 
                   </div>
+              </GlassPanel>
+          </div>
+      )}
+
+      {/* CALL ENDED MODAL */}
+      {callEndedData && (
+          <div className="fixed inset-0 z-70 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+              <GlassPanel className="w-80 p-8 flex flex-col items-center text-center animate-in zoom-in-95 duration-300">
+                  <div className="text-4xl mb-4 animate-bounce">📞</div>
+                  <h2 className="text-2xl font-bold mb-2">{t('call_ended')}</h2>
+                  <p className="text-white/50 mb-6">{t('call_duration')}: <span className="text-white font-mono">{callEndedData}</span></p>
+                  <button onClick={() => setCallEndedData(null)} className="px-8 py-2 bg-white/10 hover:bg-white/20 rounded-full font-bold transition-transform hover:scale-105">{t('btn_close')}</button>
+              </GlassPanel>
+          </div>
+      )}
+
+      {/* SERVER SETTINGS MODAL */}
+      {showServerSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+                  <h2 className="text-xl font-bold">Server Settings</h2>
+                  <div className="flex justify-center mb-4 cursor-pointer group" onClick={()=>(document.getElementById('serverImg') as any).click()}>
+                      <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20 group-hover:border-white/50 transition-all group-hover:scale-105" />
+                      <input id="serverImg" type="file" className="hidden" onChange={(e)=>e.target.files && setNewServerFile(e.target.files[0])} />
+                  </div>
+                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={serverEditForm.name} onChange={e=>setServerEditForm({...serverEditForm, name: e.target.value})} />
+                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowServerSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">{t('btn_cancel')}</button> <button onClick={saveServerSettings} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">{t('btn_save')}</button> </div>
               </GlassPanel>
           </div>
       )}
