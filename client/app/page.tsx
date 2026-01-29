@@ -367,7 +367,20 @@ export default function DaChat() {
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { const content = textMsg || (fileUrl ? "Sent an image" : ""); const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString() }; setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url }]); if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } setMessage(""); };
   const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
   
-  const playMusic = async (query: string) => { if (!activeVoiceChannelId) return; await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId: activeVoiceChannelId, query, action: 'play' }) }); };
+  const playMusic = async (payload: any) => { 
+      if (!activeVoiceChannelId) return; 
+      
+      // Handle both old string calls and new object calls
+      const body = typeof payload === 'string' 
+          ? { channelId: activeVoiceChannelId, query: payload, action: 'queue' }
+          : { channelId: activeVoiceChannelId, ...payload };
+
+      await fetch(`${BACKEND_URL}/channels/play`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify(body) 
+      }); 
+  };
   const stopMusic = async () => { if (!activeVoiceChannelId) return; await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ channelId: activeVoiceChannelId, action: 'stop' }) }); };
 
   const handleContextMenu = (e: React.MouseEvent, type: 'message' | 'user', data: any) => { e.preventDefault(); setContextMenu({ visible: true, x: e.pageX, y: e.pageY, type, data }); };
@@ -971,42 +984,88 @@ export default function DaChat() {
   );
 }
 
-// ... [RoomPlayer & MediaPlayer Components] ...
+// ... [Previous code remains the same]
+
+// ✅ UPDATED MUSIC PLAYER COMPONENT
 const RoomPlayer = memo(({ track, onClose, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
-    
-    // ✅ Fix: Only calculate iframe SRC when track ID or Timestamp changes
-    // This prevents the iframe from reloading when parent re-renders (like when clicking profiles)
-    const iframeSrc = useMemo(() => {
-        if (!track) return "";
-        const startTime = Math.floor((Date.now() - track.timestamp) / 1000);
-        return `https://www.youtube.com/embed/${track.videoId}?autoplay=1&controls=0&start=${startTime}`;
-    }, [track?.videoId, track?.timestamp]);
+    const [showQueue, setShowQueue] = useState(false);
 
-    // ✅ FULL CARD DESIGN FOR GRID
+    // Calculate start time for the iframe
+    // If paused, we don't play. If playing, we calculate offset.
+    const iframeSrc = useMemo(() => {
+        if (!track?.current || track.isPaused) return "";
+        const startSeconds = Math.floor((track.elapsed + (Date.now() - track.startTime)) / 1000);
+        return `https://www.youtube.com/embed/${track.current.videoId}?autoplay=1&controls=0&start=${startSeconds}`;
+    }, [track?.current?.videoId, track?.startTime, track?.isPaused]);
+
+    // Handlers for controls
+    const sendAction = async (action: string, query: string = "") => {
+        // We need the active channel ID to send requests
+        // Since this component is inside the page, we might need to pass the channelId down or grab it from context
+        // For now, I'll assume the parent `onSearch` handles the API call structure, 
+        // but we need to pass specific actions. 
+        // Let's modify how we call the API in the main component, OR 
+        // strictly for this snippet, we will assume onSearch handles specific action payloads if passed objects.
+        
+        // Actually, let's just use the fetch directly here since we have the URL constant globally
+        // Note: In a real app, pass this via props.
+        const channelId = localStorage.getItem("dachat_active_voice"); // A hack to get ID, or better:
+        // We will trigger a specific event prop.
+    };
+
+    // To make this work seamlessly with your existing `onSearch` prop:
+    // We will assume onSearch can accept { action, query }
+    
     return (
         <div className="relative w-full h-full bg-zinc-950 flex flex-col group overflow-hidden">
             {/* Background Image (Blurred) */}
-            {track?.image && (
-                <div className="absolute inset-0 z-0 opacity-30 blur-2xl">
-                    <img src={track.image} className="w-full h-full object-cover" />
+            {track?.current?.image && (
+                <div className="absolute inset-0 z-0 opacity-20 blur-3xl">
+                    <img src={track.current.image} className="w-full h-full object-cover" />
                 </div>
             )}
 
             {/* Main Content Area */}
-            <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-4">
-                {track ? (
+            <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-4 min-h-0">
+                {track?.current ? (
                     <>
-                        <div className="relative w-32 h-32 md:w-48 md:h-48 shadow-2xl rounded-xl overflow-hidden mb-4 group-hover:scale-105 transition-transform duration-500 border border-white/10">
-                            <img src={track.image} className="w-full h-full object-cover" />
-                            {/* Hidden YouTube Iframe for Audio */}
-                            <iframe className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay"/>
-                            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
-                                <div className="text-4xl animate-bounce">🎵</div>
-                            </div>
+                        <div className="relative w-32 h-32 md:w-40 md:h-40 shadow-2xl rounded-xl overflow-hidden mb-3 border border-white/10 group-hover:scale-105 transition-transform duration-500 shrink-0">
+                            <img src={track.current.image} className="w-full h-full object-cover" />
+                            {/* Hidden YouTube Iframe for Audio (Only renders when playing) */}
+                            {!track.isPaused && <iframe className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay"/>}
                         </div>
-                        <h3 className="text-white font-bold text-center line-clamp-2 px-2 text-sm md:text-base">{track.title}</h3>
-                        <p className="text-indigo-400 text-xs mt-1 animate-pulse font-bold uppercase tracking-widest">{t('room_playing')}</p>
+                        
+                        <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-sm md:text-base w-full">{track.current.title}</h3>
+                        <p className="text-indigo-400 text-xs mt-1 font-bold uppercase tracking-widest mb-4">
+                            {track.isPaused ? "⏸ PAUSED" : t('room_playing')}
+                        </p>
+
+                        {/* 🎛 CONTROLS */}
+                        <div className="flex items-center gap-4 mb-2">
+                             {/* PAUSE / RESUME */}
+                             <button 
+                                onClick={() => onSearch({ action: track.isPaused ? 'resume' : 'pause' })}
+                                className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95"
+                             >
+                                 {track.isPaused ? "▶" : "⏸"}
+                             </button>
+
+                             {/* SKIP */}
+                             <button 
+                                onClick={() => onSearch({ action: 'skip' })}
+                                className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all active:scale-95"
+                             >
+                                 ⏭
+                             </button>
+                        </div>
+                        
+                        {/* QUEUE TOGGLE */}
+                        {track.queue && track.queue.length > 0 && (
+                            <button onClick={() => setShowQueue(!showQueue)} className="text-[10px] text-white/50 hover:text-white mt-1">
+                                {showQueue ? "Hide Queue" : `Next: ${track.queue.length} songs`}
+                            </button>
+                        )}
                     </>
                 ) : (
                     <div className="flex flex-col items-center justify-center h-full text-white/20">
@@ -1016,29 +1075,45 @@ const RoomPlayer = memo(({ track, onClose, onSearch, t }: any) => {
                 )}
             </div>
 
-            {/* Bottom Controls / Search */}
-            <div className="relative z-20 p-3 bg-black/40 backdrop-blur-md border-t border-white/5">
-                {track ? (
-                    <button onClick={onClose} className="w-full py-2 bg-red-500/20 hover:bg-red-500/30 text-red-400 text-xs font-bold rounded-lg transition-colors uppercase tracking-wider">
-                        {t('btn_stop')}
-                    </button>
-                ) : (
-                    <div className="relative">
-                        <input 
-                            className="w-full bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-indigo-500/50 transition-all text-center"
-                            placeholder={t('room_search')}
-                            value={search}
-                            onChange={(e) => setSearch(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && search.trim()) {
-                                    onSearch(search);
-                                    setSearch("");
-                                }
-                            }}
-                        />
-                        <div className="absolute right-3 top-1.5 text-[10px] text-white/30 pointer-events-none">↵</div>
+            {/* QUEUE OVERLAY */}
+            {showQueue && track?.queue?.length > 0 && (
+                <div className="absolute inset-0 z-30 bg-black/90 p-4 overflow-y-auto animate-in slide-in-from-bottom-10">
+                    <div className="flex justify-between items-center mb-2">
+                        <span className="text-xs font-bold text-white/50 uppercase">Up Next</span>
+                        <button onClick={() => setShowQueue(false)} className="text-white text-lg">✕</button>
                     </div>
-                )}
+                    <div className="space-y-2">
+                        {track.queue.map((q: any, i: number) => (
+                            <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg">
+                                <img src={q.image} className="w-8 h-8 rounded object-cover"/>
+                                <div className="flex-1 min-w-0">
+                                    <div className="text-xs text-white truncate">{q.title}</div>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
+            {/* BOTTOM: SEARCH & STOP */}
+            <div className="relative z-20 p-3 bg-black/40 backdrop-blur-md border-t border-white/5">
+                <div className="relative flex gap-2">
+                    <input 
+                        className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder-white/30 focus:outline-none focus:border-indigo-500/50 transition-all"
+                        placeholder={t('room_search')} // "Search to add to queue..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && search.trim()) {
+                                onSearch({ action: 'queue', query: search }); // Send as object
+                                setSearch("");
+                            }
+                        }}
+                    />
+                    {track?.current && (
+                        <button onClick={() => onSearch({ action: 'stop' })} className="px-3 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30">■</button>
+                    )}
+                </div>
             </div>
         </div>
     );

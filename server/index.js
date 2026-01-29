@@ -332,36 +332,87 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
   res.json(formatted || []);
 }));
 
-// 🎵 NEW: Room Audio State
+// 🎵 UPDATED: Room Audio State with Queue & Timing
 let roomAudioState = {};
 
 app.post("/channels/play", safeRoute(async (req, res) => {
   const { channelId, query, action } = req.body;
   const roomKey = channelId.toString();
 
-  if (action === 'stop') {
+  // Initialize room state if missing
+  if (!roomAudioState[roomKey]) {
+      roomAudioState[roomKey] = {
+          current: null,
+          queue: [],
+          startTime: null,
+          elapsed: 0,
+          isPaused: false
+      };
+  }
+
+  const state = roomAudioState[roomKey];
+
+  // --- ACTIONS ---
+
+  if (action === 'queue') {
+      const r = await yts(query);
+      const video = r.videos[0];
+      if (!video) return res.json({ success: false, message: "No results" });
+
+      const track = {
+          videoId: video.videoId,
+          title: video.title,
+          image: video.thumbnail,
+          duration: video.seconds
+      };
+
+      // If nothing is playing, play immediately. Otherwise, add to queue.
+      if (!state.current) {
+          state.current = track;
+          state.startTime = Date.now();
+          state.elapsed = 0;
+          state.isPaused = false;
+      } else {
+          state.queue.push(track);
+      }
+  }
+
+  else if (action === 'pause') {
+      if (state.current && !state.isPaused) {
+          state.elapsed += Date.now() - state.startTime;
+          state.startTime = null;
+          state.isPaused = true;
+      }
+  }
+
+  else if (action === 'resume') {
+      if (state.current && state.isPaused) {
+          state.startTime = Date.now();
+          state.isPaused = false;
+      }
+  }
+
+  else if (action === 'skip') {
+      if (state.queue.length > 0) {
+          state.current = state.queue.shift(); // Move next song to current
+          state.startTime = Date.now();
+          state.elapsed = 0;
+          state.isPaused = false;
+      } else {
+          state.current = null; // Queue empty, stop playback
+          state.startTime = null;
+      }
+  }
+
+  else if (action === 'stop') {
       delete roomAudioState[roomKey];
-      io.to(roomKey).emit("audio_state_clear"); // Only notifies people in THIS room
+      io.to(roomKey).emit("audio_state_clear");
       return res.json({ success: true });
   }
 
-  // Search YouTube
-  const r = await yts(query);
-  const video = r.videos[0];
-
-  if (!video) return res.json({ success: false, message: "No results" });
-
-  // Update State
-  roomAudioState[roomKey] = {
-      videoId: video.videoId,
-      title: video.title,
-      image: video.thumbnail,
-      timestamp: Date.now(),
-      isPlaying: true
-  };
-
-  io.to(roomKey).emit("audio_state_update", roomAudioState[roomKey]); // Only notifies people in THIS room
-  res.json({ success: true, track: roomAudioState[roomKey] });
+  // Broadcast the full state (Current Song + Queue + Timing)
+  io.to(roomKey).emit("audio_state_update", state);
+  res.json({ success: true, state });
 }));
 
 // --- UPLOAD ---
