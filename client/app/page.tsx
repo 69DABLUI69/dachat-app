@@ -964,7 +964,7 @@ export default function DaChat() {
                     onChange={e=>setEditForm({...editForm, username: e.target.value})} 
                   />
                   <textarea 
-                    className="bg-white/10 p-3 rounded text-white h-60 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
+                    className="bg-white/10 p-3 rounded text-white h-auto resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" 
                     value={editForm.bio} 
                     onChange={e=>setEditForm({...editForm, bio: e.target.value})} 
                   />
