@@ -281,6 +281,16 @@ export default function DaChat() {
       messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatHistory, active.channel, active.friend]);
 
+  // 🔥 NEW EFFECT: AUTOMATICALLY FETCH DATA WHEN USER IS SET
+  // This fixes the issue where servers didn't show up after page reload
+  useEffect(() => {
+      if (user) {
+          fetchServers(user.id);
+          fetchFriends(user.id);
+          fetchRequests(user.id);
+      }
+  }, [user]);
+
 
   // --- AUTH ---
   const handleAuth = async () => {
@@ -293,7 +303,8 @@ export default function DaChat() {
         const data = await res.json();
         if (data.success) {
             if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
-            setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id);
+            setUser(data.user);
+            // NOTE: fetchServers etc are now handled by the useEffect above
         } else {
             setError(data.message || "Invalid Code");
         }
@@ -317,12 +328,13 @@ export default function DaChat() {
 
       if (data.success) {
         if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user));
-        setUser(data.user); fetchServers(data.user.id); fetchFriends(data.user.id); fetchRequests(data.user.id); socket.emit("setup", data.user.id);
+        setUser(data.user); 
+        // NOTE: fetchServers etc are now handled by the useEffect above
       } else setError(data.message || "Auth failed");
     } catch { setError("Connection failed"); }
   };
 
-  // 👇 ADDED: LOGOUT FUNCTION
+  // 👇 LOGOUT FUNCTION
   const handleLogout = () => {
       if(confirm("Are you sure you want to log out?")) {
           localStorage.removeItem("dachat_user");
