@@ -411,7 +411,52 @@ export default function DaChat() {
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
-  const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); setUser((prev:any) => ({...prev, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl})); setShowSettings(false); };
+  
+  // 👇👇👇 UPDATED SAVE PROFILE FUNCTION 👇👇👇
+  const saveProfile = async () => {
+    let finalAvatarUrl = editForm.avatarUrl;
+
+    // 1. Handle file upload if a new file was selected
+    if (newAvatarFile) {
+      const formData = new FormData();
+      formData.append("file", newAvatarFile);
+      const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+      const data = await res.json();
+      if (data.success) finalAvatarUrl = data.fileUrl;
+    }
+
+    // 2. Send update to backend
+    const res = await fetch(`${BACKEND_URL}/update-profile`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl })
+    });
+    const data = await res.json();
+
+    if (data.success) {
+        // 3. Create the updated user object locally
+        const updatedUser = {
+            ...user,
+            username: editForm.username,
+            bio: editForm.bio,
+            avatar_url: finalAvatarUrl
+        };
+
+        // 4. ✅ Update React State (shows immediately in dock)
+        setUser(updatedUser);
+
+        // 5. ✅ Update Local Storage (persists on reload)
+        localStorage.setItem("dachat_user", JSON.stringify(updatedUser));
+
+        // 6. Cleanup
+        setShowSettings(false);
+        setNewAvatarFile(null);
+    } else {
+        alert("Failed to update profile.");
+    }
+  };
+  // 👆👆👆 END UPDATED SAVE PROFILE FUNCTION 👆👆👆
+
   const handleChangePassword = async () => {
       if (!passChangeForm.newPassword || !passChangeForm.code) {
           alert("Please fill in both fields");
