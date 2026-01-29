@@ -299,7 +299,25 @@ export default function DaChat() {
       socket.on("user_connected", (userId: number) => { setOnlineUsers(prev => new Set(prev).add(userId)); if (user) fetchFriends(user.id); });
       socket.on("user_disconnected", (userId: number) => { setOnlineUsers(prev => { const next = new Set(prev); next.delete(userId); return next; }); });
       socket.on("online_users", (users: number[]) => { setOnlineUsers(new Set(users)); });
-      socket.on("user_updated", ({ userId }) => { if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); if (active.server && user) fetchServers(user.id); if (user) fetchFriends(user.id); });
+      // ... inside useEffect ...
+  socket.on("user_updated", ({ userId }) => { 
+      // 1. Existing logic for viewing other profiles
+      if (viewingProfile && viewingProfile.id === userId) viewUserProfile(userId); 
+      if (active.server && user) fetchServers(user.id); 
+      if (user) fetchFriends(user.id); 
+
+      // ✅ ADD THIS: If the updated user is ME, refresh my own data (syncs 2FA across tabs)
+      if (user && user.id === userId) {
+          fetch(`${BACKEND_URL}/users/${userId}`)
+              .then(res => res.json())
+              .then(data => {
+                  if (data.success) {
+                      setUser((prev: any) => ({ ...prev, ...data.user }));
+                      localStorage.setItem("dachat_user", JSON.stringify(data.user));
+                  }
+              });
+      }
+  });
       socket.on("request_accepted", () => { if (user) { fetchFriends(user.id); fetchRequests(user.id); } });
       socket.on("friend_removed", () => { if (user) { fetchFriends(user.id); } });
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
@@ -528,7 +546,7 @@ export default function DaChat() {
       }
   };
 
-  const verify2FASetup = async () => {
+const verify2FASetup = async () => {
       const res = await fetch(`${BACKEND_URL}/auth/2fa/enable`, {
           method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ userId: user.id, token: twoFACode })
@@ -536,6 +554,14 @@ export default function DaChat() {
       const data = await res.json();
       if (data.success) {
           setSetupStep(2);
+          
+          // ✅ ADD THIS: Update local state immediately so you don't have to refresh
+          setUser((prev: any) => {
+              const updated = { ...prev, is_2fa_enabled: true };
+              localStorage.setItem("dachat_user", JSON.stringify(updated));
+              return updated;
+          });
+
           alert("2FA Enabled!");
       } else {
           alert("Invalid Code");

@@ -104,16 +104,23 @@ app.post("/auth/2fa/generate", safeRoute(async (req, res) => {
     });
 }));
 
+// Find this route in your index.js and update it:
 app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
     const { userId, token } = req.body;
     const { data: user } = await supabase.from("users").select("two_factor_secret").eq("id", userId).single();
+    
     const verified = speakeasy.totp.verify({
         secret: user.two_factor_secret,
         encoding: "base32",
         token: token
     });
+
     if (verified) {
         await supabase.from("users").update({ is_2fa_enabled: true }).eq("id", userId);
+        
+        // ✅ ADD THIS LINE: Notify all connected clients that this user changed
+        io.emit("user_updated", { userId });
+
         res.json({ success: true });
     } else {
         res.json({ success: false, message: "Invalid Code" });

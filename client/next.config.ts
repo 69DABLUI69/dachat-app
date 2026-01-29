@@ -1,7 +1,9 @@
-import type { NextConfig } from "next";
-
-const nextConfig: NextConfig = {
-  /* config options here */
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'export', // Generates static HTML/JS/CSS files
+  images: {
+    unoptimized: true, // Required as mobile doesn't have a Next.js server
+  },
 };
 
-export default nextConfig;
+module.exports = nextConfig;
