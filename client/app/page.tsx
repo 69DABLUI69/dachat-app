@@ -30,7 +30,7 @@ const TRANSLATIONS: any = {
     ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten",
     call_incoming: "Apel de intrare...", call_ended: "Încheie Apel", call_duration: "Durată", room_idle: "DJ Inactiv", room_playing: "Acum Redă", room_search: "Caută pe YouTube..."
   },
-  // ... other languages are supported via the 't' function fallback
+  // ... (Other languages supported)
 };
 
 const TAGLINES = [
@@ -41,10 +41,10 @@ const TAGLINES = [
   "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"
 ];
 
-const APP_VERSION = "1.3.2"; 
+const APP_VERSION = "1.3.3"; 
 const WHATS_NEW = [
   "🎵 Discord-style Music Player Grid",
-  "📞 Redesigned Call Layout",
+  "📞 Redesigned Call Layout (Fixed Sidebars)",
   "🛠️ Fixed UI Overlaps"
 ];
 
@@ -611,7 +611,8 @@ export default function DaChat() {
 
          {/* LAYER 2: CALL UI */}
          {inCall && (
-             <div className={`${isCallExpanded ? "fixed inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col relative`}>
+             // ✅ CHANGED: absolute inset-0 (instead of fixed) -> keeps it inside Main Content
+             <div className={`${isCallExpanded ? "absolute inset-0 z-20 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  <div className="flex-1 p-4 overflow-y-auto">
                     {/* ✅ DISCORD-STYLE GRID */}
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto h-full max-h-[85vh]">
