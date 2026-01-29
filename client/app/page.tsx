@@ -30,7 +30,7 @@ const TRANSLATIONS: any = {
     ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten",
     call_incoming: "Apel de intrare...", call_ended: "Încheie Apel", call_duration: "Durată", room_idle: "DJ Inactiv", room_playing: "Acum Redă", room_search: "Caută pe YouTube..."
   },
-  // ... (Other languages supported)
+  // ... (Other languages omitted for brevity but they are supported via fallback)
 };
 
 const TAGLINES = [
@@ -41,11 +41,11 @@ const TAGLINES = [
   "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"
 ];
 
-const APP_VERSION = "1.3.3"; 
+const APP_VERSION = "1.3.4"; 
 const WHATS_NEW = [
-  "🎵 Discord-style Music Player Grid",
-  "📞 Redesigned Call Layout (Fixed Sidebars)",
-  "🛠️ Fixed UI Overlaps"
+  "🎵 Dynamic Video Grid (Discord Style)",
+  "📞 Bigger Screens for Smaller Calls",
+  "🛠️ Optimized Call Layout"
 ];
 
 const RINGTONES = [
@@ -206,6 +206,17 @@ export default function DaChat() {
   const [showMobileChat, setShowMobileChat] = useState(false);
 
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
+
+  // ✅ DYNAMIC GRID CALCULATION
+  // Determine how many grid columns based on number of people
+  const totalParticipants = 1 + peers.length + (activeVoiceChannelId ? 1 : 0);
+  const getGridClass = () => {
+    if (totalParticipants === 1) return "grid-cols-1";
+    if (totalParticipants === 2) return "grid-cols-1 md:grid-cols-2";
+    if (totalParticipants <= 4) return "grid-cols-2";
+    if (totalParticipants <= 9) return "grid-cols-2 md:grid-cols-3";
+    return "grid-cols-2 md:grid-cols-4";
+  };
 
   const formatMessage = (content: string) => {
     if (!content) return null;
@@ -615,10 +626,10 @@ export default function DaChat() {
              <div className={`${isCallExpanded ? "absolute inset-0 z-20 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  <div className="flex-1 p-4 overflow-y-auto">
                     {/* ✅ DISCORD-STYLE GRID */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 w-full max-w-7xl mx-auto h-full max-h-[85vh]">
+                    <div className={`grid ${getGridClass()} gap-4 w-full max-w-7xl mx-auto h-full content-center`}>
                         
                         {/* 1. LOCAL USER */}
-                        <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center aspect-video group">
+                        <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 flex items-center justify-center w-full h-full min-h-0 group">
                             {isScreenSharing ? (
                                 <video ref={myVideoRef} autoPlay playsInline muted className="w-full h-full object-contain bg-black" />
                             ) : (
@@ -634,14 +645,14 @@ export default function DaChat() {
 
                         {/* 2. MUSIC PLAYER (AS A PARTICIPANT) */}
                         {activeVoiceChannelId && (
-                            <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 flex flex-col aspect-video group shadow-lg shadow-indigo-500/10">
+                            <div className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 flex flex-col w-full h-full min-h-0 group shadow-lg shadow-indigo-500/10">
                                 <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} t={t} />
                             </div>
                         )}
 
                         {/* 3. PEERS */}
                         {peers.map(p => (
-                            <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 aspect-video group">
+                            <div key={p.peerID} className="relative bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 w-full h-full min-h-0 group">
                                 <MediaPlayer peer={p.peer} userInfo={p.info} onVideoChange={(v: boolean) => handleRemoteVideo(p.peerID, v)} />
                             </div>
                         ))}
