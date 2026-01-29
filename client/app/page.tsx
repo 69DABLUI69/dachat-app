@@ -30,12 +30,115 @@ const TRANSLATIONS: any = {
     ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten",
     call_incoming: "Apel de intrare...", call_ended: "Apel Încheiat", call_duration: "Durată", room_idle: "Audio Cameră Inactiv", room_playing: "Redare pentru toți", room_search: "Caută pe YouTube..."
   },
-  // ... (Other languages remain unchanged for brevity, they are still supported)
+  de: {
+    auth_user: "Benutzername", auth_pass: "Passwort", auth_login: "Anmelden", auth_register: "Konto erstellen", auth_back: "Zurück zum Login", auth_2fa: "Code eingeben", auth_verify: "Bestätigen", auth_remember: "Erinnern",
+    dock_dm: "Direktnachrichten", side_req: "Anfragen", side_friends: "Freunde", side_channels: "Kanäle",
+    status_on: "Online", status_off: "Offline", status_playing: "Spielt", steam_join: "🚀 Lobby beitreten", steam_launch: "▶ Spiel starten",
+    chat_placeholder: "Nachricht...", chat_select: "Kanal wählen", call_return: "🔊 Anruf läuft — Klicken zum Zurückkehren",
+    btn_accept: "Annehmen", btn_decline: "Ablehnen", btn_cancel: "Abbrechen", btn_save: "Speichern", btn_close: "Schließen", btn_stop: "Stopp",
+    set_header: "Einstellungen", set_2fa: "Zwei-Faktor-Auth", set_setup_2fa: "2FA Einrichten", set_verify: "Verifizieren", set_scan: "Scannen mit Authenticator",
+    set_ringtone: "Klingelton", set_pass_change: "Passwort ändern", set_new_pass: "Neues Passwort", set_confirm: "Bestätigen & Logout",
+    set_upload: "Foto hochladen", set_gif: "GIF wählen", set_steam: "Steam verbinden", set_steam_linked: "Steam verbunden", set_logout: "Abmelden", set_lang: "Sprache",
+    ctx_copy: "Text kopieren", ctx_delete: "Löschen", ctx_profile: "Profil", ctx_call: "Anrufen", ctx_id: "ID kopieren", ctx_remove: "Freund entfernen",
+    call_incoming: "Eingehender Anruf...", call_ended: "Anruf beendet", call_duration: "Dauer", room_idle: "Raum Audio inaktiv", room_playing: "Spielt für alle", room_search: "YouTube Suche..."
+  },
+  pl: {
+    auth_user: "Nazwa użytkownika", auth_pass: "Hasło", auth_login: "Zaloguj", auth_register: "Utwórz konto", auth_back: "Powrót", auth_2fa: "Wpisz kod", auth_verify: "Weryfikuj", auth_remember: "Zapamiętaj mnie",
+    dock_dm: "Wiadomości", side_req: "Zaproszenia", side_friends: "Znajomi", side_channels: "Kanały",
+    status_on: "Dostępny", status_off: "Niedostępny", status_playing: "Gra w", steam_join: "🚀 Dołącz", steam_launch: "▶ Uruchom",
+    chat_placeholder: "Wiadomość...", chat_select: "Wybierz kanał", call_return: "🔊 Trwa połączenie",
+    btn_accept: "Akceptuj", btn_decline: "Odrzuć", btn_cancel: "Anuluj", btn_save: "Zapisz", btn_close: "Zamknij", btn_stop: "Stop",
+    set_header: "Ustawienia", set_2fa: "Weryfikacja 2-etapowa", set_setup_2fa: "Konfiguruj 2FA", set_verify: "Włącz", set_scan: "Zeskanuj kod",
+    set_ringtone: "Dzwonek", set_pass_change: "Zmień hasło", set_new_pass: "Nowe hasło", set_confirm: "Wyloguj",
+    set_upload: "Dodaj zdjęcie", set_gif: "Wybierz GIF", set_steam: "Połącz Steam", set_steam_linked: "Steam połączony", set_logout: "Wyloguj", set_lang: "Język",
+    ctx_copy: "Kopiuj", ctx_delete: "Usuń", ctx_profile: "Profil", ctx_call: "Zadzwoń", ctx_id: "Kopiuj ID", ctx_remove: "Usuń znajomego",
+    call_incoming: "Połączenie przychodzące...", call_ended: "Koniec rozmowy", call_duration: "Czas", room_idle: "Audio bezczynne", room_playing: "Odtwarzanie", room_search: "Szukaj na YouTube..."
+  },
+  it: {
+    auth_user: "Nome utente", auth_pass: "Password", auth_login: "Accedi", auth_register: "Registrati", auth_back: "Indietro", auth_2fa: "Codice 2FA", auth_verify: "Verifica", auth_remember: "Ricordami",
+    dock_dm: "Messaggi Diretti", side_req: "Richieste", side_friends: "Amici", side_channels: "Canali",
+    status_on: "Online", status_off: "Offline", status_playing: "In gioco", steam_join: "🚀 Unisciti", steam_launch: "▶ Avvia",
+    chat_placeholder: "Messaggio...", chat_select: "Seleziona canale", call_return: "🔊 Chiamata in corso",
+    btn_accept: "Accetta", btn_decline: "Rifiuta", btn_cancel: "Annulla", btn_save: "Salva", btn_close: "Chiudi", btn_stop: "Stop",
+    set_header: "Impostazioni", set_2fa: "Autenticazione a due fattori", set_setup_2fa: "Configura 2FA", set_verify: "Abilita", set_scan: "Scansiona codice",
+    set_ringtone: "Suoneria", set_pass_change: "Cambia password", set_new_pass: "Nuova password", set_confirm: "Conferma e esci",
+    set_upload: "Carica foto", set_gif: "Scegli GIF", set_steam: "Collega Steam", set_steam_linked: "Steam collegato", set_logout: "Esci", set_lang: "Lingua",
+    ctx_copy: "Copia", ctx_delete: "Elimina", ctx_profile: "Profilo", ctx_call: "Chiama", ctx_id: "Copia ID", ctx_remove: "Rimuovi amico",
+    call_incoming: "Chiamata in arrivo...", call_ended: "Chiamata terminata", call_duration: "Durata", room_idle: "Audio inattivo", room_playing: "In riproduzione", room_search: "Cerca su YouTube..."
+  },
+  es: {
+    auth_user: "Usuario", auth_pass: "Contraseña", auth_login: "Entrar", auth_register: "Registrarse", auth_back: "Volver", auth_2fa: "Código 2FA", auth_verify: "Verificar", auth_remember: "Recuérdame",
+    dock_dm: "Mensajes Directos", side_req: "Solicitudes", side_friends: "Amigos", side_channels: "Canales",
+    status_on: "En línea", status_off: "Desconectado", status_playing: "Jugando", steam_join: "🚀 Unirse", steam_launch: "▶ Iniciar",
+    chat_placeholder: "Mensaje...", chat_select: "Elige un canal", call_return: "🔊 Llamada en curso",
+    btn_accept: "Aceptar", btn_decline: "Rechazar", btn_cancel: "Cancelar", btn_save: "Guardar", btn_close: "Cerrar", btn_stop: "Parar",
+    set_header: "Ajustes", set_2fa: "Autenticación en 2 pasos", set_setup_2fa: "Configurar 2FA", set_verify: "Activar", set_scan: "Escanear código",
+    set_ringtone: "Tono de llamada", set_pass_change: "Cambiar contraseña", set_new_pass: "Nueva contraseña", set_confirm: "Salir",
+    set_upload: "Subir foto", set_gif: "Elegir GIF", set_steam: "Vincular Steam", set_steam_linked: "Steam vinculado", set_logout: "Cerrar sesión", set_lang: "Idioma",
+    ctx_copy: "Copiar", ctx_delete: "Borrar", ctx_profile: "Perfil", ctx_call: "Llamar", ctx_id: "Copiar ID", ctx_remove: "Eliminar amigo",
+    call_incoming: "Llamada entrante...", call_ended: "Llamada finalizada", call_duration: "Duración", room_idle: "Audio inactivo", room_playing: "Reproduciendo", room_search: "Buscar en YouTube..."
+  },
+  pt: {
+    auth_user: "Usuário", auth_pass: "Senha", auth_login: "Entrar", auth_register: "Criar conta", auth_back: "Voltar", auth_2fa: "Código 2FA", auth_verify: "Verificar", auth_remember: "Lembrar-me",
+    dock_dm: "Mensagens", side_req: "Pedidos", side_friends: "Amigos", side_channels: "Canais",
+    status_on: "Online", status_off: "Offline", status_playing: "Jogando", steam_join: "🚀 Juntar-se", steam_launch: "▶ Iniciar",
+    chat_placeholder: "Mensagem...", chat_select: "Selecione um canal", call_return: "🔊 Chamada em andamento",
+    btn_accept: "Aceitar", btn_decline: "Recusar", btn_cancel: "Cancelar", btn_save: "Salvar", btn_close: "Fechar", btn_stop: "Parar",
+    set_header: "Configurações", set_2fa: "Autenticação de 2 Fatores", set_setup_2fa: "Configurar 2FA", set_verify: "Ativar", set_scan: "Escanear código",
+    set_ringtone: "Toque", set_pass_change: "Alterar senha", set_new_pass: "Nova senha", set_confirm: "Sair",
+    set_upload: "Foto", set_gif: "GIF", set_steam: "Ligar Steam", set_steam_linked: "Steam ligado", set_logout: "Sair", set_lang: "Idioma",
+    ctx_copy: "Copiar", ctx_delete: "Apagar", ctx_profile: "Perfil", ctx_call: "Ligar", ctx_id: "Copiar ID", ctx_remove: "Remover",
+    call_incoming: "Chamada a receber...", call_ended: "Chamada terminada", call_duration: "Duração", room_idle: "Áudio inativo", room_playing: "Reproduzindo", room_search: "Pesquisar no YouTube..."
+  },
+  sv: {
+    auth_user: "Användarnamn", auth_pass: "Lösenord", auth_login: "Logga in", auth_register: "Skapa konto", auth_back: "Tillbaka", auth_2fa: "Ange kod", auth_verify: "Verifiera", auth_remember: "Kom ihåg mig",
+    dock_dm: "Direktmeddelanden", side_req: "Förfrågningar", side_friends: "Vänner", side_channels: "Kanaler",
+    status_on: "Online", status_off: "Offline", status_playing: "Spelar", steam_join: "🚀 Gå med", steam_launch: "▶ Starta",
+    chat_placeholder: "Meddelande...", chat_select: "Välj kanal", call_return: "🔊 Samtal pågår",
+    btn_accept: "Acceptera", btn_decline: "Neka", btn_cancel: "Avbryt", btn_save: "Spara", btn_close: "Stäng", btn_stop: "Stopp",
+    set_header: "Inställningar", set_2fa: "Tvåfaktorsautentisering", set_setup_2fa: "Konfigurera 2FA", set_verify: "Aktivera", set_scan: "Skanna kod",
+    set_ringtone: "Rington", set_pass_change: "Byt lösenord", set_new_pass: "Nytt lösenord", set_confirm: "Logga ut",
+    set_upload: "Ladda upp bild", set_gif: "Välj GIF", set_steam: "Koppla Steam", set_steam_linked: "Steam kopplad", set_logout: "Logga ut", set_lang: "Språk",
+    ctx_copy: "Kopiera", ctx_delete: "Ta bort", ctx_profile: "Profil", ctx_call: "Ring", ctx_id: "Kopiera ID", ctx_remove: "Ta bort vän",
+    call_incoming: "Inkommande samtal...", call_ended: "Samtal avslutat", call_duration: "Tid", room_idle: "Inget ljud", room_playing: "Spelar upp", room_search: "Sök på YouTube..."
+  },
+  bg: {
+    auth_user: "Потребител", auth_pass: "Парола", auth_login: "Вход", auth_register: "Регистрация", auth_back: "Назад", auth_2fa: "Код", auth_verify: "Потвърди", auth_remember: "Запомни ме",
+    dock_dm: "Съобщения", side_req: "Заявки", side_friends: "Приятели", side_channels: "Канали",
+    status_on: "На линия", status_off: "Извън линия", status_playing: "Играе", steam_join: "🚀 Влез", steam_launch: "▶ Start",
+    chat_placeholder: "Съобщение...", chat_select: "Избери канал", call_return: "🔊 Разговор в ход",
+    btn_accept: "Приеми", btn_decline: "Откажи", btn_cancel: "Отказ", btn_save: "Запази", btn_close: "Затвори", btn_stop: "Стоп",
+    set_header: "Настройки", set_2fa: "Двуфакторна защита", set_setup_2fa: "Настрой 2FA", set_verify: "Активирай", set_scan: "Сканирай",
+    set_ringtone: "Мелодия", set_pass_change: "Смяна парола", set_new_pass: "Нова парола", set_confirm: "Изход",
+    set_upload: "Снимка", set_gif: "GIF", set_steam: "Свържи Steam", set_steam_linked: "Steam свързан", set_logout: "Изход", set_lang: "Език",
+    ctx_copy: "Копирай", ctx_delete: "Изтрий", ctx_profile: "Профил", ctx_call: "Звънни", ctx_id: "Копирай ID", ctx_remove: "Премахни",
+    call_incoming: "Входящо повикване...", call_ended: "Край", call_duration: "Време", room_idle: "Няма звук", room_playing: "В ефир", room_search: "Търсене в YouTube..."
+  },
+  jp: {
+    auth_user: "ユーザー名", auth_pass: "パスワード", auth_login: "ログイン", auth_register: "アカウント作成", auth_back: "戻る", auth_2fa: "認証コード", auth_verify: "確認", auth_remember: "ログインを保持",
+    dock_dm: "ダイレクトメッセージ", side_req: "リクエスト", side_friends: "友達", side_channels: "チャンネル",
+    status_on: "オンライン", status_off: "オフライン", status_playing: "プレイ中", steam_join: "🚀 参加", steam_launch: "▶ 起動",
+    chat_placeholder: "メッセージ...", chat_select: "チャンネルを選択", call_return: "🔊 通話中 — 戻る",
+    btn_accept: "承認", btn_decline: "拒否", btn_cancel: "キャンセル", btn_save: "保存", btn_close: "閉じる", btn_stop: "停止",
+    set_header: "設定", set_2fa: "2要素認証", set_setup_2fa: "2FA設定", set_verify: "有効化", set_scan: "スキャン",
+    set_ringtone: "着信音", set_pass_change: "パスワード変更", set_new_pass: "新しいパスワード", set_confirm: "ログアウト",
+    set_upload: "写真", set_gif: "GIF", set_steam: "Steam連携", set_steam_linked: "Steam連携済", set_logout: "ログアウト", set_lang: "言語",
+    ctx_copy: "コピー", ctx_delete: "削除", ctx_profile: "プロフ", ctx_call: "通話", ctx_id: "IDコピー", ctx_remove: "友達削除",
+    call_incoming: "着信中...", call_ended: "通話終了", call_duration: "時間", room_idle: "待機中", room_playing: "再生中", room_search: "YouTube検索..."
+  },
+  zh: {
+    auth_user: "用户名", auth_pass: "密码", auth_login: "登录", auth_register: "注册", auth_back: "返回", auth_2fa: "验证码", auth_verify: "验证", auth_remember: "记住我",
+    dock_dm: "私信", side_req: "请求", side_friends: "好友", side_channels: "频道",
+    status_on: "在线", status_off: "离线", status_playing: "游戏中", steam_join: "🚀 加入", steam_launch: "▶ 启动",
+    chat_placeholder: "输入消息...", chat_select: "选择频道", call_return: "🔊 通话中 — 点击返回",
+    btn_accept: "接受", btn_decline: "拒绝", btn_cancel: "取消", btn_save: "保存", btn_close: "关闭", btn_stop: "停止",
+    set_header: "设置", set_2fa: "双重认证", set_setup_2fa: "设置2FA", set_verify: "启用", set_scan: "扫描二维码",
+    set_ringtone: "铃声", set_pass_change: "更改密码", set_new_pass: "新密码", set_confirm: "退出登录",
+    set_upload: "上传头像", set_gif: "GIF", set_steam: "关联Steam", set_steam_linked: "已关联Steam", set_logout: "注销", set_lang: "语言",
+    ctx_copy: "复制", ctx_delete: "删除", ctx_profile: "资料", ctx_call: "呼叫", ctx_id: "复制ID", ctx_remove: "删除好友",
+    call_incoming: "来电...", call_ended: "通话结束", call_duration: "时长", room_idle: "闲置", room_playing: "正在播放", room_search: "搜索YouTube..."
+  }
 };
-
-// Fill in other languages if needed from previous step or keep them as is. 
-// For brevity in this fix, I am ensuring the core logic and EN/RO are present.
-// The `t` function handles missing keys gracefully.
 
 const TAGLINES = [
   "Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER",
@@ -45,7 +148,7 @@ const TAGLINES = [
   "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"
 ];
 
-const APP_VERSION = "1.3.0"; 
+const APP_VERSION = "1.3.1"; 
 const WHATS_NEW = [
   "🎵 Fixed Music Player skipping!",
   "📞 Moved Music Player to Call Screen",
@@ -657,7 +760,7 @@ export default function DaChat() {
                             ))}
                         </div>
                         {/* ✅ NEW PLAYER LOCATION: Floating in Call UI */}
-                        {activeVoiceChannelId && currentTrack && (
+                        {activeVoiceChannelId && (
                             <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-[90%] max-w-md z-50 animate-in slide-in-from-bottom-4 fade-in duration-300">
                                 <div className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden">
                                     <RoomPlayer track={currentTrack} onSearch={playMusic} onClose={stopMusic} t={t} />
