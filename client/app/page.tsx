@@ -323,6 +323,26 @@ export default function DaChat() {
       return TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
   };
 
+  // ✅ MESSAGE FORMATTER (Fixes the "Cannot find name formatMessage" error)
+  const formatMessage = (content: string) => {
+    if (!content) return null;
+    if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
+        return <img src={content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" alt="attachment" />;
+    }
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = content.split(urlRegex);
+    return parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+            return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all" onClick={(e) => e.stopPropagation()}>{part}</a>;
+        }
+        return <span key={i} className="break-words">{part}</span>;
+    });
+  };
+
+  const onEmojiClick = (emojiData: any) => {
+    setMessage((prev) => prev + emojiData.emoji);
+  };
+
   useEffect(() => { if (isScreenSharing) setFocusedPeerId('local'); else if (focusedPeerId === 'local') setFocusedPeerId(null); }, [isScreenSharing]);
   const handleRemoteVideo = useCallback((peerId: string, hasVideo: boolean) => { if (hasVideo) setFocusedPeerId(peerId); else if (focusedPeerId === peerId) setFocusedPeerId(null); }, [focusedPeerId]);
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
