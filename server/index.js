@@ -5,7 +5,7 @@ const { Server } = require("socket.io");
 const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
-const yts = require("yt-search"); // 🎵 YouTube Search
+const yts = require("yt-search"); 
 const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
 
 const speakeasy = require("speakeasy");
@@ -77,16 +77,17 @@ app.post("/register", safeRoute(async (req, res) => {
 
 app.post("/login", safeRoute(async (req, res) => {
   const { username, password } = req.body;
-  const { data: user, error } = await supabase.from("users").select("*").eq("username", username).eq("password", password).maybeSingle(); 
-
-if (!username || !password || username.trim() === "" || password.trim() === "") {
+  
+  if (!username || !password || username.trim() === "" || password.trim() === "") {
       return res.json({ success: false, message: "Username and password are required" });
   }
 
+  const { data: user, error } = await supabase.from("users").select("*").eq("username", username).eq("password", password).maybeSingle(); 
+
   if (error) return res.json({ success: false, message: "Database error" });
   if (!user) return res.json({ success: false, message: "Invalid credentials" });
-if (user.is_2fa_enabled) {
-      // Don't send user data yet! Tell frontend to ask for code.
+  
+  if (user.is_2fa_enabled) {
       return res.json({ success: false, requires2FA: true, userId: user.id }); 
   }
 
@@ -94,34 +95,23 @@ if (user.is_2fa_enabled) {
 }));
 
 // --- 2FA ROUTES ---
-
-// 1. Generate Secret & QR Code (Setup)
 app.post("/auth/2fa/generate", safeRoute(async (req, res) => {
     const { userId } = req.body;
     const secret = speakeasy.generateSecret({ name: "DaChat App" });
-    
-    // Save temporary secret to DB (or just send to client to send back for verification)
-    // Here we will update the user temporarily
     await supabase.from("users").update({ two_factor_secret: secret.base32 }).eq("id", userId);
-
     QRCode.toDataURL(secret.otpauth_url, (err, data_url) => {
         res.json({ success: true, secret: secret.base32, qrCode: data_url });
     });
 }));
 
-// 2. Verify & Enable 2FA
 app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
     const { userId, token } = req.body;
-    
-    // Get the secret from DB
     const { data: user } = await supabase.from("users").select("two_factor_secret").eq("id", userId).single();
-    
     const verified = speakeasy.totp.verify({
         secret: user.two_factor_secret,
         encoding: "base32",
         token: token
     });
-
     if (verified) {
         await supabase.from("users").update({ is_2fa_enabled: true }).eq("id", userId);
         res.json({ success: true });
@@ -130,57 +120,35 @@ app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
     }
 }));
 
-// 3. Login with 2FA
 app.post("/auth/2fa/login", safeRoute(async (req, res) => {
     const { userId, token } = req.body;
-    
     const { data: user } = await supabase.from("users").select("*").eq("id", userId).single();
-    
     const verified = speakeasy.totp.verify({
         secret: user.two_factor_secret,
         encoding: "base32",
         token: token
     });
-
     if (verified) {
         res.json({ success: true, user });
     } else {
         res.json({ success: false, message: "Invalid 2FA Code" });
     }
+}));
 
-    // 4. Change Password (Protected by 2FA)
 app.post("/auth/change-password", safeRoute(async (req, res) => {
     const { userId, newPassword, token } = req.body;
-    
-    if (!newPassword || newPassword.length < 4) {
-        return res.json({ success: false, message: "Password too short" });
-    }
-
-    // 1. Get user secret
+    if (!newPassword || newPassword.length < 4) return res.json({ success: false, message: "Password too short" });
     const { data: user } = await supabase.from("users").select("two_factor_secret, is_2fa_enabled").eq("id", userId).single();
-    
-    if (!user || !user.is_2fa_enabled) {
-        return res.json({ success: false, message: "2FA must be enabled to use this feature." });
-    }
-
-    // 2. Verify 2FA Code
+    if (!user || !user.is_2fa_enabled) return res.json({ success: false, message: "2FA must be enabled to use this feature." });
     const verified = speakeasy.totp.verify({
         secret: user.two_factor_secret,
         encoding: "base32",
         token: token
     });
-
-    if (!verified) {
-        return res.json({ success: false, message: "Invalid Authenticator Code" });
-    }
-
-    // 3. Update Password
+    if (!verified) return res.json({ success: false, message: "Invalid Authenticator Code" });
     const { error } = await supabase.from("users").update({ password: newPassword }).eq("id", userId);
-    
     if (error) return res.json({ success: false, message: "Database Update Failed" });
-    
     res.json({ success: true });
-}));
 }));
 
 // --- USER & FRIEND ROUTES ---
@@ -464,8 +432,6 @@ io.on("connection", (socket) => {
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
     
-    // ❌ REMOVED audio state sync from here (this is for text channels)
-
     try {
       if (roomId.toString().startsWith("dm-")) {
           const parts = roomId.split("-");
@@ -523,6 +489,11 @@ io.on("connection", (socket) => {
     io.to(recipientId.toString()).emit("incoming_call", { senderId, senderName, avatarUrl, roomId });
   });
 
+  // 👇 ADDED: CALL REJECTION LOGIC
+  socket.on("reject_call", ({ callerId }) => {
+      io.to(callerId.toString()).emit("call_rejected");
+  });
+
   // --- 4. VOICE / VIDEO (WebRTC) ---
   socket.on("join_voice", ({ roomId, userData }) => {
     const rId = roomId.toString();
@@ -531,9 +502,8 @@ io.on("connection", (socket) => {
     voiceRooms[rId].push({ socketId: socket.id, userData });
     socketToUser[socket.id] = { roomId: rId, userData };
     
-    socket.join(rId); // Join the socket room for this voice channel
+    socket.join(rId); 
 
-    // 🎵 NEW: Sync Audio State ONLY for this voice channel
     if (roomAudioState[rId]) {
         socket.emit("audio_state_update", roomAudioState[rId]);
     } else {
