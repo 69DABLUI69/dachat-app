@@ -5,6 +5,9 @@ import EmojiPicker, { Theme } from "emoji-picker-react";
 // ⚡️ NEW: Import the LiveKit component
 import LiveKitVoiceRoom from "./LiveKitVoiceRoom"; 
 
+// ... [KEEP ALL YOUR TRANSLATIONS, TAGLINES, AND HELPER COMPONENTS EXACTLY AS THEY ARE] ...
+// (I am omitting the top definitions to save space, assume they are unchanged)
+
 // 🌍 TRANSLATIONS DATABASE
 const TRANSLATIONS: any = {
   en: {
@@ -125,9 +128,28 @@ export default function DaChat() {
 
   const [tagline, setTagline] = useState("Next Gen Communication");
   const [showMobileChat, setShowMobileChat] = useState(false);
+  
+  // ⚡️ NEW: Mobile Members Sidebar State & Swipe Logic
+  const [showMobileMembers, setShowMobileMembers] = useState(false);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const minSwipeDistance = 50;
+
+  const onTouchStart = (e: any) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
+  const onTouchMove = (e: any) => setTouchEnd(e.targetTouches[0].clientX);
+  const onTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > minSwipeDistance;
+    const isRightSwipe = distance < -minSwipeDistance;
+    if (isLeftSwipe) setShowMobileMembers(true);  // Open Members
+    if (isRightSwipe) setShowMobileMembers(false); // Close Members
+  };
 
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
+  // ... [KEEP formatMessage, useEffects, and other logic untouched] ...
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -296,10 +318,8 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-  // ✅ UPDATED FOR LIVEKIT
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
-      // We just set the state. LiveKit handles the connection logic now via the sub-component.
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
@@ -317,7 +337,7 @@ export default function DaChat() {
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
-      {/* AUTH SCREEN (Same as before) */}
+      {/* AUTH SCREEN */}
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
@@ -435,8 +455,13 @@ export default function DaChat() {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT */}
-      <div className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}>
+      {/* 3. MAIN CONTENT (With Swipe Handlers) */}
+      <div 
+        onTouchStart={onTouchStart} 
+        onTouchMove={onTouchMove} 
+        onTouchEnd={onTouchEnd}
+        className={`${showMobileChat ? 'flex animate-in slide-in-from-right-full duration-300' : 'hidden md:flex'} flex-1 flex-col relative z-10 min-w-0 bg-transparent`}
+      >
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
                  <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md animate-in fade-in slide-in-from-top-2"> 
@@ -445,7 +470,13 @@ export default function DaChat() {
                         <span className="text-white/30">@</span> 
                         <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
                     </div> 
-                    {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
+                    <div className="flex gap-2">
+                        {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
+                        {/* Mobile: Toggle Members Button */}
+                        {view === "servers" && active.server && (
+                           <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
+                        )}
+                    </div>
                  </div>
              )}
              
@@ -488,53 +519,47 @@ export default function DaChat() {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-         {/* LAYER 2: CALL UI - UPDATED FOR LIVEKIT */}
+         {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-20 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
-                 
-                 {/* Split View: Music (Left) + Voice (Right) */}
                  <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full">
-                    
-                    {/* 1. MUSIC PLAYER */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative">
-                        {/* We use the existing RoomPlayer, but remove the 'onClose' so it stays persistent */}
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
-
-                    {/* 2. LIVEKIT VOICE ROOM */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
-                        <LiveKitVoiceRoom 
-                           room={activeVoiceChannelId} 
-                           user={user} 
-                           onLeave={() => setInCall(false)} 
-                        />
+                        <LiveKitVoiceRoom room={activeVoiceChannelId} user={user} onLeave={() => setInCall(false)} />
                     </div>
                  </div>
-
-                 {/* Minimize Button (Floating at bottom center) */}
                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
-                    <button 
-                        onClick={() => setIsCallExpanded(false)} 
-                        className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full text-xs font-bold border border-white/10 shadow-xl transition-transform active:scale-95 flex items-center gap-2"
-                    >
-                        <span>📉</span> Minimize
-                    </button>
+                    <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full text-xs font-bold border border-white/10 shadow-xl transition-transform active:scale-95 flex items-center gap-2"> <span>📉</span> Minimize </button>
                  </div>
              </div>
          )}
       </div>
 
-      {/* 4. MEMBER LIST (Same as before) */}
+      {/* 4. MEMBER LIST (UPDATED FOR MOBILE SWIPE) */}
       {view === "servers" && active.server && (
-          <div className="w-60 border-l border-white/5 bg-black/20 backdrop-blur-md p-4 hidden lg:block relative z-20 animate-in slide-in-from-right-4 duration-300">
-              <div className="text-[10px] font-bold text-white/30 uppercase mb-4">Members — {serverMembers.length}</div>
-              <div className="space-y-1">
+          <div 
+             onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+             className={`
+                fixed inset-y-0 right-0 z-50 w-64 bg-black/95 backdrop-blur-2xl border-l border-white/10 p-4 transition-transform duration-300 ease-in-out shadow-2xl
+                lg:relative lg:translate-x-0 lg:bg-black/20 lg:z-20 lg:w-60 lg:shadow-none lg:block
+                ${showMobileMembers ? "translate-x-0" : "translate-x-full"}
+             `}
+          >
+              <div className="flex justify-between items-center mb-4">
+                  <div className="text-[10px] font-bold text-white/30 uppercase">Members — {serverMembers.length}</div>
+                  <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
+              </div>
+              <div className="space-y-1 overflow-y-auto h-full pb-20">
                   {serverMembers.map(m => ( <div key={m.id} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div> {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>} </div> ))}
               </div>
           </div>
       )}
 
-      {/* MODALS (Same as before) */}
+      {/* ... [KEEP MODALS, SETTINGS, AND MUSIC PLAYER COMPONENTS EXACTLY AS THEY ARE] ... */}
+      {/* (Omitted for brevity - keep your existing code for modals and RoomPlayer) */}
+      
       {incomingCall && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
               <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
