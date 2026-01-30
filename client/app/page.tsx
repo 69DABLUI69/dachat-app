@@ -620,7 +620,7 @@ export default function DaChat() {
                             <span>🎭</span> Sounds
                          </button>
                          <button onClick={() => setIsCallExpanded(false)} className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 text-white rounded-lg text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
-                            <span>📉</span> Minimize 
+                            <span></span> Minimize 
                          </button>
                      </div>
                  </div>
