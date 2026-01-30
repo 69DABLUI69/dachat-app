@@ -597,6 +597,49 @@ io.on("connection", (socket) => {
       io.to(callerId.toString()).emit("call_rejected");
   });
 
+// --- 4. VOICE ROOM HANDLING (Music Sync & Avatars) ---
+  socket.on("join_voice", ({ roomId, userData }) => {
+    const rId = roomId.toString();
+    socket.join(rId); // ✅ CRITICAL: Join socket room to receive music updates
+
+    // 1. Send current music state to the new user immediately
+    if (roomAudioState[rId]) {
+        socket.emit("audio_state_update", roomAudioState[rId]);
+    } else {
+        socket.emit("audio_state_clear");
+    }
+
+    // 2. Track user for avatars
+    if (!voiceRooms[rId]) voiceRooms[rId] = [];
+    // Remove duplicates
+    voiceRooms[rId] = voiceRooms[rId].filter(u => u.userData.id !== userData.id);
+    voiceRooms[rId].push({ socketId: socket.id, userData });
+    
+    socketToUser[socket.id] = { roomId: rId, userData };
+
+    // 3. Broadcast updated user list (for Sidebar avatars)
+    const userIds = voiceRooms[rId].map(u => u.userData.id);
+    io.emit("voice_state_update", { channelId: rId, users: userIds });
+  });
+
+  socket.on("leave_voice", () => {
+      const info = socketToUser[socket.id];
+      if (info) {
+          const { roomId, userData } = info;
+          if (voiceRooms[roomId]) {
+              voiceRooms[roomId] = voiceRooms[roomId].filter(u => u.userData.id !== userData.id);
+              
+              // Update sidebar for everyone else
+              const userIds = voiceRooms[roomId].map(u => u.userData.id);
+              io.emit("voice_state_update", { channelId: roomId, users: userIds });
+              
+              if (voiceRooms[roomId].length === 0) delete voiceRooms[roomId];
+          }
+          socket.leave(roomId); // Stop receiving music updates
+      }
+      delete socketToUser[socket.id];
+  });
+
   // --- 4. VOICE LEAVE ---
   socket.on("leave_voice", () => {
       // LiveKit handles the actual media, we just update presence if needed

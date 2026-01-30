@@ -352,14 +352,14 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-  // ✅ UPDATED: Call Join Logic
-const joinVoiceRoom = useCallback((roomId: string) => {
+// ✅ UPDATED: Call Join Logic
+  const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
       
-      // ✅ FIX: Tell server we joined so avatars update
+      // ✅ FIX: Tell server we joined so we get music updates & show up in the list
       socket.emit("join_voice", { roomId, userData: user });
 
       if (joinSoundRef.current) { 
@@ -770,9 +770,9 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
 
-    // Helper to send actions to backend
+// Helper to send actions to backend
     const handleControl = (action: string) => {
-        // Sends command to parent playMusic function
+        // Sends command to server via parent playMusic -> fetch API
         onSearch({ action }); 
     };
 
