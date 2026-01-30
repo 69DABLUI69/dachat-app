@@ -452,7 +452,8 @@ app.post("/users/steam-status", safeRoute(async (req, res) => {
 
 // ⚡️ LIVEKIT TOKEN GENERATION
 app.get("/livekit/token", safeRoute(async (req, res) => {
-    const { roomName, participantName } = req.query;
+    // 👇 ADD avatarUrl to query params
+    const { roomName, participantName, avatarUrl } = req.query;
 
     if (!roomName || !participantName) {
         return res.status(400).json({ error: "Missing roomName or participantName" });
@@ -464,6 +465,8 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
         {
             identity: participantName,
             ttl: '10m',
+            // 👇 Store avatar URL in metadata so frontend can see it
+            metadata: JSON.stringify({ avatarUrl: avatarUrl || "" }) 
         }
     );
 
