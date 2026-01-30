@@ -2,13 +2,12 @@
 import { useEffect, useState, useRef, memo, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
 import EmojiPicker, { Theme } from "emoji-picker-react";
-import ReactMarkdown from "react-markdown"; 
-import remarkGfm from "remark-gfm"; 
 import LiveKitVoiceRoom from "./LiveKitVoiceRoom"; 
 
-// 🌍 TRANSLATIONS DATABASE (Kept as is)
+// 🌍 TRANSLATIONS DATABASE
 const TRANSLATIONS: any = {
   en: {
+    // ... [Existing translations] ...
     auth_user: "Username", auth_pass: "Password", auth_login: "Log in", auth_register: "Create Account", auth_back: "Back to Login", auth_2fa: "Enter code from Authenticator", auth_verify: "Verify 2FA", auth_remember: "Remember me",
     dock_dm: "Direct Messages", side_req: "Requests", side_friends: "Friends", side_channels: "Channels",
     status_on: "Online", status_off: "Offline", status_playing: "Playing", steam_join: "🚀 Join Lobby", steam_launch: "▶ Launch Game",
@@ -17,10 +16,12 @@ const TRANSLATIONS: any = {
     set_header: "Settings", set_2fa: "Two-Factor Auth", set_setup_2fa: "Setup 2FA", set_verify: "Verify & Enable", set_scan: "Scan with Google Authenticator",
     set_ringtone: "Incoming Call Ringtone", set_pass_change: "Change Password", set_new_pass: "New Password", set_confirm: "Confirm & Logout",
     set_upload: "Upload Photo", set_gif: "Choose GIF", set_steam: "Link Steam", set_steam_linked: "Steam Linked", set_logout: "Log Out", set_lang: "Language",
-    ctx_copy: "Copy Text", ctx_delete: "Delete Message", ctx_edit: "Edit Message", ctx_reply: "Reply", ctx_profile: "Profile", ctx_call: "Start Call", ctx_id: "Copy ID", ctx_remove: "Remove Friend", ctx_add: "Add Friend",
+    // 👇 ADDED ctx_add HERE
+    ctx_copy: "Copy Text", ctx_delete: "Delete Message", ctx_profile: "Profile", ctx_call: "Start Call", ctx_id: "Copy ID", ctx_remove: "Remove Friend", ctx_add: "Add Friend",
     call_incoming: "Incoming Call...", call_ended: "End Call", call_duration: "Duration", room_idle: "DJ Idle", room_playing: "Now Playing", room_search: "Search YouTube..."
   },
   ro: {
+    // ... [Existing translations] ...
     auth_user: "Nume utilizator", auth_pass: "Parolă", auth_login: "Autentificare", auth_register: "Creează Cont", auth_back: "Înapoi la Login", auth_2fa: "Introdu codul din Authenticator", auth_verify: "Verifică 2FA", auth_remember: "Ține-mă minte",
     dock_dm: "Mesaje Directe", side_req: "Cereri", side_friends: "Prieteni", side_channels: "Canale",
     status_on: "Conectat", status_off: "Deconectat", status_playing: "Se joacă", steam_join: "🚀 Intră în Lobby", steam_launch: "▶ Pornește Jocul",
@@ -29,14 +30,15 @@ const TRANSLATIONS: any = {
     set_header: "Setări", set_2fa: "Autentificare în 2 Pași", set_setup_2fa: "Activează 2FA", set_verify: "Verifică & Activează", set_scan: "Scanează cu Google Authenticator",
     set_ringtone: "Ton de Apel", set_pass_change: "Schimbă Parola", set_new_pass: "Parolă Nouă", set_confirm: "Confirmă & Delogare",
     set_upload: "Încarcă Foto", set_gif: "Alege GIF", set_steam: "Leagă Steam", set_steam_linked: "Steam Legat", set_logout: "Delogare", set_lang: "Limbă",
-    ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_edit: "Editează", ctx_reply: "Răspunde", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten", ctx_add: "Adaugă Prieten",
+    // 👇 ADDED ctx_add HERE
+    ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten", ctx_add: "Adaugă Prieten",
     call_incoming: "Apel de intrare...", call_ended: "Încheie Apel", call_duration: "Durată", room_idle: "DJ Inactiv", room_playing: "Acum Redă", room_search: "Caută pe YouTube..."
   },
 };
 
 const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"];
-const APP_VERSION = "1.3.5"; 
-const WHATS_NEW = ["📂 Channel Categories", "📝 Rich Text / Markdown Support", "↩️ Message Editing & Replies"];
+const APP_VERSION = "1.3.4"; 
+const WHATS_NEW = ["🎵 Dynamic Video Grid (Discord Style)", "📞 Bigger Screens for Smaller Calls", "🛠️ Optimized Call Layout"];
 const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
 
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
@@ -65,9 +67,6 @@ export default function DaChat() {
 
   const [servers, setServers] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
-  
-  const [collapsedCategories, setCollapsedCategories] = useState<{ text: boolean, voice: boolean }>({ text: false, voice: false });
-
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
@@ -77,10 +76,6 @@ export default function DaChat() {
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
   
   const [message, setMessage] = useState("");
-  
-  const [replyingTo, setReplyingTo] = useState<any>(null);
-  const [editingId, setEditingId] = useState<number | null>(null);
-
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -153,25 +148,19 @@ export default function DaChat() {
 
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  const formatMessageContent = (content: string) => {
+  const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
         return <img src={content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" alt="attachment" />;
     }
-    return (
-        <ReactMarkdown 
-            remarkPlugins={[remarkGfm]}
-            components={{
-                p: ({node, ...props}) => <span {...props} />, 
-                a: ({node, ...props}) => <a {...props} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all" onClick={(e) => e.stopPropagation()} />,
-                code: ({node, ...props}) => <code {...props} className="bg-black/30 rounded px-1 py-0.5 font-mono text-sm" />,
-                pre: ({node, ...props}) => <pre {...props} className="bg-black/30 rounded p-2 overflow-x-auto my-1 font-mono text-sm" />,
-                blockquote: ({node, ...props}) => <blockquote {...props} className="border-l-2 border-white/30 pl-2 my-1 italic opacity-80" />,
-            }}
-        >
-            {content}
-        </ReactMarkdown>
-    );
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    const parts = content.split(urlRegex);
+    return parts.map((part, i) => {
+        if (part.match(urlRegex)) {
+            return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all" onClick={(e) => e.stopPropagation()}>{part}</a>;
+        }
+        return <span key={i} className="break-words">{part}</span>;
+    });
   };
 
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
@@ -238,11 +227,6 @@ export default function DaChat() {
   useEffect(() => { 
       socket.on("receive_message", (msg) => { const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; if (user && normalized.sender_id === user.id) return; setChatHistory(prev => [...prev, normalized]); });
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
-      
-      socket.on("message_updated", ({ id, content, is_edited }) => {
-          setChatHistory(prev => prev.map(msg => msg.id === id ? { ...msg, content, is_edited } : msg));
-      });
-
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
@@ -258,7 +242,7 @@ export default function DaChat() {
       socket.on("server_updated", ({ serverId }) => { if (active.server?.id === serverId && user) { fetchServers(user.id); selectServer({ id: serverId }); } });
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
-      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); }; 
+      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); }; 
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
@@ -292,6 +276,7 @@ export default function DaChat() {
   const selectRequest = (requestUser: any) => { setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null })); setIsCallExpanded(false); setShowMobileChat(true); };
 
   const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); };
+  // 👇 ADDED: Helper to add friend via context menu (no prompt)
   const handleAddFriend = async (targetUser: any) => {
       const res = await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd: targetUser.username }) });
       const data = await res.json();
@@ -303,44 +288,7 @@ export default function DaChat() {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
-      const roomId = active.channel ? active.channel.id.toString() : active.friend ? `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}` : null;
-      if (!roomId) return;
-
-      if (editingId) {
-          socket.emit("edit_message", { messageId: editingId, newContent: textMsg, roomId });
-          setChatHistory(prev => prev.map(m => m.id === editingId ? { ...m, content: textMsg, is_edited: true } : m));
-          setEditingId(null);
-          setMessage("");
-          return;
-      }
-
-      const content = textMsg || (fileUrl ? "Sent an image" : ""); 
-      const payload: any = { 
-          content, 
-          senderId: user.id, 
-          senderName: user.username, 
-          fileUrl, 
-          avatar_url: user.avatar_url, 
-          id: Date.now(), 
-          created_at: new Date().toISOString(),
-          replyToId: replyingTo ? replyingTo.id : null 
-      }; 
-
-      setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url, reply_to_id: replyingTo?.id }]); 
-      
-      if (view === "servers" && active.channel) { 
-          payload.channelId = active.channel.id; 
-          socket.emit("send_message", payload); 
-      } else if (view === "dms" && active.friend) { 
-          payload.recipientId = active.friend.id; 
-          socket.emit("send_message", payload); 
-      } 
-      
-      setMessage(""); 
-      setReplyingTo(null);
-  };
-
+  const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { const content = textMsg || (fileUrl ? "Sent an image" : ""); const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString() }; setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url }]); if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } setMessage(""); };
   const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a,b)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
   
   const playMusic = async (payload: any) => { 
@@ -376,16 +324,11 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-  // 👇 UPDATED: Emit join_voice so other users see you!
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
-      
-      // ✅ FIX: Emit event to server so sidebar avatars update
-      socket.emit("join_voice", { roomId, userData: user });
-
       if (joinSoundRef.current) { joinSoundRef.current.currentTime = 0; joinSoundRef.current.play().catch(() => {}); }
   }, [user]);
 
@@ -395,12 +338,12 @@ export default function DaChat() {
       setIncomingCall(null);
       setActiveVoiceChannelId(null);
       setIsCallExpanded(false);
-      socket.emit("leave_voice"); // ✅ This tells server to remove your avatar
+      socket.emit("leave_voice");
   };
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
-      {/* AUTH SCREEN */}
+      {/* AUTH SCREEN (Omitted for brevity - same as before) */}
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
@@ -430,40 +373,6 @@ export default function DaChat() {
         {!is2FALogin && <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? t('auth_back') : t('auth_register')}</p>}
       </GlassPanel>
     </div>
-  );
-
-  // 👇 Categories Helper
-  const textChannels = channels.filter(c => c.type === 'text');
-  const voiceChannels = channels.filter(c => c.type === 'voice');
-
-  const renderChannelGroup = (groupName: string, groupChannels: any[], isCollapsed: boolean, toggleKey: 'text'|'voice') => (
-      <div className="mb-2">
-          <div 
-            onClick={() => setCollapsedCategories(prev => ({...prev, [toggleKey]: !prev[toggleKey]}))}
-            className="flex items-center gap-1 px-2 py-1 cursor-pointer hover:text-white text-white/40 text-[10px] font-bold uppercase tracking-wider transition-colors select-none"
-          >
-              <span className="text-[8px]">{isCollapsed ? "▶" : "▼"}</span> {groupName}
-          </div>
-          {!isCollapsed && groupChannels.map(ch => {
-              const currentUsers = voiceStates[ch.id.toString()] || [];
-              const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
-              return ( 
-                  <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
-                      <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
-                          <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
-                          <span className="truncate">{ch.name}</span>
-                          {ch.type === 'voice' && activeMembers.length > 0 && (
-                              <div className="flex -space-x-1 ml-auto mr-2 shrink-0 animate-in fade-in">
-                                  {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
-                                  {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )}
-                              </div>
-                          )}
-                      </div>
-                      {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
-                  </div>
-              );
-          })}
-      </div>
   );
 
   return (
@@ -497,13 +406,27 @@ export default function DaChat() {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {view === "servers" && active.server ? (
                 <>
-                    <div className="flex justify-end px-2 mb-2">
-                        {isMod && <button onClick={createChannel} className="text-lg hover:text-white text-white/50 transition-transform hover:scale-110">+</button>} 
-                    </div>
-                    {renderChannelGroup("Text Channels", textChannels, collapsedCategories.text, 'text')}
-                    {renderChannelGroup("Voice Channels", voiceChannels, collapsedCategories.voice, 'voice')}
-                    
-                    <div className="mt-6 px-2 space-y-2 pt-4 border-t border-white/5">
+                    <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
+                    {channels.map(ch => {
+                        const currentUsers = voiceStates[ch.id.toString()] || [];
+                        const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
+                        return ( 
+                            <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
+                                <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
+                                    <span className="opacity-50 shrink-0">{ch.type==='voice'?'🔊':'#'}</span> 
+                                    <span className="truncate">{ch.name}</span>
+                                    {ch.type === 'voice' && activeMembers.length > 0 && (
+                                        <div className="flex -space-x-1 ml-auto mr-2 shrink-0 animate-in fade-in">
+                                            {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
+                                            {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )}
+                                        </div>
+                                    )}
+                                </div>
+                                {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
+                            </div>
+                        );
+                    })}
+                    <div className="mt-6 px-2 space-y-2">
                         <button onClick={inviteUser} className="w-full py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-600/30 transition-all hover:scale-[1.02] active:scale-95">Invite People</button>
                         <button onClick={leaveServer} className="w-full py-2 bg-red-600/10 text-red-400 rounded-lg text-xs font-bold hover:bg-red-600/20 transition-all hover:scale-[1.02] active:scale-95">Leave Server</button>
                     </div>
@@ -538,7 +461,7 @@ export default function DaChat() {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT */}
+      {/* 3. MAIN CONTENT (With Swipe Handlers) */}
       <div 
         onTouchStart={onTouchStart} 
         onTouchMove={onTouchMove} 
@@ -555,6 +478,7 @@ export default function DaChat() {
                     </div> 
                     <div className="flex gap-2">
                         {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
+                        {/* Mobile: Toggle Members Button */}
                         {view === "servers" && active.server && (
                            <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
                         )}
@@ -574,56 +498,27 @@ export default function DaChat() {
              ) : (active.channel || active.friend) ? (
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {chatHistory.map((msg, i) => {
-                            const isReply = !!msg.reply_to_id;
-                            const replyParent = isReply ? chatHistory.find(m => m.id === msg.reply_to_id) : null;
-                            return (
-                                <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
-                                    <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
-                                    <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
-                                        <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> 
-                                        
-                                        {replyParent && (
-                                            <div className="mb-1 text-[10px] text-white/40 bg-white/5 px-2 py-1 rounded border-l-2 border-white/20 truncate max-w-full">
-                                                Reply to <span className="font-bold">{replyParent.sender_name}</span>: {replyParent.content?.substring(0,30)}...
-                                            </div>
-                                        )}
-
-                                        <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
-                                            {formatMessageContent(msg.content)} 
-                                            {msg.is_edited && <span className="text-[9px] text-white/40 ml-2">(edited)</span>}
-                                        </div> 
-                                        {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
-                                    </div> 
-                                </div>
-                            );
-                        })}
+                        {chatHistory.map((msg, i) => ( 
+                            <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
+                                <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
+                                <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
+                                    <div className="flex items-center gap-2 mb-1"> <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> </div> 
+                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> {formatMessage(msg.content)} </div> 
+                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
+                                </div> 
+                            </div> 
+                        ))}
                         <div ref={messagesEndRef} />
                     </div>
-                    
                     <div className="p-4 relative">
-                        {replyingTo && (
-                             <div className="bg-white/10 px-4 py-2 rounded-t-xl flex justify-between items-center text-sm border-b border-white/10">
-                                 <span className="text-white/60">Replying to <span className="font-bold text-white">{replyingTo.sender_name}</span></span>
-                                 <button onClick={() => setReplyingTo(null)} className="text-white/40 hover:text-white">✕</button>
-                             </div>
-                        )}
-                        {editingId && (
-                             <div className="bg-blue-900/30 px-4 py-2 rounded-t-xl flex justify-between items-center text-sm border-b border-blue-500/20">
-                                 <span className="text-blue-200">Editing Message...</span>
-                                 <button onClick={() => { setEditingId(null); setMessage(""); }} className="text-white/40 hover:text-white">✕</button>
-                             </div>
-                        )}
-
                         {showEmojiPicker && <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"><EmojiPicker theme={Theme.DARK} onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)} lazyLoadEmojis={true}/></div>}
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
-                        <div className={`bg-white/5 border border-white/10 ${replyingTo || editingId ? "rounded-b-3xl rounded-t-none" : "rounded-full"} p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40`}> 
+                        <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <button className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false);}} onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}>{emojiBtnIcon}</button>
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
                             <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder={t('chat_placeholder')} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
-                            {editingId && <button onClick={() => sendMessage(message)} className="text-xs bg-blue-600 px-3 py-1 rounded-lg font-bold">Save</button>}
                         </div>
                     </div>
                  </>
@@ -638,8 +533,7 @@ export default function DaChat() {
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
-                         {/* ✅ FIX: Pass proper leave handler */}
-                        <LiveKitVoiceRoom room={activeVoiceChannelId} user={user} onLeave={leaveCall} />
+                        <LiveKitVoiceRoom room={activeVoiceChannelId} user={user} onLeave={() => setInCall(false)} />
                     </div>
                  </div>
                  <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
@@ -649,7 +543,7 @@ export default function DaChat() {
          )}
       </div>
 
-      {/* 4. MEMBER LIST (Kept as is) */}
+      {/* 4. MEMBER LIST (UPDATED FOR MOBILE SWIPE) */}
       {view === "servers" && active.server && (
           <div 
              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
@@ -669,7 +563,9 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* OVERLAYS (Incoming Call, etc) */}
+      {/* ... [KEEP MODALS, SETTINGS, AND MUSIC PLAYER COMPONENTS EXACTLY AS THEY ARE] ... */}
+      {/* (Omitted for brevity - keep your existing code for modals and RoomPlayer) */}
+      
       {incomingCall && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
               <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
@@ -720,29 +616,37 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* CONTEXT MENU (Kept as is) */}
+      {showServerSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
+                  <h2 className="text-xl font-bold">Server Settings</h2>
+                  <div className="flex justify-center mb-4 cursor-pointer group" onClick={()=>(document.getElementById('serverImg') as any).click()}> <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20 group-hover:border-white/50 transition-all group-hover:scale-105" /> <input id="serverImg" type="file" className="hidden" onChange={(e)=>e.target.files && setNewServerFile(e.target.files[0])} /> </div>
+                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={serverEditForm.name} onChange={e=>setServerEditForm({...serverEditForm, name: e.target.value})} />
+                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowServerSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">{t('btn_cancel')}</button> <button onClick={saveServerSettings} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">{t('btn_save')}</button> </div>
+              </GlassPanel>
+          </div>
+      )}
+
+      {/* CONTEXT MENU */}
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
-              {contextMenu.type === 'message' && ( <> 
-                    <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> 
-                    <button onClick={() => { setReplyingTo(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>↩️</span> {t('ctx_reply')} </button> 
-                    {contextMenu.data?.sender_id === user.id && ( 
-                        <>
-                            <button onClick={() => { setEditingId(contextMenu.data.id); setMessage(contextMenu.data.content); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>✏️</span> {t('ctx_edit')} </button> 
-                            <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> 
-                        </>
-                    )} 
-              </> )}
+              {contextMenu.type === 'message' && ( <> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> )} </> )}
               {contextMenu.type === 'user' && ( 
                 <> 
                     <button onClick={() => { viewUserProfile(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>👤</span> {t('ctx_profile')} </button> 
                     <button onClick={() => { startDMCall(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-green-400 hover:bg-green-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>📞</span> {t('ctx_call')} </button> 
+                    
+                    {/* 👇 ADDED: "Add Friend" if NOT friends and NOT self */}
                     {!friends.some((f: any) => f.id === contextMenu.data.id) && contextMenu.data.id !== user.id && (
                         <button onClick={() => handleAddFriend(contextMenu.data)} className="text-left px-3 py-2 text-sm text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>➕</span> {t('ctx_add')} </button>
                     )}
+
                     <div className="h-px bg-white/10 my-1 mx-2"></div> 
                     <button onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>🆔</span> {t('ctx_id')} </button> 
+                    
                     <div className="h-px bg-white/10 my-1 mx-2"></div> 
+                    
+                    {/* 👇 MODIFIED: "Remove Friend" ONLY if friends */}
                     {friends.some((f: any) => f.id === contextMenu.data.id) && (
                         <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> 
                     )}
@@ -754,7 +658,7 @@ export default function DaChat() {
   );
 }
 
-// 🎵 MUSIC PLAYER COMPONENT (Kept as is)
+// 🎵 MUSIC PLAYER COMPONENT
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
