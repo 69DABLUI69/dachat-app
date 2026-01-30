@@ -457,24 +457,34 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
         return res.status(400).json({ error: "Missing roomName or participantName" });
     }
 
-    const at = new AccessToken(
-        process.env.LIVEKIT_API_KEY,
-        process.env.LIVEKIT_API_SECRET,
-        {
-            identity: participantName,
-            ttl: '10m', 
-        }
-    );
+    if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
+        console.error("❌ MISSING LIVEKIT KEYS IN .ENV");
+        return res.status(500).json({ error: "Server misconfigured: Missing LiveKit Keys" });
+    }
 
-    at.addGrant({ 
-        roomJoin: true, 
-        room: roomName, 
-        canPublish: true, 
-        canSubscribe: true 
-    });
+    try {
+        const at = new AccessToken(
+            process.env.LIVEKIT_API_KEY,
+            process.env.LIVEKIT_API_SECRET,
+            {
+                identity: participantName,
+                ttl: 600, // ✅ Changed to 600 seconds (10 mins) to prevent parsing errors
+            }
+        );
 
-    const token = await at.toJwt();
-    res.json({ token });
+        at.addGrant({ 
+            roomJoin: true, 
+            room: roomName, 
+            canPublish: true, 
+            canSubscribe: true 
+        });
+
+        const token = await at.toJwt();
+        res.json({ token });
+    } catch (err) {
+        console.error("Token Generation Error:", err);
+        res.status(500).json({ error: "Failed to generate token" });
+    }
 }));
 
 // ----------------------------------------------------------------------
