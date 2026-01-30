@@ -16,7 +16,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
   useEffect(() => {
     (async () => {
       try {
-        // 👇 PASS avatarUrl here
+        // Pass avatarUrl here so it shows up for other users
         const resp = await fetch(
           `${process.env.NEXT_PUBLIC_BACKEND_URL}/livekit/token?roomName=${room}&participantName=${user.username}&avatarUrl=${encodeURIComponent(user.avatar_url)}`
         );
@@ -36,7 +36,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
       audio={true}
       token={token}
       serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
-      connect={true} // 👈 Force connection
+      connect={true}
       data-lk-theme="default"
       style={{ height: "100%", display: "flex", flexDirection: "column" }}
       onDisconnected={onLeave}
@@ -44,7 +44,6 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
       <div className="flex-1 overflow-y-auto p-4 custom-scrollbar">
         <MyParticipantGrid />
       </div>
-      {/* 👇 Standard control bar handles Mute/Unmute automatically */}
       <ControlBar /> 
       <RoomAudioRenderer />
     </LiveKitRoom>
@@ -67,7 +66,7 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
   const isSpeaking = useIsSpeaking(participant);
   const [avatarUrl, setAvatarUrl] = useState("");
 
-  // 👇 Extract Avatar URL from Metadata
+  // Extract Avatar URL from Metadata
   useEffect(() => {
     if (participant.metadata) {
       try {
@@ -98,7 +97,7 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
             </span>
             {/* Mic Status Icon */}
             {participant.isMicrophoneEnabled ? (
-                <span className="text-[10px] text-white/50">🎤</span>
+                <span className="text-[10px] text-white/50">🎙️</span>
             ) : (
                 <span className="text-[10px] text-red-400">🔇</span>
             )}

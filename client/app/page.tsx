@@ -4,7 +4,37 @@ import { io, Socket } from "socket.io-client";
 import EmojiPicker, { Theme } from "emoji-picker-react";
 import LiveKitVoiceRoom from "./LiveKitVoiceRoom"; 
 
-// 🔊 SOUNDBOARD CONFIG
+// 🌍 TRANSLATIONS DATABASE (Kept all originals)
+const TRANSLATIONS: any = {
+  en: {
+    auth_user: "Username", auth_pass: "Password", auth_login: "Log in", auth_register: "Create Account", auth_back: "Back to Login", auth_2fa: "Enter code from Authenticator", auth_verify: "Verify 2FA", auth_remember: "Remember me",
+    dock_dm: "Direct Messages", side_req: "Requests", side_friends: "Friends", side_channels: "Channels",
+    status_on: "Online", status_off: "Offline", status_playing: "Playing", steam_join: "🚀 Join Lobby", steam_launch: "▶ Launch Game",
+    chat_placeholder: "Message...", chat_select: "Select a Channel", call_return: "🔊 Call in Progress — Click to Return",
+    btn_accept: "Accept", btn_decline: "Decline", btn_cancel: "Cancel", btn_save: "Save", btn_close: "Close", btn_stop: "Stop",
+    set_header: "Settings", set_2fa: "Two-Factor Auth", set_setup_2fa: "Setup 2FA", set_verify: "Verify & Enable", set_scan: "Scan with Google Authenticator",
+    set_ringtone: "Incoming Call Ringtone", set_pass_change: "Change Password", set_new_pass: "New Password", set_confirm: "Confirm & Logout",
+    set_upload: "Upload Photo", set_gif: "Choose GIF", set_steam: "Link Steam", set_steam_linked: "Steam Linked", set_logout: "Log Out", set_lang: "Language",
+    ctx_copy: "Copy Text", ctx_delete: "Delete Message", ctx_profile: "Profile", ctx_call: "Start Call", ctx_id: "Copy ID", ctx_remove: "Remove Friend", ctx_add: "Add Friend",
+    ctx_edit: "Edit Message", ctx_reply: "Reply", chat_editing: "Editing...", chat_replying: "Replying to",
+    call_incoming: "Incoming Call...", call_ended: "End Call", call_duration: "Duration", room_idle: "DJ Idle", room_playing: "Now Playing", room_search: "Search YouTube..."
+  },
+  ro: {
+    auth_user: "Nume utilizator", auth_pass: "Parolă", auth_login: "Autentificare", auth_register: "Creează Cont", auth_back: "Înapoi la Login", auth_2fa: "Introdu codul din Authenticator", auth_verify: "Verifică 2FA", auth_remember: "Ține-mă minte",
+    dock_dm: "Mesaje Directe", side_req: "Cereri", side_friends: "Prieteni", side_channels: "Canale",
+    status_on: "Conectat", status_off: "Deconectat", status_playing: "Se joacă", steam_join: "🚀 Intră în Lobby", steam_launch: "▶ Pornește Jocul",
+    chat_placeholder: "Scrie un mesaj...", chat_select: "Selectează un Canal", call_return: "🔊 Apel în Desfășurare — Apasă pentru a reveni",
+    btn_accept: "Acceptă", btn_decline: "Refuză", btn_cancel: "Anulează", btn_save: "Salvează", btn_close: "Închide", btn_stop: "Oprește",
+    set_header: "Setări", set_2fa: "Autentificare în 2 Pași", set_setup_2fa: "Activează 2FA", set_verify: "Verifică & Activează", set_scan: "Scanează cu Google Authenticator",
+    set_ringtone: "Ton de Apel", set_pass_change: "Schimbă Parola", set_new_pass: "Parolă Nouă", set_confirm: "Confirmă & Delogare",
+    set_upload: "Încarcă Foto", set_gif: "Alege GIF", set_steam: "Leagă Steam", set_steam_linked: "Steam Legat", set_logout: "Delogare", set_lang: "Limbă",
+    ctx_copy: "Copiază Text", ctx_delete: "Șterge Mesaj", ctx_profile: "Profil", ctx_call: "Începe Apel", ctx_id: "Copiază ID", ctx_remove: "Șterge Prieten", ctx_add: "Adaugă Prieten",
+    ctx_edit: "Editează", ctx_reply: "Răspunde", chat_editing: "Editare...", chat_replying: "Răspuns către",
+    call_incoming: "Apel de intrare...", call_ended: "Încheie Apel", call_duration: "Durată", room_idle: "DJ Inactiv", room_playing: "Acum Redă", room_search: "Caută pe YouTube..."
+  }
+};
+
+// 🔊 SOUNDBOARD SOUNDS
 const SOUNDS = [
     { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
     { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
@@ -12,13 +42,10 @@ const SOUNDS = [
     { id: "cricket", emoji: "🦗", file: "/sounds/cricket.mp3" }
 ];
 
-// ... [TRANSLATIONS - Omitted for brevity, keep yours] ...
-const TRANSLATIONS: any = { en: { /* ...keep existing... */ }, ro: { /* ...keep existing... */ } };
-
-const TAGLINES = ["Next Gen Communication", "The Future of Chat"];
+const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"];
 const APP_VERSION = "1.4.0"; 
 const WHATS_NEW = ["📝 Message Editing & Replies", "🎭 Voice Soundboard", "📂 Server Categories", "✨ Markdown Support"];
-const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }];
+const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
 
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
@@ -28,59 +55,74 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
-// Helpers
 const GlassPanel = ({ children, className, onClick, style }: any) => ( <div onClick={onClick} style={style} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}> {children} </div> );
+
 const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) => { return src ? ( <img key={src} onClick={onClick} src={src} alt={alt || "User"} className={`${className} bg-black/20 object-cover cursor-pointer transition-transform duration-300 ease-out hover:scale-110 active:scale-95`} loading="lazy" /> ) : ( <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer transition-transform duration-300 ease-out hover:scale-110 active:scale-95`}> <span className="text-[10px] text-white/40 font-bold">?</span> </div> ); });
 UserAvatar.displayName = "UserAvatar";
+
 const GifPicker = ({ onSelect, onClose, className }: any) => { const [gifs, setGifs] = useState<any[]>([]); const [search, setSearch] = useState(""); useEffect(() => { fetch(`${KLIPY_BASE_URL}/featured?key=${KLIPY_API_KEY}&limit=20`).then(r => r.json()).then(d => setGifs(d.results || [])); }, []); const searchGifs = async (q: string) => { if(!q) return; const res = await fetch(`${KLIPY_BASE_URL}/search?q=${q}&key=${KLIPY_API_KEY}&limit=20`); const data = await res.json(); setGifs(data.results || []); }; return ( <GlassPanel className={className || "absolute bottom-24 left-4 w-[90%] max-w-90 h-120 rounded-4xl flex flex-col z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-8 duration-300 shadow-2xl ring-1 ring-white/10"}> <div className="p-4 border-b border-white/5 bg-white/5 backdrop-blur-3xl flex gap-3 items-center"> <input className="w-full bg-black/40 text-white px-4 py-3 rounded-2xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 border border-white/5 placeholder-white/30 transition-all" placeholder="Search GIFs..." value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && searchGifs(search)} autoFocus /> <button onClick={onClose} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10 flex items-center justify-center text-white/60 transition-colors active:scale-90">✕</button> </div> <div className="flex-1 overflow-y-auto p-4 custom-scrollbar"> <div className="columns-2 gap-3 space-y-3"> {gifs.map((g) => ( <div key={g.id} className="relative group overflow-hidden rounded-2xl cursor-pointer transition-all hover:scale-[1.02] hover:ring-2 ring-blue-500/50" onClick={() => onSelect(g?.media_formats?.gif?.url)}> <img src={g?.media_formats?.tinygif?.url} className="w-full h-auto object-cover rounded-xl" /> </div> ))} </div> </div> </GlassPanel> ); };
+
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
 export default function DaChat() {
   const [user, setUser] = useState<any>(null);
-  // ... [Keep ALL your existing state hooks here (auth, servers, etc)] ...
   const [isRegistering, setIsRegistering] = useState(false);
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [lang, setLang] = useState("en");
+
   const [servers, setServers] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
   const [friends, setFriends] = useState<any[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+
   const [view, setView] = useState("dms");
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
+  
   const [message, setMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+
   const [is2FALogin, setIs2FALogin] = useState(false); 
   const [twoFACode, setTwoFACode] = useState("");
   const [tempUserId, setTempUserId] = useState<number | null>(null);
+
   const [showPassChange, setShowPassChange] = useState(false);
   const [passChangeForm, setPassChangeForm] = useState({ newPassword: "", code: "" });
+
   const [qrCodeUrl, setQrCodeUrl] = useState("");
   const [setupStep, setSetupStep] = useState(0);
+
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+
   const [emojiBtnIcon, setEmojiBtnIcon] = useState("😀");
   const RANDOM_EMOJIS = ["😀", "😂", "😍", "😎", "🤔", "😜", "🥳", "🤩", "🤯", "🥶", "👾", "👽", "👻", "🤖", "🤠"];
   const [rememberMe, setRememberMe] = useState(false);
+
   const [showChangelog, setShowChangelog] = useState(false);
+
   const [contextMenu, setContextMenu] = useState<{ visible: boolean; x: number; y: number; type: 'message' | 'user' | null; data: any | null; }>({ visible: false, x: 0, y: 0, type: null, data: null });
+
   const [currentTrack, setCurrentTrack] = useState<any>(null);
   const [steamStatuses, setSteamStatuses] = useState<Record<string, any>>({});
+
   const [inCall, setInCall] = useState(false);
   const [incomingCall, setIncomingCall] = useState<any>(null);
   const [isCallExpanded, setIsCallExpanded] = useState(false); 
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
+  
   const [selectedRingtone, setSelectedRingtone] = useState(RINGTONES[0].url);
   const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const joinSoundRef = useRef<HTMLAudioElement | null>(null);
   const leaveSoundRef = useRef<HTMLAudioElement | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
   const [viewingProfile, setViewingProfile] = useState<any>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [showSettingsGifPicker, setShowSettingsGifPicker] = useState(false);
@@ -89,20 +131,21 @@ export default function DaChat() {
   const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
+
   const [tagline, setTagline] = useState("Next Gen Communication");
   const [showMobileChat, setShowMobileChat] = useState(false);
+  
+  // ⚡️ NEW FEATURE STATES
   const [showMobileMembers, setShowMobileMembers] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
-
-  // ⚡️ NEW STATES
   const [replyTo, setReplyTo] = useState<any>(null);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showSoundboard, setShowSoundboard] = useState(false);
 
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  // ⚡️ FEATURE: Markdown Parser
+  // ⚡️ FEATURE: MARKDOWN PARSER
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -118,18 +161,60 @@ export default function DaChat() {
     });
   };
 
-  // ... [Keep existing useEffects] ...
   useEffect(() => { setTagline(TAGLINES[Math.floor(Math.random() * TAGLINES.length)]); }, []);
-  useEffect(() => { if (typeof window !== 'undefined') { joinSoundRef.current = new Audio('/join.mp3'); leaveSoundRef.current = new Audio('/leave.mp3'); joinSoundRef.current.load(); leaveSoundRef.current.load(); const savedRingtone = localStorage.getItem("dachat_ringtone"); if (savedRingtone) setSelectedRingtone(savedRingtone); const savedLang = localStorage.getItem("dachat_lang"); if (savedLang) setLang(savedLang); const storedVersion = localStorage.getItem("dachat_version"); if (storedVersion !== APP_VERSION) setShowChangelog(true); } }, []);
+  
+  useEffect(() => { 
+      if (typeof window !== 'undefined') { 
+          joinSoundRef.current = new Audio('/join.mp3'); 
+          leaveSoundRef.current = new Audio('/leave.mp3'); 
+          joinSoundRef.current.load(); 
+          leaveSoundRef.current.load();
+          const savedRingtone = localStorage.getItem("dachat_ringtone");
+          if (savedRingtone) setSelectedRingtone(savedRingtone);
+          
+          const savedLang = localStorage.getItem("dachat_lang");
+          if (savedLang) setLang(savedLang);
+
+          const storedVersion = localStorage.getItem("dachat_version");
+          if (storedVersion !== APP_VERSION) setShowChangelog(true);
+      } 
+  }, []);
+
   const closeChangelog = () => { localStorage.setItem("dachat_version", APP_VERSION); setShowChangelog(false); };
+
   useEffect(() => { ringtoneAudioRef.current = new Audio(selectedRingtone); ringtoneAudioRef.current.loop = true; }, [selectedRingtone]);
-  useEffect(() => { if (incomingCall) { ringtoneAudioRef.current?.play().catch(e => console.error("Ringtone blocked:", e)); } else { ringtoneAudioRef.current?.pause(); if (ringtoneAudioRef.current) ringtoneAudioRef.current.currentTime = 0; } }, [incomingCall]);
-  useEffect(() => { const handleClick = () => setContextMenu({ ...contextMenu, visible: false }); window.addEventListener("click", handleClick); return () => window.removeEventListener("click", handleClick); }, [contextMenu]);
-  useEffect(() => { const fetchSteam = async () => { if (!user) return; const allUsers = [...friends, ...serverMembers]; const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id); if (steamIds.length === 0) return; const uniqueIds = Array.from(new Set(steamIds)); const res = await fetch(`${BACKEND_URL}/users/steam-status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steamIds: uniqueIds }) }); const data = await res.json(); if (data.success) { const statusMap: Record<string, any> = {}; data.players.forEach((p: any) => { statusMap[p.steamid] = p; }); setSteamStatuses(statusMap); } }; fetchSteam(); const interval = setInterval(fetchSteam, 60000); return () => clearInterval(interval); }, [friends, serverMembers, user]);
+
+  useEffect(() => {
+      if (incomingCall) { ringtoneAudioRef.current?.play().catch(e => console.error("Ringtone blocked:", e)); } else { ringtoneAudioRef.current?.pause(); if (ringtoneAudioRef.current) ringtoneAudioRef.current.currentTime = 0; }
+  }, [incomingCall]);
+
+  useEffect(() => {
+      const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
+      window.addEventListener("click", handleClick);
+      return () => window.removeEventListener("click", handleClick);
+  }, [contextMenu]);
+
+  useEffect(() => {
+      const fetchSteam = async () => {
+          if (!user) return;
+          const allUsers = [...friends, ...serverMembers];
+          const steamIds = allUsers.map((u: any) => u.steam_id).filter((id) => id);
+          if (steamIds.length === 0) return;
+          const uniqueIds = Array.from(new Set(steamIds));
+          const res = await fetch(`${BACKEND_URL}/users/steam-status`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ steamIds: uniqueIds }) });
+          const data = await res.json();
+          if (data.success) { const statusMap: Record<string, any> = {}; data.players.forEach((p: any) => { statusMap[p.steamid] = p; }); setSteamStatuses(statusMap); }
+      };
+      fetchSteam(); 
+      const interval = setInterval(fetchSteam, 60000); 
+      return () => clearInterval(interval);
+  }, [friends, serverMembers, user]);
+
   useEffect(() => { const savedUser = localStorage.getItem("dachat_user"); if (savedUser) setUser(JSON.parse(savedUser)); }, []);
+
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
-  // ⚡️ FEATURE: Updated Socket Listeners
+  // ⚡️ UPDATE: SOCKET LISTENERS (With Edit/Reply/Soundboard)
   useEffect(() => { 
       socket.connect(); 
       const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
@@ -155,7 +240,6 @@ export default function DaChat() {
           }
       });
 
-      // ... other socket events ...
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
@@ -177,23 +261,40 @@ export default function DaChat() {
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
   useEffect(() => { if (user) { fetchServers(user.id); fetchFriends(user.id); fetchRequests(user.id); } }, [user]);
 
-  // ... [Keep Auth, Logout, Fetching logic] ...
-  const handleAuth = async () => { if (is2FALogin) { const res = await fetch(`${BACKEND_URL}/auth/2fa/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: tempUserId, token: twoFACode }) }); const data = await res.json(); if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else { setError(data.message || "Invalid Code"); } return; } if (!authForm.username.trim() || !authForm.password.trim()) { setError("Enter credentials"); return; } const endpoint = isRegistering ? "register" : "login"; try { const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) }); const data = await res.json(); if (data.requires2FA) { setTempUserId(data.userId); setIs2FALogin(true); setError(""); return; } if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else setError(data.message || "Auth failed"); } catch { setError("Connection failed"); } };
+  const handleAuth = async () => {
+    if (is2FALogin) {
+        const res = await fetch(`${BACKEND_URL}/auth/2fa/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: tempUserId, token: twoFACode }) });
+        const data = await res.json();
+        if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else { setError(data.message || "Invalid Code"); }
+        return;
+    }
+    if (!authForm.username.trim() || !authForm.password.trim()) { setError("Enter credentials"); return; }
+    const endpoint = isRegistering ? "register" : "login";
+    try {
+      const res = await fetch(`${BACKEND_URL}/${endpoint}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(authForm) });
+      const data = await res.json();
+      if (data.requires2FA) { setTempUserId(data.userId); setIs2FALogin(true); setError(""); return; }
+      if (data.success) { if (rememberMe) localStorage.setItem("dachat_user", JSON.stringify(data.user)); setUser(data.user); } else setError(data.message || "Auth failed");
+    } catch { setError("Connection failed"); }
+  };
+
   const handleLogout = () => { if(confirm("Are you sure you want to log out?")) { localStorage.removeItem("dachat_user"); window.location.reload(); } };
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
+
   const selectServer = async (server: any) => { setView("servers"); setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); setIsCallExpanded(false); const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); const chData = await res.json(); setChannels(chData); if(!active.channel && chData.length > 0) { const firstText = chData.find((c:any) => c.type === 'text'); if (firstText) joinChannel(firstText); } const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); setServerMembers(await memRes.json()); };
   const joinChannel = (channel: any) => { if (channel.type === 'voice') { if (inCall && activeVoiceChannelId === channel.id.toString()) setIsCallExpanded(true); else if (channel.id) joinVoiceRoom(channel.id.toString()); } else { setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); } };
   const selectFriend = (friend: any) => { setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); const ids = [user.id, friend.id].sort((a, b) => a - b); socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); };
   const selectRequest = (requestUser: any) => { setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null })); setIsCallExpanded(false); setShowMobileChat(true); };
+
   const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); };
   const handleAddFriend = async (targetUser: any) => { const res = await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd: targetUser.username }) }); const data = await res.json(); alert(data.message); setContextMenu({ ...contextMenu, visible: false }); };
   const handleAcceptRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest); };
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  // ⚡️ FEATURE: UPDATED SEND MESSAGE (Edit/Reply)
+  // ⚡️ FEATURE: UPDATED SEND MESSAGE (Handles Edit & Reply)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if (editingId) {
           const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
@@ -204,24 +305,37 @@ export default function DaChat() {
           return;
       }
       const content = textMsg || (fileUrl ? "Sent an image" : ""); 
-      const payload: any = { content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString(), replyToId: replyTo ? replyTo.id : null };
+      const payload: any = { 
+          content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString(), 
+          replyToId: replyTo ? replyTo.id : null 
+      };
       setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url, reply_to_id: replyTo ? replyTo.id : null }]);
       if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
       setMessage(""); setReplyTo(null); 
   };
 
+  // ⚡️ FEATURE: SOUNDBOARD TRIGGER
   const playSoundEffect = (soundId: string) => { const roomId = activeVoiceChannelId; if (roomId) socket.emit("play_sound", { roomId, soundId }); };
+
   const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
-  const playMusic = async (payload: any) => { if (!activeVoiceChannelId) return; const body = typeof payload === 'string' ? { channelId: activeVoiceChannelId, query: payload, action: 'queue' } : { channelId: activeVoiceChannelId, ...payload }; try { const res = await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const data = await res.json(); if (data.success && data.state) { setCurrentTrack(data.state); } } catch (err) { console.error("Music Error:", err); } };
+  
+  const playMusic = async (payload: any) => { 
+      if (!activeVoiceChannelId) return; 
+      const body = typeof payload === 'string' ? { channelId: activeVoiceChannelId, query: payload, action: 'queue' } : { channelId: activeVoiceChannelId, ...payload };
+      try { const res = await fetch(`${BACKEND_URL}/channels/play`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }); const data = await res.json(); if (data.success && data.state) { setCurrentTrack(data.state); } } catch (err) { console.error("Music Error:", err); }
+  };
+
   const handleContextMenu = (e: React.MouseEvent, type: 'message' | 'user', data: any) => { e.preventDefault(); setContextMenu({ visible: true, x: e.pageX, y: e.pageY, type, data }); };
   const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
+
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
   const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); const data = await res.json(); if (data.success) { const updatedUser = { ...user, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl }; setUser(updatedUser); localStorage.setItem("dachat_user", JSON.stringify(updatedUser)); setShowSettings(false); setNewAvatarFile(null); } else { alert("Failed to update profile."); } };
   const handleChangePassword = async () => { if (!passChangeForm.newPassword || !passChangeForm.code) { alert("Please fill in both fields"); return; } const res = await fetch(`${BACKEND_URL}/auth/change-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, newPassword: passChangeForm.newPassword, token: passChangeForm.code }) }); const data = await res.json(); if (data.success) { alert("Password Changed Successfully! Logging you out..."); localStorage.removeItem("dachat_user"); window.location.reload(); } else { alert(data.message || "Failed to change password"); } };
   const start2FASetup = async () => { const res = await fetch(`${BACKEND_URL}/auth/2fa/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) }); const data = await res.json(); if (data.success) { setQrCodeUrl(data.qrCode); setSetupStep(1); } };
   const verify2FASetup = async () => { const res = await fetch(`${BACKEND_URL}/auth/2fa/enable`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, token: twoFACode }) }); const data = await res.json(); if (data.success) { setSetupStep(2); setUser((prev: any) => { const updated = { ...prev, is_2fa_enabled: true }; localStorage.setItem("dachat_user", JSON.stringify(updated)); return updated; }); alert("2FA Enabled!"); } else { alert("Invalid Code"); } };
+
   const createServer = async () => { const name = prompt("Server Name"); if(name) { await fetch(`${BACKEND_URL}/create-server`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, ownerId: user.id }) }); fetchServers(user.id); } };
   const createChannel = async () => { const name = prompt("Name"); const type = confirm("Voice?") ? "voice" : "text"; if(name) { await fetch(`${BACKEND_URL}/create-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name, type }) }); selectServer(active.server); } };
   const deleteChannel = async (channelId: number) => { if(!confirm("Delete channel?")) return; await fetch(`${BACKEND_URL}/delete-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) }); selectServer(active.server); };
@@ -233,11 +347,12 @@ export default function DaChat() {
   const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
   const isMod = getRole()?.is_admin;
   const isOwner = user && active.server?.owner_id === user.id;
+
   const startDMCall = (targetUser: any = active.friend) => { if (!targetUser) return; const ids = [user.id, targetUser.id].sort((a, b) => a - b); const roomId = `dm-call-${ids[0]}-${ids[1]}`; joinVoiceRoom(roomId); socket.emit("start_call", { senderId: user.id, recipientId: targetUser.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId }); };
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-  // ✅ UPDATED: Leave Logic
+  // ✅ UPDATED: Call Join Logic
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
@@ -324,8 +439,8 @@ export default function DaChat() {
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
             {view === "servers" && active.server ? (
                 <>
+                    {/* TEXT CHANNELS */}
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>TEXT CHANNELS</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
-                    {/* Render Text Channels */}
                     {channels.filter(c => c.type === 'text').map(ch => (
                         <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                             <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
@@ -335,8 +450,8 @@ export default function DaChat() {
                         </div>
                     ))}
 
+                    {/* VOICE CHANNELS */}
                     <div className="mt-4 flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>VOICE CHANNELS</span> </div>
-                    {/* Render Voice Channels */}
                     {channels.filter(c => c.type === 'voice').map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
@@ -362,7 +477,6 @@ export default function DaChat() {
                     </div>
                 </>
             ) : (
-                // ... [Keep Friends/Requests Logic unchanged] ...
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_req')}</span> <button onClick={sendFriendRequest} className="text-lg hover:text-white transition-transform hover:scale-110">+</button> </div>
                     {requests.map(req => ( 
@@ -434,7 +548,7 @@ export default function DaChat() {
                                     {/* ⚡️ FEATURE: REPLY RENDER */}
                                     {msg.reply_to_id && (
                                         <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
-                                            <span>⤴️ Replying to a message</span>
+                                            <span>⤴️ {t('chat_replying')}</span>
                                         </div>
                                     )}
 
@@ -451,13 +565,13 @@ export default function DaChat() {
                     {/* ⚡️ FEATURE: EDIT / REPLY BANNER */}
                     {replyTo && (
                         <div className="px-4 py-2 bg-black/40 border-t border-white/5 flex justify-between items-center animate-in slide-in-from-bottom-2">
-                            <div className="text-xs text-white/60"> Replying to <span className="font-bold text-white">{replyTo.sender_name}</span> </div>
+                            <div className="text-xs text-white/60"> {t('chat_replying')} <span className="font-bold text-white">{replyTo.sender_name}</span> </div>
                             <button onClick={() => setReplyTo(null)} className="text-white/40 hover:text-white">✕</button>
                         </div>
                     )}
                     {editingId && (
                         <div className="px-4 py-2 bg-yellow-900/20 border-t border-yellow-500/20 flex justify-between items-center animate-in slide-in-from-bottom-2">
-                            <div className="text-xs text-yellow-200"> Editing message... </div>
+                            <div className="text-xs text-yellow-200"> {t('chat_editing')} </div>
                             <button onClick={() => { setEditingId(null); setMessage(""); }} className="text-yellow-200/50 hover:text-yellow-200">✕</button>
                         </div>
                     )}
@@ -539,7 +653,7 @@ export default function DaChat() {
           </div>
       )}
 
-      {/* ... [KEEP MODALS, SETTINGS, AND MUSIC PLAYER COMPONENTS EXACTLY AS THEY ARE] ... */}
+      {/* ... [KEEP MODALS AS THEY ARE] ... */}
       {incomingCall && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300"> <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500"> <div className="relative"> <div className="absolute inset-0 bg-blue-500/30 blur-[60px] rounded-full animate-pulse-slow"></div> <UserAvatar src={incomingCall.avatarUrl} className="w-40 h-40 rounded-full border-4 border-white/20 shadow-2xl relative z-10 animate-bounce-slow" /> </div> <div className="text-center z-10"> <h2 className="text-3xl font-bold text-white mb-2">{incomingCall.senderName}</h2> <p className="text-white/50 text-lg animate-pulse">{t('call_incoming')}</p> </div> <div className="flex gap-8 z-10"> <button onClick={rejectCall} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-95"> <span className="text-2xl">📞</span> </button> <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(22,163,74,0.4)] active:scale-95 animate-wiggle"> <span className="text-2xl">📞</span> </button> </div> </div> </div> )}
       {viewingProfile && ( <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}> <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}> <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" /> <h2 className="text-2xl font-bold">{viewingProfile.username}</h2> <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p> {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={() => handleRemoveFriend(viewingProfile.id)} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">{t('ctx_remove')}</button>} {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && ( <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10"> <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div> <button onClick={() => promoteMember(viewingProfile.id)} className="w-full py-2 bg-blue-500/20 text-blue-300 rounded-lg font-bold text-sm hover:bg-blue-500/30 transition-all hover:scale-105">Toggle Moderator</button> </div> )} </GlassPanel> </div> )}
       {showChangelog && ( <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-500"> <GlassPanel className="w-full max-w-sm p-8 flex flex-col items-center text-center border-2 border-indigo-500/50 shadow-[0_0_50px_rgba(99,102,241,0.3)]"> <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-lg animate-bounce"> 🚀 </div> <h2 className="text-2xl font-bold text-white mb-1">Update Available!</h2> <p className="text-indigo-300 text-sm font-mono mb-6">v{APP_VERSION}</p> <div className="w-full bg-white/5 rounded-xl p-4 text-left space-y-3 mb-6 border border-white/5"> {WHATS_NEW.map((item, i) => ( <div key={i} className="flex gap-3 text-sm text-white/80"> <span className="text-indigo-400">➤</span> {item} </div> ))} </div> <button onClick={closeChangelog} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg"> Awesome, Let's Go! </button> </GlassPanel> </div> )}
@@ -549,7 +663,7 @@ export default function DaChat() {
       {/* CONTEXT MENU */}
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
-              {contextMenu.type === 'message' && ( <> <button onClick={() => { setReplyTo(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>↩️</span> Reply </button> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <> <button onClick={() => { setEditingId(contextMenu.data.id); setMessage(contextMenu.data.content); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>✏️</span> Edit </button> <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> </> )} </> )}
+              {contextMenu.type === 'message' && ( <> <button onClick={() => { setReplyTo(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>↩️</span> {t('ctx_reply')} </button> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <> <button onClick={() => { setEditingId(contextMenu.data.id); setMessage(contextMenu.data.content); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>✏️</span> {t('ctx_edit')} </button> <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> </> )} </> )}
               {contextMenu.type === 'user' && ( <> <button onClick={() => { viewUserProfile(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>👤</span> {t('ctx_profile')} </button> <button onClick={() => { startDMCall(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-green-400 hover:bg-green-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>📞</span> {t('ctx_call')} </button> {!friends.some((f: any) => f.id === contextMenu.data.id) && contextMenu.data.id !== user.id && ( <button onClick={() => handleAddFriend(contextMenu.data)} className="text-left px-3 py-2 text-sm text-blue-400 hover:bg-blue-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>➕</span> {t('ctx_add')} </button> )} <div className="h-px bg-white/10 my-1 mx-2"></div> <button onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>🆔</span> {t('ctx_id')} </button> <div className="h-px bg-white/10 my-1 mx-2"></div> {friends.some((f: any) => f.id === contextMenu.data.id) && ( <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> )} </> )}
           </div>
       )}
