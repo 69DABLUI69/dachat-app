@@ -7,6 +7,7 @@ const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
 const yts = require("yt-search"); 
 const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
+const { AccessToken } = require('livekit-server-sdk');
 
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
@@ -458,6 +459,36 @@ app.post("/users/steam-status", safeRoute(async (req, res) => {
     
     const players = data.response.players || [];
     res.json({ success: true, players });
+}));
+
+// ⚡️ LIVEKIT TOKEN GENERATION
+app.get("/livekit/token", safeRoute(async (req, res) => {
+    const { roomName, participantName } = req.query;
+
+    if (!roomName || !participantName) {
+        return res.status(400).json({ error: "Missing roomName or participantName" });
+    }
+
+    // Create token
+    const at = new AccessToken(
+        process.env.LIVEKIT_API_KEY,
+        process.env.LIVEKIT_API_SECRET,
+        {
+            identity: participantName,
+            ttl: '10m', // Token expires in 10 minutes
+        }
+    );
+
+    // Add permissions
+    at.addGrant({ 
+        roomJoin: true, 
+        room: roomName, 
+        canPublish: true, 
+        canSubscribe: true 
+    });
+
+    const token = await at.toJwt();
+    res.json({ token });
 }));
 
 // ----------------------------------------------------------------------
