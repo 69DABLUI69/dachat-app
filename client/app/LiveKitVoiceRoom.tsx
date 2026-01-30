@@ -4,12 +4,11 @@ import {
   LiveKitRoom,
   RoomAudioRenderer,
   ControlBar,
-  useTracks,
-  GridLayout,
-  ParticipantTile,
+  useParticipants,
+  useIsSpeaking,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Track } from "livekit-client";
+import { Participant } from "livekit-client";
 
 export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
   const [token, setToken] = useState("");
@@ -50,10 +49,53 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
 }
 
 function MyParticipantGrid() {
-  const tracks = useTracks([Track.Source.Microphone], { onlySubscribed: false });
+  // 👇 Get all participants (audio or not)
+  const participants = useParticipants();
+
   return (
-    <GridLayout tracks={tracks}>
-      <ParticipantTile />
-    </GridLayout>
+    // 👇 Custom CSS Grid instead of strict GridLayout
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      {participants.map((p) => (
+        <VoiceUserTile key={p.identity} participant={p} />
+      ))}
+    </div>
+  );
+}
+
+// 👇 Custom Tile to avoid TypeScript errors with ParticipantTile
+function VoiceUserTile({ participant }: { participant: Participant }) {
+  const isSpeaking = useIsSpeaking(participant);
+
+  return (
+    <div className={`relative aspect-square bg-zinc-800 rounded-2xl flex flex-col items-center justify-center border-2 transition-all duration-200 ${isSpeaking ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]" : "border-white/5"}`}>
+        {/* Avatar */}
+        <img 
+            src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`} 
+            alt={participant.identity}
+            className={`w-16 h-16 rounded-full mb-3 transition-transform ${isSpeaking ? "scale-110" : "scale-100"}`}
+        />
+        
+        {/* Name */}
+        <div className="flex items-center gap-2">
+            <span className="text-white font-bold text-sm truncate max-w-[100px]">
+                {participant.identity}
+            </span>
+            {/* Mic Status Icon */}
+            {participant.isMicrophoneEnabled ? (
+                <span className="text-[10px] text-white/50">🎤</span>
+            ) : (
+                <span className="text-[10px] text-red-400">🔇</span>
+            )}
+        </div>
+
+        {/* Visualizer Bar (Fake visual flair) */}
+        {isSpeaking && (
+            <div className="absolute bottom-4 flex gap-1 h-3 items-end">
+                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '60%', animationDelay: '0ms' }} />
+                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '100%', animationDelay: '100ms' }} />
+                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '80%', animationDelay: '200ms' }} />
+            </div>
+        )}
+    </div>
   );
 }
