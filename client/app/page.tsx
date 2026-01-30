@@ -564,7 +564,15 @@ export default function DaChat() {
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
-                        <LiveKitVoiceRoom room={activeVoiceChannelId} user={user} onLeave={() => setInCall(false)} />
+                        <LiveKitVoiceRoom 
+   room={activeVoiceChannelId} 
+   user={user} 
+   onLeave={() => {
+       setInCall(false);
+       setActiveVoiceChannelId(null);
+       setIsCallExpanded(false);
+   }} 
+/>
                     </div>
                  </div>
                  
