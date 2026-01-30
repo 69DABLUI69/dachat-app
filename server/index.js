@@ -449,7 +449,7 @@ app.post("/users/steam-status", safeRoute(async (req, res) => {
     res.json({ success: true, players });
 }));
 
-// ⚡️ NEW: LiveKit Token Route
+// ⚡️ LIVEKIT TOKEN GENERATION (FIXED)
 app.get("/livekit/token", safeRoute(async (req, res) => {
     const { roomName, participantName, avatarUrl } = req.query;
 
@@ -458,8 +458,8 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
     }
 
     if (!process.env.LIVEKIT_API_KEY || !process.env.LIVEKIT_API_SECRET) {
-        console.error("❌ MISSING LIVEKIT KEYS");
-        return res.status(500).json({ error: "Server misconfigured: Missing LiveKit Keys" });
+        console.error("❌ MISSING LIVEKIT KEYS ON SERVER");
+        return res.status(500).json({ error: "Server missing LiveKit Keys" });
     }
 
     try {
@@ -468,8 +468,8 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
             process.env.LIVEKIT_API_SECRET,
             {
                 identity: participantName,
-                ttl: 600, // 10 minutes
-                metadata: JSON.stringify({ avatarUrl: avatarUrl || "" })
+                ttl: 600, // ✅ Fixed: Use integer seconds (10 mins)
+                metadata: JSON.stringify({ avatarUrl: avatarUrl || "" }) 
             }
         );
 
@@ -483,7 +483,7 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
         const token = await at.toJwt();
         res.json({ token });
     } catch (err) {
-        console.error("Token Generation Error:", err);
+        console.error("Token Gen Error:", err);
         res.status(500).json({ error: "Failed to generate token" });
     }
 }));

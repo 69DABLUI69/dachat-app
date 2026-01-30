@@ -353,12 +353,18 @@ export default function DaChat() {
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
   // ✅ UPDATED: Call Join Logic
+// ✅ NEW SIMPLE LOGIC
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
-      if (joinSoundRef.current) { joinSoundRef.current.currentTime = 0; joinSoundRef.current.play().catch(() => {}); }
+      
+      // Optional sound effect
+      if (joinSoundRef.current) {
+          joinSoundRef.current.currentTime = 0;
+          joinSoundRef.current.play().catch(() => {});
+      }
   }, [user]);
 
   const leaveCall = () => {
@@ -591,30 +597,18 @@ export default function DaChat() {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-         {/* LAYER 2: CALL UI */}
+
+{/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-20 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
-                 <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full relative">
-                    {/* ⚡️ FEATURE: SOUNDBOARD UI */}
-                    {showSoundboard && (
-                        <div className="absolute top-4 right-4 z-50 bg-black/90 border border-white/20 rounded-2xl p-4 w-64 animate-in zoom-in-95 shadow-2xl">
-                            <div className="flex justify-between items-center mb-3">
-                                <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Soundboard</span>
-                                <button onClick={() => setShowSoundboard(false)}>✕</button>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                {SOUNDS.map(s => (
-                                    <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5">
-                                        {s.emoji}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
+                 <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full">
+                    
+                    {/* 1. MUSIC PLAYER */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative">
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
+
+                    {/* 2. LIVEKIT VOICE ROOM */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
                         <LiveKitVoiceRoom 
                            room={activeVoiceChannelId} 
@@ -627,13 +621,14 @@ export default function DaChat() {
                         />
                     </div>
                  </div>
-                 
-                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50 flex gap-4">
-                    <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-6 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-full text-xs font-bold border border-white/10 shadow-xl transition-transform active:scale-95 flex items-center gap-2"> 
-                        <span>🎭</span> Sounds
-                    </button>
-                    <button onClick={() => setIsCallExpanded(false)} className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full text-xs font-bold border border-white/10 shadow-xl transition-transform active:scale-95 flex items-center gap-2"> 
-                        <span>📉</span> Minimize 
+
+                 {/* Minimize Button */}
+                 <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-50">
+                    <button 
+                        onClick={() => setIsCallExpanded(false)} 
+                        className="px-6 py-2 bg-zinc-800 hover:bg-zinc-700 text-white rounded-full text-xs font-bold border border-white/10 shadow-xl transition-transform active:scale-95 flex items-center gap-2"
+                    >
+                        <span>📉</span> Minimize
                     </button>
                  </div>
              </div>
