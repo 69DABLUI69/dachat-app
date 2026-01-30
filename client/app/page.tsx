@@ -353,12 +353,19 @@ export default function DaChat() {
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
   // ✅ UPDATED: Call Join Logic
-  const joinVoiceRoom = useCallback((roomId: string) => {
+const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
-      if (joinSoundRef.current) { joinSoundRef.current.currentTime = 0; joinSoundRef.current.play().catch(() => {}); }
+      
+      // ✅ FIX: Tell server we joined so avatars update
+      socket.emit("join_voice", { roomId, userData: user });
+
+      if (joinSoundRef.current) { 
+          joinSoundRef.current.currentTime = 0; 
+          joinSoundRef.current.play().catch(() => {}); 
+      }
   }, [user]);
 
   const leaveCall = () => {
@@ -452,15 +459,18 @@ export default function DaChat() {
 
                     <div className="mt-4 flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>VOICE CHANNELS</span> </div>
                     {/* Render Voice Channels */}
-                    {channels.filter(c => c.type === 'voice').map(ch => {
+{channels.filter(c => c.type === 'voice').map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
                             <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
-                                    <span className="opacity-50 shrink-0">🔊</span> <span className="truncate">{ch.name}</span>
+                                    <span className="opacity-50 shrink-0">🔊</span> 
+                                    <span className="truncate">{ch.name}</span>
+                                    
+                                    {/* ✅ FIX: Avatars are now here, with ml-2 (margin-left) instead of ml-auto */}
                                     {activeMembers.length > 0 && (
-                                        <div className="flex -space-x-1 ml-auto mr-2 shrink-0 animate-in fade-in">
+                                        <div className="flex -space-x-1 ml-2 shrink-0 animate-in fade-in">
                                             {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
                                             {activeMembers.length > 3 && ( <div className="w-5 h-5 rounded-full bg-zinc-800 border border-black/50 flex items-center justify-center text-[8px] font-bold text-white">+{activeMembers.length - 3}</div> )}
                                         </div>
@@ -598,11 +608,11 @@ export default function DaChat() {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-         {/* LAYER 2: CALL UI - UPDATED TO MOVE CONTROLS TO TOP */}
+{/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  
-                 {/* ⚡️ FIX: Top Header Controls (Minimize & Soundboard) */}
+                 {/* Top Header Controls */}
                  <div className="absolute top-4 left-0 right-0 px-4 flex justify-between items-start z-[60] pointer-events-none">
                      <div /> {/* Spacer */}
                      <div className="flex gap-2 pointer-events-auto">
@@ -618,7 +628,7 @@ export default function DaChat() {
                  {/* Main Content Area */}
                  <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full relative pt-16">
                     
-                    {/* Soundboard Popup (Positioned under the button) */}
+                    {/* Soundboard Popup */}
                     {showSoundboard && (
                         <div className="absolute top-14 right-4 z-[70] bg-black/90 border border-white/20 rounded-2xl p-4 w-64 animate-in zoom-in-95 shadow-2xl">
                             <div className="flex justify-between items-center mb-3">
@@ -635,8 +645,9 @@ export default function DaChat() {
                         </div>
                     )}
 
-                    {/* 1. MUSIC PLAYER */}
+                    {/* 1. MUSIC PLAYER (Synced) */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative">
+                        {/* ✅ FIX: Pass 'onSearch' correctly so buttons sync */}
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
 
@@ -649,6 +660,8 @@ export default function DaChat() {
                                setInCall(false);
                                setActiveVoiceChannelId(null);
                                setIsCallExpanded(false);
+                               // ✅ FIX: Emit leave event so avatar is removed from list
+                               socket.emit("leave_voice");
                            }} 
                         />
                     </div>
