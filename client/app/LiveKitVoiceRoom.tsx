@@ -12,41 +12,44 @@ import {
 import "@livekit/components-styles";
 import { Track } from "livekit-client";
 
-// 1. Custom Tile to show Avatar instead of black screen
-function CustomParticipantTile({ trackRef, user }: { trackRef: TrackReferenceOrPlaceholder, user: any }) {
+// 1. Custom Tile (Shows Avatar if no video)
+function CustomParticipantTile({ trackRef, user, ...props }: { trackRef?: TrackReferenceOrPlaceholder, user: any }) {
+  // GridLayout injects 'trackRef' automatically into this component
   return (
     <ParticipantTile 
       trackRef={trackRef} 
-      className="border border-white/10 rounded-xl overflow-hidden bg-zinc-900"
+      className="border border-white/10 rounded-xl overflow-hidden bg-zinc-900 shadow-lg"
+      {...props}
     >
-      {/* Overlay Avatar since we are audio-only */}
+      {/* We overlay the avatar because this is a voice-only room */}
       <div className="absolute inset-0 flex items-center justify-center z-10 bg-zinc-900">
-         <div className="relative">
+         <div className="relative flex flex-col items-center gap-3">
             <img 
               src={user?.avatar_url || "https://api.dicebear.com/7.x/avataaars/svg?seed=guest"} 
-              className="w-20 h-20 rounded-full border-4 border-white/10"
+              className="w-20 h-20 rounded-full border-4 border-white/10 shadow-xl"
               alt="User"
             />
-            {/* Visualizer / Speaking Indicator would go here */}
+            {/* You could add a speaking indicator here later */}
          </div>
       </div>
     </ParticipantTile>
   );
 }
 
-// 2. Grid Component
+// 2. Grid Component (MUST be a separate component to use hooks)
 function MyParticipantGrid({ user }: { user: any }) {
-  // Get all audio tracks (since we are voice only)
-  const tracks = useTracks([Track.Source.Microphone, Track.Source.Unknown], { onlySubscribed: false });
+  // ✅ Hook is called here, inside the Room context
+  const tracks = useTracks([Track.Source.Microphone], { onlySubscribed: false });
   
   return (
     <GridLayout tracks={tracks} style={{ height: '100%' }}>
-      {/* Render a custom tile for each user */}
-      <CustomParticipantTile user={user} trackRef={tracks[0]} /> 
+      {/* GridLayout will clone this element and pass a 'trackRef' to it for every user */}
+      <CustomParticipantTile user={user} />
     </GridLayout>
   );
 }
 
+// 3. Main Room Component
 export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
   const [token, setToken] = useState("");
 
@@ -64,7 +67,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
     })();
   }, [room, user?.username]);
 
-  if (token === "") return <div className="flex items-center justify-center h-full text-white/50">Connecting...</div>;
+  if (token === "") return <div className="flex items-center justify-center h-full text-white/50 animate-pulse">Connecting to Voice...</div>;
 
   return (
     <LiveKitRoom
@@ -78,10 +81,8 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
     >
       {/* Main Grid Area */}
       <div className="flex-1 overflow-hidden p-4">
-         {/* We pass the 'ParticipantTile' layout to the grid */}
-         <GridLayout tracks={useTracks([Track.Source.Microphone], { onlySubscribed: false })}>
-            <ParticipantTile />
-         </GridLayout>
+         {/* ✅ We render the child component here */}
+         <MyParticipantGrid user={user} />
       </div>
 
       {/* Controls (Mute, Leave, etc) */}
@@ -90,7 +91,6 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
         controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
       />
       
-      {/* Essential for hearing audio */}
       <RoomAudioRenderer />
     </LiveKitRoom>
   );
