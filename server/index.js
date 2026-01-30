@@ -105,7 +105,6 @@ app.post("/auth/2fa/generate", safeRoute(async (req, res) => {
     });
 }));
 
-// Find this route in your index.js and update it:
 app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
     const { userId, token } = req.body;
     const { data: user } = await supabase.from("users").select("two_factor_secret").eq("id", userId).single();
@@ -118,10 +117,7 @@ app.post("/auth/2fa/enable", safeRoute(async (req, res) => {
 
     if (verified) {
         await supabase.from("users").update({ is_2fa_enabled: true }).eq("id", userId);
-        
-        // ✅ ADD THIS LINE: Notify all connected clients that this user changed
         io.emit("user_updated", { userId });
-
         res.json({ success: true });
     } else {
         res.json({ success: false, message: "Invalid Code" });
@@ -353,8 +349,6 @@ app.post("/channels/play", safeRoute(async (req, res) => {
 
   const state = roomAudioState[roomKey];
 
-  // --- ACTIONS ---
-
   if (action === 'queue') {
       const r = await yts(query);
       const video = r.videos[0];
@@ -367,7 +361,6 @@ app.post("/channels/play", safeRoute(async (req, res) => {
           duration: video.seconds
       };
 
-      // If nothing is playing, play immediately. Otherwise, add to queue.
       if (!state.current) {
           state.current = track;
           state.startTime = Date.now();
@@ -395,12 +388,12 @@ app.post("/channels/play", safeRoute(async (req, res) => {
 
   else if (action === 'skip') {
       if (state.queue.length > 0) {
-          state.current = state.queue.shift(); // Move next song to current
+          state.current = state.queue.shift();
           state.startTime = Date.now();
           state.elapsed = 0;
           state.isPaused = false;
       } else {
-          state.current = null; // Queue empty, stop playback
+          state.current = null;
           state.startTime = null;
       }
   }
@@ -411,7 +404,6 @@ app.post("/channels/play", safeRoute(async (req, res) => {
       return res.json({ success: true });
   }
 
-  // Broadcast the full state (Current Song + Queue + Timing)
   io.to(roomKey).emit("audio_state_update", state);
   res.json({ success: true, state });
 }));
@@ -434,23 +426,20 @@ app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
 // 1. Link Steam ID to User
 app.post("/users/link-steam", safeRoute(async (req, res) => {
     const { userId, steamId } = req.body;
-    // Validate Steam ID (Simple check length)
     if (!steamId || steamId.length !== 17) return res.json({ success: false, message: "Invalid Steam ID64" });
 
     const { data, error } = await supabase.from("users").update({ steam_id: steamId }).eq("id", userId).select().single();
     if (error) return res.json({ success: false, message: error.message });
     
-    // Broadcast update so others see the badge immediately
     io.emit("user_updated", { userId });
     res.json({ success: true, user: data });
 }));
 
 // 2. Get Steam Status (Rich Presence)
 app.post("/users/steam-status", safeRoute(async (req, res) => {
-    const { steamIds } = req.body; // Array of Steam IDs
+    const { steamIds } = req.body;
     if (!steamIds || steamIds.length === 0) return res.json({ success: true, players: [] });
 
-    // Steam API only allows comma-separated list
     const idsString = steamIds.join(',');
     const steamUrl = `http://api.steampowered.com/ISteamUser/GetPlayerSummaries/v0002/?key=${STEAM_API_KEY}&steamids=${idsString}`;
 
@@ -469,17 +458,15 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
         return res.status(400).json({ error: "Missing roomName or participantName" });
     }
 
-    // Create token
     const at = new AccessToken(
         process.env.LIVEKIT_API_KEY,
         process.env.LIVEKIT_API_SECRET,
         {
             identity: participantName,
-            ttl: '10m', // Token expires in 10 minutes
+            ttl: '10m',
         }
     );
 
-    // Add permissions
     at.addGrant({ 
         roomJoin: true, 
         room: roomName, 
@@ -545,8 +532,9 @@ io.on("connection", (socket) => {
     } catch (err) { console.error("Message Fetch Error:", err); }
   });
 
+  // 👇 UPDATED: Handle Replies
   socket.on("send_message", async (data) => {
-    const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url } = data;
+    const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url, replyToId } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
     
     const messagePayload = { ...data, id: data.id || Date.now(), created_at: new Date().toISOString() };
@@ -562,9 +550,29 @@ io.on("connection", (socket) => {
             file_url: fileUrl,
             avatar_url: avatar_url,
             channel_id: channelId || null,
-            recipient_id: recipientId || null
+            recipient_id: recipientId || null,
+            reply_to_id: replyToId || null // Store the ID of the message being replied to
         }]);
     } catch (err) { console.error("DB Save Error:", err); }
+  });
+
+  // 👇 NEW: Handle Message Editing
+  socket.on("edit_message", async ({ messageId, newContent, roomId }) => {
+      try {
+          const { error } = await supabase
+              .from("messages")
+              .update({ content: newContent, is_edited: true })
+              .eq("id", messageId);
+
+          if (!error) {
+              // Notify clients in the room
+              io.to(roomId.toString()).emit("message_updated", { 
+                  id: messageId, 
+                  content: newContent, 
+                  is_edited: true 
+              });
+          }
+      } catch (err) { console.error("Edit Error:", err); }
   });
 
   socket.on("delete_message", async ({ messageId, roomId }) => {
@@ -578,7 +586,6 @@ io.on("connection", (socket) => {
     io.to(recipientId.toString()).emit("incoming_call", { senderId, senderName, avatarUrl, roomId });
   });
 
-  // 👇 ADDED: CALL REJECTION LOGIC
   socket.on("reject_call", ({ callerId }) => {
       io.to(callerId.toString()).emit("call_rejected");
   });
