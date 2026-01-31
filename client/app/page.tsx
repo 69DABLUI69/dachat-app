@@ -725,7 +725,7 @@ const saveNotifSettings = async (newSettings: any) => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-{/* ⬇️ UPDATED GRID CALL LAYOUT ⬇️ */}
+         {/* ⬇️ UPDATED GRID CALL LAYOUT ⬇️ */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-[#000000] animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  
@@ -1010,10 +1010,37 @@ const saveNotifSettings = async (newSettings: any) => {
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
-    // 🔊 Local Volume State
-    const [localVolume, setLocalVolume] = useState(50); 
-    
+    const [localVolume, setLocalVolume] = useState(50);
+    const [progress, setProgress] = useState(0);
+
     const handleControl = (action: string) => { onSearch({ action }); };
+
+    // Format seconds into MM:SS
+    const formatTime = (seconds: number) => {
+        const m = Math.floor(seconds / 60);
+        const s = Math.floor(seconds % 60);
+        return `${m}:${s < 10 ? '0' : ''}${s}`;
+    };
+
+    // Calculate progress based on start time + elapsed
+    useEffect(() => {
+       if(!track?.current || track.isPaused) return;
+       const interval = setInterval(() => {
+           const now = Date.now();
+           const startTime = track.startTime || now;
+           const actualElapsed = (now - startTime) + (track.elapsed || 0);
+           setProgress(actualElapsed / 1000); 
+       }, 1000);
+       return () => clearInterval(interval);
+    }, [track]);
+
+    // Reset progress when paused/stopped
+    useEffect(() => {
+        if(track?.isPaused) {
+            setProgress((track.elapsed || 0) / 1000);
+        }
+    }, [track?.isPaused, track?.elapsed]);
+
     const iframeSrc = useMemo(() => {
         if (!track?.current || track.isPaused) return "";
         const totalElapsedMs = track.elapsed + (track.startTime ? (Date.now() - track.startTime) : 0);
@@ -1024,42 +1051,98 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     return (
         <div className="relative w-full h-full bg-zinc-950 flex flex-col group overflow-hidden">
             {track?.current?.image && ( <div className="absolute inset-0 z-0 opacity-20 blur-3xl"> <img src={track.current.image} className="w-full h-full object-cover" alt="bg" /> </div> )}
-            <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-4 min-h-0">
+            
+            <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0">
+                {/* Search Bar at Top */}
+                <div className="flex gap-2 mb-4 bg-black/40 p-2 rounded-xl border border-white/5 backdrop-blur-md z-20">
+                     <input className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none placeholder-white/30" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} />
+                     {track?.current && <button onClick={() => handleControl('stop')} className="text-red-400 hover:text-red-300 px-2 font-bold text-xs">STOP</button>}
+                </div>
+
                 {track?.current ? (
-                    <>
-                        <div className="relative w-32 h-32 md:w-40 md:h-40 shadow-2xl rounded-xl overflow-hidden mb-3 border border-white/10 group-hover:scale-105 transition-transform duration-500 shrink-0 bg-black">
+                    <div className="flex-1 flex flex-col items-center justify-center">
+                        <div className="relative w-32 h-32 md:w-48 md:h-48 shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 group-hover:scale-105 transition-transform duration-500 shrink-0 bg-black">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
-                        <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-sm md:text-base w-full">{track.current.title}</h3>
-                        <p className="text-indigo-400 text-[10px] mt-1 font-bold uppercase tracking-widest mb-4"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
-
-                        {/* 🔊 Volume Slider for Music - REMOVED opacity-50 and hover effects so it is always visible */}
-<div className="flex items-center gap-2 w-48 mb-4 bg-black/40 px-3 py-2 rounded-full border border-white/10 shadow-lg">
-    <span className="text-xs">🔈</span>
-    <input 
-        type="range" 
-        min="0" max="100" 
-        value={localVolume} 
-        onChange={(e) => setLocalVolume(parseInt(e.target.value))}
-        className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-    />
-    <span className="text-xs">🔊</span>
-</div>
-
-                        <div className="flex items-center gap-4 mb-2">
-                             <button onClick={() => handleControl(track.isPaused ? 'resume' : 'pause')} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95"> {track.isPaused ? "▶" : "⏸"} </button>
-                             <button onClick={() => handleControl('skip')} className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all active:scale-95"> ⏭ </button>
-                        </div>
-                        {track.queue && track.queue.length > 0 && ( <button onClick={() => setShowQueue(!showQueue)} className="text-[10px] text-white/50 hover:text-white mt-1 underline"> {showQueue ? "Hide Queue" : `View Queue (${track.queue.length})`} </button> )}
-                    </>
-                ) : ( <div className="flex flex-col items-center justify-center h-full text-white/20"> <div className="text-6xl mb-4">💿</div> <p className="text-sm font-bold uppercase tracking-widest">{t('room_idle')}</p> </div> )}
+                        <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-lg w-full mb-1">{track.current.title}</h3>
+                        <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
+                    </div>
+                ) : ( 
+                    <div className="flex-1 flex flex-col items-center justify-center text-white/20"> 
+                        <div className="text-6xl mb-4 animate-spin-slow">💿</div> 
+                        <p className="text-sm font-bold uppercase tracking-widest">{t('room_idle')}</p> 
+                    </div> 
+                )}
             </div>
-            {showQueue && track?.queue && ( <div className="absolute inset-0 z-30 bg-black/95 p-4 overflow-y-auto animate-in slide-in-from-bottom-10 custom-scrollbar"> <div className="flex justify-between items-center mb-4"> <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> </div> <div className="space-y-2"> {track.queue.map((q: any, i: number) => ( <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg border border-white/5"> <img src={q.image} className="w-10 h-10 rounded object-cover" alt="q-thumb"/> <div className="flex-1 min-w-0"> <div className="text-xs text-white font-bold truncate">{q.title}</div> <div className="text-[10px] text-white/40">In Queue</div> </div> </div> ))} </div> </div> )}
-            <div className="relative z-20 p-3 bg-black/60 backdrop-blur-md border-t border-white/5"> <div className="flex gap-2"> 
-                <input className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} /> 
-                {track?.current && ( <button onClick={() => handleControl('stop')} className="px-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors">■</button> )} 
-            </div> </div>
+
+            {/* 🎛️ BOTTOM TOOLBAR (Controls + Progress) */}
+            <div className="relative z-20 bg-black/60 backdrop-blur-xl border-t border-white/10 p-4">
+                {/* Progress Bar */}
+                {track?.current && (
+                    <div className="flex items-center gap-3 text-[10px] font-mono font-bold text-white/50 mb-3">
+                        <span>{formatTime(progress)}</span>
+                        <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-indigo-500 transition-all duration-1000 ease-linear" style={{ width: `${Math.min((progress / track.current.duration) * 100, 100)}%` }} />
+                        </div>
+                        <span>{formatTime(track.current.duration)}</span>
+                    </div>
+                )}
+
+                {/* Controls Row */}
+                <div className="flex items-center justify-between">
+                    {/* Left: Volume */}
+                    <div className="flex items-center gap-2 w-24 group/vol">
+                        <span className="text-xs text-white/50">🔊</span>
+                        <input 
+                            type="range" min="0" max="100" value={localVolume} 
+                            onChange={(e) => setLocalVolume(parseInt(e.target.value))}
+                            className="w-full h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white opacity-50 group-hover/vol:opacity-100 transition-opacity"
+                        />
+                    </div>
+
+                    {/* Center: Playback Controls */}
+                    <div className="flex items-center gap-6">
+                         <button onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.3)]"> {track?.isPaused ? "▶" : "⏸"} </button>
+                         <button onClick={() => handleControl('skip')} className="text-2xl text-white/70 hover:text-white transition-colors active:scale-90"> ⏭ </button>
+                    </div>
+
+                    {/* Right: Queue Toggle */}
+                    <div className="w-24 flex justify-end">
+                         <button 
+                            onClick={() => setShowQueue(!showQueue)} 
+                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showQueue ? "bg-white text-black border-white" : "bg-transparent text-white/50 border-white/10 hover:border-white/30 hover:text-white"}`}
+                        >
+                            {showQueue ? "Hide" : "Queue"} {track?.queue?.length > 0 && `(${track.queue.length})`}
+                         </button>
+                    </div>
+                </div>
+            </div>
+
+            {/* 📜 QUEUE OVERLAY (Fixed: Absolute inside the tile) */}
+            {showQueue && track?.queue && ( 
+                <div className="absolute inset-0 z-30 bg-black/95 flex flex-col animate-in slide-in-from-bottom-full duration-300"> 
+                    <div className="flex justify-between items-center p-4 border-b border-white/10"> 
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> 
+                        <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> 
+                    </div> 
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar"> 
+                        {track.queue.length === 0 ? (
+                            <div className="h-full flex items-center justify-center text-white/20 text-xs">Queue is empty</div>
+                        ) : (
+                            track.queue.map((q: any, i: number) => ( 
+                                <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg border border-white/5 hover:bg-white/10 transition-colors"> 
+                                    <img src={q.image} className="w-10 h-10 rounded object-cover" alt="q-thumb"/> 
+                                    <div className="flex-1 min-w-0"> 
+                                        <div className="text-xs text-white font-bold truncate">{q.title}</div> 
+                                        <div className="text-[10px] text-white/40">In Queue</div> 
+                                    </div> 
+                                </div> 
+                            ))
+                        )}
+                    </div> 
+                </div> 
+            )}
         </div>
     );
 });
