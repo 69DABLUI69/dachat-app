@@ -420,17 +420,23 @@ export default function DaChat() {
       const isRightSwipe = distance < -50;
 
       if (isLeftSwipe) {
-          // Swipe Left -> Open Members List (Right Sidebar)
-          setShowMobileMembers(true);
+          // Swipe Left (<--)
+          if (!showMobileChat && (active.channel || active.friend)) {
+              // Sidebar -> Chat
+              setShowMobileChat(true);
+          } else if (showMobileChat) {
+              // Chat -> Members
+              setShowMobileMembers(true);
+          }
       } 
       
       if (isRightSwipe) {
-          // Swipe Right...
+          // Swipe Right (-->)
           if (showMobileMembers) {
-              // 1. Close Members List if it is open
+              // Members -> Chat
               setShowMobileMembers(false);
-          } else {
-              // 2. Otherwise, go back to Channel List (Left Sidebar)
+          } else if (showMobileChat) {
+              // Chat -> Sidebar
               setShowMobileChat(false);
           }
       }
@@ -480,7 +486,7 @@ export default function DaChat() {
           <DaChatLogo className="w-7 h-7" />
         </div>
         <div className="w-8 h-px bg-white/10" />
-        <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar pt-2">
+        <div className="flex z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500">
             {servers.map(s => ( 
                 <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
                     {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
@@ -493,7 +499,12 @@ export default function DaChat() {
       </div>
 
       {/* 2. SIDEBAR - FEATURE: CATEGORIES ADDED */}
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
+      <div 
+        onTouchStart={onTouchStart} 
+        onTouchMove={onTouchMove} 
+        onTouchEnd={onTouchEnd}
+        className="flex relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500"
+      >
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
