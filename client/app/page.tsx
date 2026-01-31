@@ -413,34 +413,7 @@ export default function DaChat() {
 
   const onTouchStart = (e: any) => { setTouchEnd(null); setTouchStart(e.targetTouches[0].clientX); };
   const onTouchMove = (e: any) => setTouchEnd(e.targetTouches[0].clientX);
-  const onTouchEnd = () => { 
-      if (!touchStart || !touchEnd) return; 
-      const distance = touchStart - touchEnd; 
-      const isLeftSwipe = distance > 50;
-      const isRightSwipe = distance < -50;
-
-      if (isLeftSwipe) {
-          // Swipe Left (<--)
-          if (!showMobileChat && (active.channel || active.friend)) {
-              // Sidebar -> Chat
-              setShowMobileChat(true);
-          } else if (showMobileChat) {
-              // Chat -> Members
-              setShowMobileMembers(true);
-          }
-      } 
-      
-      if (isRightSwipe) {
-          // Swipe Right (-->)
-          if (showMobileMembers) {
-              // Members -> Chat
-              setShowMobileMembers(false);
-          } else if (showMobileChat) {
-              // Chat -> Sidebar
-              setShowMobileChat(false);
-          }
-      }
-  };
+  const onTouchEnd = () => { if (!touchStart || !touchEnd) return; const distance = touchStart - touchEnd; if (distance > 50) setShowMobileMembers(true); if (distance < -50) setShowMobileMembers(false); };
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
@@ -486,7 +459,7 @@ export default function DaChat() {
           <DaChatLogo className="w-7 h-7" />
         </div>
         <div className="w-8 h-px bg-white/10" />
-        <div className="flex z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500">
+        <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar pt-2">
             {servers.map(s => ( 
                 <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
                     {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
@@ -499,12 +472,7 @@ export default function DaChat() {
       </div>
 
       {/* 2. SIDEBAR - FEATURE: CATEGORIES ADDED */}
-      <div 
-        onTouchStart={onTouchStart} 
-        onTouchMove={onTouchMove} 
-        onTouchEnd={onTouchEnd}
-        className="flex relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500"
-      >
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
@@ -802,7 +770,7 @@ export default function DaChat() {
     onClick={() => setShowReportBug(true)} 
     className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4"
 >
-    Report a Bug
+     Report a Bug
 </button> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <div className="flex-1 w-full flex flex-col gap-4"> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> </div> </div> </div>
                   <div className="h-px bg-white/10 w-full" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
