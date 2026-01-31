@@ -486,8 +486,50 @@ useEffect(() => {
   );
 
   return (
-    // 🛡️ IMMERSION FIX: Added 'select-none' to prevent accidental highlights
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
+      {/* 🛠️ GLOBAL CUSTOM SCROLLBAR CSS */}
+      <style>{`
+        /* Hide default scrollbars for the whole app */
+        * {
+          scrollbar-width: thin;
+          scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
+        }
+
+        /* Webkit browsers (Chrome, Safari, Edge) */
+        ::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+          background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.1);
+          border-radius: 10px;
+          transition: background 0.2s ease;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.2);
+        }
+
+        /* Specific class for chats and lists to ensure visibility */
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.08);
+          border-radius: 20px;
+        }
+
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.15);
+        }
+      `}</style>
+
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
       {/* 1. DOCK */}
@@ -496,7 +538,7 @@ useEffect(() => {
           <DaChatLogo className="w-7 h-7" />
         </div>
         <div className="w-8 h-px bg-white/10" />
-        <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto no-scrollbar pt-2">
+        <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto custom-scrollbar pt-2">
             {servers.map(s => ( 
                 <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
                     {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
@@ -514,7 +556,7 @@ useEffect(() => {
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
             {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
         </div>
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
             {view === "servers" && active.server ? (
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
@@ -618,6 +660,7 @@ useEffect(() => {
                  </div>
              ) : (active.channel || active.friend) ? (
                  <>
+                    {/* 🛠️ CHAT AREA SCROLLBAR */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {chatHistory.map((msg, i) => ( 
                             <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
@@ -632,7 +675,6 @@ useEffect(() => {
                                             <span>⤴️ {t('chat_replying')}</span>
                                         </div>
                                     )}
-                                    {/* 🛡️ IMMERSION FIX: Re-enable 'select-text' for message bubbles so they remain copyable */}
                                     <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
                                         {formatMessage(msg.content)} 
                                     </div> 
@@ -738,7 +780,8 @@ useEffect(() => {
                   <div className="text-[10px] font-bold text-white/30 uppercase">Members — {serverMembers.length}</div>
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
-              <div className="space-y-1 overflow-y-auto h-full pb-20">
+              {/* 🛠️ MEMBER LIST SCROLLBAR */}
+              <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
                   {serverMembers.map(m => ( <div key={m.id} onContextMenu={(e) => handleContextMenu(e, 'user', m)} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div> {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>} </div> ))}
               </div>
           </div>
@@ -780,7 +823,8 @@ useEffect(() => {
 
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
+              {/* 🛠️ SETTINGS SCROLLBAR */}
+              <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
                   <div> <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> <div className="flex flex-col md:flex-row gap-6 items-start"> <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> <div className="flex flex-col gap-2 w-full"><button 
@@ -884,7 +928,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </>
                 ) : ( <div className="flex flex-col items-center justify-center h-full text-white/20"> <div className="text-6xl mb-4">💿</div> <p className="text-sm font-bold uppercase tracking-widest">{t('room_idle')}</p> </div> )}
             </div>
-            {showQueue && track?.queue && ( <div className="absolute inset-0 z-30 bg-black/95 p-4 overflow-y-auto animate-in slide-in-from-bottom-10"> <div className="flex justify-between items-center mb-4"> <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> </div> <div className="space-y-2"> {track.queue.map((q: any, i: number) => ( <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg border border-white/5"> <img src={q.image} className="w-10 h-10 rounded object-cover" alt="q-thumb"/> <div className="flex-1 min-w-0"> <div className="text-xs text-white font-bold truncate">{q.title}</div> <div className="text-[10px] text-white/40">In Queue</div> </div> </div> ))} </div> </div> )}
+            {showQueue && track?.queue && ( <div className="absolute inset-0 z-30 bg-black/95 p-4 overflow-y-auto animate-in slide-in-from-bottom-10 custom-scrollbar"> <div className="flex justify-between items-center mb-4"> <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> </div> <div className="space-y-2"> {track.queue.map((q: any, i: number) => ( <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg border border-white/5"> <img src={q.image} className="w-10 h-10 rounded object-cover" alt="q-thumb"/> <div className="flex-1 min-w-0"> <div className="text-xs text-white font-bold truncate">{q.title}</div> <div className="text-[10px] text-white/40">In Queue</div> </div> </div> ))} </div> </div> )}
             <div className="relative z-20 p-3 bg-black/60 backdrop-blur-md border-t border-white/5"> <div className="flex gap-2"> 
                 <input className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} /> 
                 {track?.current && ( <button onClick={() => handleControl('stop')} className="px-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors">■</button> )} 
