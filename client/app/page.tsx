@@ -1012,7 +1012,8 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [showQueue, setShowQueue] = useState(false);
     const [localVolume, setLocalVolume] = useState(50);
     const [progress, setProgress] = useState(0);
-    const [showControls, setShowControls] = useState(false); // ✅ Visibility State
+    const [showControls, setShowControls] = useState(false);
+    const iframeRef = useRef<HTMLIFrameElement>(null); // ✅ Ref for volume control
 
     const handleControl = (action: string) => { onSearch({ action }); };
 
@@ -1042,12 +1043,32 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
         }
     }, [track?.isPaused, track?.elapsed]);
 
+    // 🔊 FIX: Send Volume Commands to YouTube Embed
+    useEffect(() => {
+        if(iframeRef.current && iframeRef.current.contentWindow) {
+            iframeRef.current.contentWindow.postMessage(JSON.stringify({
+                event: 'command',
+                func: 'setVolume',
+                args: [localVolume]
+            }), '*');
+        }
+    }, [localVolume, track]);
+
     const iframeSrc = useMemo(() => {
         if (!track?.current || track.isPaused) return "";
         const totalElapsedMs = track.elapsed + (track.startTime ? (Date.now() - track.startTime) : 0);
         const startSeconds = Math.floor(totalElapsedMs / 1000);
-        return `https://www.youtube.com/embed/${track.current.videoId}?autoplay=1&controls=0&start=${startSeconds}&rel=0&origin=${window.location.origin}`;
+        // ✅ Add enablejsapi=1 to allow volume control
+        return `https://www.youtube.com/embed/${track.current.videoId}?autoplay=1&controls=0&start=${startSeconds}&rel=0&origin=${window.location.origin}&enablejsapi=1`;
     }, [track?.current?.videoId, track?.startTime, track?.isPaused]);
+
+    // 🎨 Elegant SVG Icons
+    const PlayIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>;
+    const PauseIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>;
+    const SkipIcon = () => <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>;
+    const VolumeIcon = () => <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>;
+    const QueueIcon = () => <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M4 10h12v2H4zm0-4h12v2H4zm0 8h8v2H4zm10 0v6l5-3z"/></svg>;
+    const CloseIcon = () => <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>;
 
     return (
         <div 
@@ -1060,7 +1081,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
             
             <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0 justify-center">
                 
-                {/* Search Bar (Only visible when controls are shown, optional but cleaner) */}
+                {/* Search Bar (Only visible when controls are shown) */}
                 <div 
                     className={`absolute top-4 left-4 right-4 flex gap-2 bg-black/40 p-2 rounded-xl border border-white/5 backdrop-blur-md z-20 transition-all duration-300 ${showControls ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0 pointer-events-none"}`}
                     onClick={(e) => e.stopPropagation()}
@@ -1071,9 +1092,9 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
 
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center transition-transform duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95)' : 'scale(1)' }}>
-                        <div className="relative w-32 h-32 md:w-48 md:h-48 shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black">
+                        <div className="relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
-                            {!track.isPaused && ( <iframe className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
+                            {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
                         <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-lg w-full mb-1 drop-shadow-md">{track.current.title}</h3>
                         <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6 shadow-black drop-shadow-sm"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
@@ -1089,7 +1110,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
             {/* 🎛️ BOTTOM TOOLBAR (Hidden by default, slides up on interaction) */}
             <div 
                 className={`relative z-20 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4 transition-all duration-300 ease-out transform ${showControls ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}`}
-                onClick={(e) => e.stopPropagation()} // Prevent toggling off when clicking buttons
+                onClick={(e) => e.stopPropagation()} 
             >
                 {/* Progress Bar */}
                 {track?.current && (
@@ -1102,11 +1123,11 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
                 )}
 
-                {/* Controls Row */}
+                {/* Controls Row - Fixed Layout */}
                 <div className="flex items-center justify-between">
                     {/* Left: Volume */}
-                    <div className="flex items-center gap-2 w-24 group/vol">
-                        <span className="text-xs text-white/50">🔊</span>
+                    <div className="flex items-center gap-2 w-28 group/vol">
+                        <VolumeIcon />
                         <input 
                             type="range" min="0" max="100" value={localVolume} 
                             onChange={(e) => setLocalVolume(parseInt(e.target.value))}
@@ -1115,24 +1136,34 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
 
                     {/* Center: Playback Controls */}
-                    <div className="flex items-center gap-6">
-                         <button onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.3)]"> {track?.isPaused ? "▶" : "⏸"} </button>
-                         <button onClick={() => handleControl('skip')} className="text-2xl text-white/70 hover:text-white transition-colors active:scale-90"> ⏭ </button>
+                    <div className="flex items-center gap-6 absolute left-1/2 transform -translate-x-1/2">
+                         <button 
+                            onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
+                            className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 transition-transform active:scale-95 shadow-[0_0_15px_rgba(255,255,255,0.3)]"
+                         > 
+                            {track?.isPaused ? <PlayIcon /> : <PauseIcon />} 
+                         </button>
+                         <button 
+                            onClick={() => handleControl('skip')} 
+                            className="text-white/70 hover:text-white transition-colors active:scale-90"
+                         > 
+                            <SkipIcon />
+                         </button>
                     </div>
 
                     {/* Right: Queue Toggle */}
-                    <div className="w-24 flex justify-end">
+                    <div className="w-28 flex justify-end">
                          <button 
                             onClick={() => setShowQueue(!showQueue)} 
-                            className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all border ${showQueue ? "bg-white text-black border-white" : "bg-transparent text-white/50 border-white/10 hover:border-white/30 hover:text-white"}`}
+                            className={`p-2 rounded-lg transition-all ${showQueue ? "text-white bg-white/10" : "text-white/50 hover:text-white hover:bg-white/5"}`}
                         >
-                            {showQueue ? "Hide" : "Queue"} {track?.queue?.length > 0 && `(${track.queue.length})`}
+                            <QueueIcon />
                          </button>
                     </div>
                 </div>
             </div>
 
-            {/* 📜 QUEUE OVERLAY (Fixed: Absolute inside the tile) */}
+            {/* 📜 QUEUE OVERLAY */}
             {showQueue && track?.queue && ( 
                 <div 
                     className="absolute inset-0 z-30 bg-black/95 flex flex-col animate-in slide-in-from-bottom-full duration-300"
@@ -1140,7 +1171,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 > 
                     <div className="flex justify-between items-center p-4 border-b border-white/10"> 
                         <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> 
-                        <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> 
+                        <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white"><CloseIcon /></button> 
                     </div> 
                     <div className="flex-1 overflow-y-auto p-2 space-y-2 custom-scrollbar"> 
                         {track.queue.length === 0 ? (
