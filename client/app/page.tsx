@@ -798,7 +798,7 @@ export default function DaChat() {
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
               <GlassPanel className="w-full max-w-md p-6 flex flex-col gap-4 border border-red-500/30 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
                   <div className="flex justify-between items-center">
-                      <h2 className="text-xl font-bold text-white flex items-center gap-2">🐞 Report Issue</h2>
+                      <h1 className="text-xl font-bold text-white flex items-center gap-2">Report Issue</h1>
                       <button onClick={() => setShowReportBug(false)} className="text-white/50 hover:text-white">✕</button>
                   </div>
                   
