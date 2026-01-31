@@ -42,7 +42,7 @@ const SOUNDS = [
     { id: "cricket", emoji: "🦗", file: "/sounds/cricket.mp3" }
 ];
 
-const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 202(si ceva) ?"];
+const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 20(si ceva) ?"];
 const APP_VERSION = "1.4.0"; 
 const WHATS_NEW = ["📝 Message Editing & Replies", "🎭 Voice Soundboard", "📂 Server Categories", "✨ Markdown Support"];
 const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
@@ -188,12 +188,11 @@ export default function DaChat() {
 
   const closeChangelog = () => { localStorage.setItem("dachat_version", APP_VERSION); setShowChangelog(false); };
 
-// NEW IMPROVED CODE
+// RINGTOME HANDLING
 useEffect(() => {
-    // Initialize the audio object and set volume
     ringtoneAudioRef.current = new Audio(selectedRingtone);
     ringtoneAudioRef.current.loop = true;
-    ringtoneAudioRef.current.volume = 0.5; // Ensure it's audible
+    ringtoneAudioRef.current.volume = 0.5;
     ringtoneAudioRef.current.load();
 
     return () => {
@@ -234,6 +233,15 @@ useEffect(() => {
       return () => window.removeEventListener('click', unlockAudio);
   }, []);
 
+  // 🛡️ IMMERSION FIX: Prevent browser context menu globally
+useEffect(() => {
+    const handleGlobalContextMenu = (e: MouseEvent) => {
+        e.preventDefault(); // Stop browser menu
+    };
+    document.addEventListener("contextmenu", handleGlobalContextMenu);
+    return () => document.removeEventListener("contextmenu", handleGlobalContextMenu);
+}, []);
+
   useEffect(() => {
       const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
       window.addEventListener("click", handleClick);
@@ -271,12 +279,10 @@ useEffect(() => {
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       
-      // NEW: Message Edited
       socket.on("message_updated", (updatedMsg) => {
           setChatHistory(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, content: updatedMsg.content, is_edited: true } : m));
       });
 
-      // NEW: Trigger Soundboard
       socket.on("trigger_sound", ({ soundId }) => {
           const sound = SOUNDS.find(s => s.id === soundId);
           if (sound) {
@@ -340,7 +346,6 @@ useEffect(() => {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  // FEATURE: UPDATED SEND MESSAGE (Handles Edit & Reply)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if (editingId) {
           const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
@@ -360,16 +365,13 @@ useEffect(() => {
       setMessage(""); setReplyTo(null); 
   };
 
-  // FUNCTION TO HANDLE BUG REPORTING
   const handleReportBug = async () => {
       if (!bugDesc.trim()) return alert("Please describe the bug.");
-      
       setIsSubmittingBug(true);
       const formData = new FormData();
       formData.append("userId", user.id);
       formData.append("description", bugDesc);
       if (bugFile) formData.append("screenshot", bugFile);
-
       try {
           const res = await fetch(`${BACKEND_URL}/report-bug`, { method: "POST", body: formData });
           const data = await res.json();
@@ -388,7 +390,6 @@ useEffect(() => {
       }
   };
 
-  // FEATURE: SOUNDBOARD TRIGGER
   const playSoundEffect = (soundId: string) => { const roomId = activeVoiceChannelId; if (roomId) socket.emit("play_sound", { roomId, soundId }); };
 
   const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
@@ -426,16 +427,12 @@ useEffect(() => {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-// UPDATED: Call Join Logic
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
-      
-      // FIX: Tell server we joined so we get music updates & show up in the list
       socket.emit("join_voice", { roomId, userData: user });
-
       if (joinSoundRef.current) { 
           joinSoundRef.current.currentTime = 0; 
           joinSoundRef.current.play().catch(() => {}); 
@@ -457,7 +454,6 @@ useEffect(() => {
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
-      {/* AUTH SCREEN - SAME AS BEFORE */}
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
@@ -490,7 +486,8 @@ useEffect(() => {
   );
 
   return (
-    <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30">
+    // 🛡️ IMMERSION FIX: Added 'select-none' to prevent accidental highlights
+    <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
       {/* 1. DOCK */}
@@ -511,7 +508,7 @@ useEffect(() => {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      {/* 2. SIDEBAR - FEATURE: CATEGORIES ADDED */}
+      {/* 2. SIDEBAR */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
@@ -521,7 +518,6 @@ useEffect(() => {
             {view === "servers" && active.server ? (
                 <>
                     <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
-                    {/* Render Text Channels */}
                     {channels.filter(c => c.type === 'text').map(ch => (
                         <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                             <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
@@ -532,8 +528,7 @@ useEffect(() => {
                     ))}
 
                     <div className="mt-4 flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>VOICE CHANNELS</span> </div>
-                    {/* Render Voice Channels */}
-{channels.filter(c => c.type === 'voice').map(ch => {
+                    {channels.filter(c => c.type === 'voice').map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
@@ -541,8 +536,6 @@ useEffect(() => {
                                 <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                     <span className="opacity-50 shrink-0">🔊</span> 
                                     <span className="truncate">{ch.name}</span>
-                                    
-                                    {/* ✅ FIX: Avatars are now here, with ml-2 (margin-left) instead of ml-auto */}
                                     {activeMembers.length > 0 && (
                                         <div className="flex -space-x-1 ml-2 shrink-0 animate-in fade-in">
                                             {activeMembers.slice(0, 3).map(m => ( <UserAvatar key={m.id} src={m.avatar_url} className="w-5 h-5 rounded-full border border-black/50" /> ))}
@@ -590,7 +583,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT (With Swipe Handlers) */}
+      {/* 3. MAIN CONTENT */}
       <div 
         onTouchStart={onTouchStart} 
         onTouchMove={onTouchMove} 
@@ -607,7 +600,6 @@ useEffect(() => {
                     </div> 
                     <div className="flex gap-2">
                         {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
-                        {/* Mobile: Toggle Members Button */}
                         {view === "servers" && active.server && (
                            <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
                         )}
@@ -635,15 +627,13 @@ useEffect(() => {
                                         <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
                                         {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
                                     </div> 
-                                    
-                                    {/* ⚡️ FEATURE: REPLY RENDER */}
                                     {msg.reply_to_id && (
                                         <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
                                             <span>⤴️ {t('chat_replying')}</span>
                                         </div>
                                     )}
-
-                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
+                                    {/* 🛡️ IMMERSION FIX: Re-enable 'select-text' for message bubbles so they remain copyable */}
+                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
                                         {formatMessage(msg.content)} 
                                     </div> 
                                     {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
@@ -653,7 +643,6 @@ useEffect(() => {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* FEATURE: EDIT / REPLY BANNER */}
                     {replyTo && (
                         <div className="px-4 py-2 bg-black/40 border-t border-white/5 flex justify-between items-center animate-in slide-in-from-bottom-2">
                             <div className="text-xs text-white/60"> {t('chat_replying')} <span className="font-bold text-white">{replyTo.sender_name}</span> </div>
@@ -685,10 +674,8 @@ useEffect(() => {
 {/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
-                 
-                 {/* Top Header Controls */}
                  <div className="absolute top-4 left-0 right-0 px-4 flex justify-between items-start z-[60] pointer-events-none">
-                     <div /> {/* Spacer */}
+                     <div /> 
                      <div className="flex gap-2 pointer-events-auto">
                          <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
                             <span>🎭</span> Sounds
@@ -699,10 +686,7 @@ useEffect(() => {
                      </div>
                  </div>
 
-                 {/* Main Content Area */}
                  <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full relative pt-16">
-                    
-                    {/* Soundboard Popup */}
                     {showSoundboard && (
                         <div className="absolute top-14 right-4 z-[70] bg-black/90 border border-white/20 rounded-2xl p-4 w-64 animate-in zoom-in-95 shadow-2xl">
                             <div className="flex justify-between items-center mb-3">
@@ -719,13 +703,10 @@ useEffect(() => {
                         </div>
                     )}
 
-                    {/* 1. MUSIC PLAYER (Synced) */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative">
-                        {/* ✅ FIX: Pass 'onSearch' correctly so buttons sync */}
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
 
-                    {/* 2. LIVEKIT VOICE ROOM */}
                     <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
                         <LiveKitVoiceRoom 
                            room={activeVoiceChannelId} 
@@ -734,7 +715,6 @@ useEffect(() => {
                                setInCall(false);
                                setActiveVoiceChannelId(null);
                                setIsCallExpanded(false);
-                               // ✅ FIX: Emit leave event so avatar is removed from list
                                socket.emit("leave_voice");
                            }} 
                         />
@@ -744,7 +724,7 @@ useEffect(() => {
          )}
       </div>
 
-      {/* 4. MEMBER LIST (UPDATED FOR MOBILE SWIPE) */}
+      {/* 4. MEMBER LIST */}
       {view === "servers" && active.server && (
           <div 
              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
@@ -764,9 +744,6 @@ useEffect(() => {
           </div>
       )}
 
-      {/* ... [KEEP MODALS, SETTINGS, AND MUSIC PLAYER COMPONENTS EXACTLY AS THEY ARE] ... */}
-      {/* (Omitted for brevity - keep your existing code for modals and RoomPlayer) */}
-      
       {incomingCall && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
               <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
@@ -833,7 +810,6 @@ useEffect(() => {
           </div>
       )}
 
-      {/* 🐛 BUG REPORT MODAL */}
       {showReportBug && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
               <GlassPanel className="w-full max-w-md p-6 flex flex-col gap-4 border border-red-500/30 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
@@ -841,41 +817,24 @@ useEffect(() => {
                       <h1 className="text-xl font-bold text-white flex items-center gap-2">Report Issue</h1>
                       <button onClick={() => setShowReportBug(false)} className="text-white/50 hover:text-white">✕</button>
                   </div>
-                  
                   <div className="space-y-1">
                       <label className="text-xs font-bold text-white/50 uppercase">Description</label>
-                      <textarea 
-                          className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-red-500/50 outline-none resize-none" 
-                          placeholder="What went wrong? Steps to reproduce..."
-                          value={bugDesc}
-                          onChange={(e) => setBugDesc(e.target.value)}
-                      />
+                      <textarea className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-red-500/50 outline-none resize-none" placeholder="What went wrong? Steps to reproduce..." value={bugDesc} onChange={(e) => setBugDesc(e.target.value)} />
                   </div>
-
                   <div className="space-y-1">
                       <label className="text-xs font-bold text-white/50 uppercase">Screenshot (Optional)</label>
-                      <div 
-                          className="border-2 border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all"
-                          onClick={() => (document.getElementById('bugUpload') as any).click()}
-                      >
+                      <div className="border-2 border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all" onClick={() => (document.getElementById('bugUpload') as any).click()} >
                           {bugFile ? (
-                              <div className="text-green-400 text-sm font-bold flex items-center justify-center gap-2">
-                                  <span>🖼️</span> {bugFile.name}
-                              </div>
+                              <div className="text-green-400 text-sm font-bold flex items-center justify-center gap-2"> <span>🖼️</span> {bugFile.name} </div>
                           ) : (
                               <div className="text-white/30 text-sm">Click to attach screenshot</div>
                           )}
                           <input id="bugUpload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && setBugFile(e.target.files[0])} />
                       </div>
                   </div>
-
                   <div className="flex gap-3 mt-2">
                       <button onClick={() => setShowReportBug(false)} className="flex-1 py-3 text-white/50 hover:text-white transition-colors font-bold text-sm">Cancel</button>
-                      <button 
-                          onClick={handleReportBug} 
-                          disabled={isSubmittingBug}
-                          className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95 disabled:opacity-50"
-                      >
+                      <button onClick={handleReportBug} disabled={isSubmittingBug} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95 disabled:opacity-50" >
                           {isSubmittingBug ? "Sending..." : "Submit Report"}
                       </button>
                   </div>
@@ -883,7 +842,6 @@ useEffect(() => {
           </div>
       )}
 
-      {/* CONTEXT MENU (Same as before) */}
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
               {contextMenu.type === 'message' && ( <> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> )} </> )}
@@ -898,13 +856,7 @@ useEffect(() => {
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
-
-// Helper to send actions to backend
-    const handleControl = (action: string) => {
-        // Sends command to server via parent playMusic -> fetch API
-        onSearch({ action }); 
-    };
-
+    const handleControl = (action: string) => { onSearch({ action }); };
     const iframeSrc = useMemo(() => {
         if (!track?.current || track.isPaused) return "";
         const totalElapsedMs = track.elapsed + (track.startTime ? (Date.now() - track.startTime) : 0);
@@ -925,21 +877,15 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-sm md:text-base w-full">{track.current.title}</h3>
                         <p className="text-indigo-400 text-[10px] mt-1 font-bold uppercase tracking-widest mb-4"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
                         <div className="flex items-center gap-4 mb-2">
-                             {/* ✅ FIX: Send 'resume' or 'pause' action */}
                              <button onClick={() => handleControl(track.isPaused ? 'resume' : 'pause')} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95"> {track.isPaused ? "▶" : "⏸"} </button>
-                             {/* ✅ FIX: Send 'skip' action */}
                              <button onClick={() => handleControl('skip')} className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all active:scale-95"> ⏭ </button>
                         </div>
                         {track.queue && track.queue.length > 0 && ( <button onClick={() => setShowQueue(!showQueue)} className="text-[10px] text-white/50 hover:text-white mt-1 underline"> {showQueue ? "Hide Queue" : `View Queue (${track.queue.length})`} </button> )}
                     </>
                 ) : ( <div className="flex flex-col items-center justify-center h-full text-white/20"> <div className="text-6xl mb-4">💿</div> <p className="text-sm font-bold uppercase tracking-widest">{t('room_idle')}</p> </div> )}
             </div>
-            {/* Queue UI */}
             {showQueue && track?.queue && ( <div className="absolute inset-0 z-30 bg-black/95 p-4 overflow-y-auto animate-in slide-in-from-bottom-10"> <div className="flex justify-between items-center mb-4"> <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> </div> <div className="space-y-2"> {track.queue.map((q: any, i: number) => ( <div key={i} className="flex gap-3 items-center bg-white/5 p-2 rounded-lg border border-white/5"> <img src={q.image} className="w-10 h-10 rounded object-cover" alt="q-thumb"/> <div className="flex-1 min-w-0"> <div className="text-xs text-white font-bold truncate">{q.title}</div> <div className="text-[10px] text-white/40">In Queue</div> </div> </div> ))} </div> </div> )}
-            
-            {/* Search Bar */}
             <div className="relative z-20 p-3 bg-black/60 backdrop-blur-md border-t border-white/5"> <div className="flex gap-2"> 
-                {/* FIX: Send full query object */}
                 <input className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} /> 
                 {track?.current && ( <button onClick={() => handleControl('stop')} className="px-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors">■</button> )} 
             </div> </div>
