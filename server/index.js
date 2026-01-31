@@ -407,6 +407,40 @@ app.post("/channels/play", safeRoute(async (req, res) => {
   res.json({ success: true, state });
 }));
 
+// 🐛 NEW: BUG REPORT ROUTE
+app.post("/report-bug", upload.single("screenshot"), safeRoute(async (req, res) => {
+  const { description, userId } = req.body;
+  
+  if (!description) return res.status(400).json({ success: false, message: "Description required" });
+
+  let screenshotUrl = null;
+
+  // Upload screenshot if provided
+  if (req.file) {
+      const fileName = `bugs/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("uploads").upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
+      
+      if (!uploadError) {
+          const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
+          screenshotUrl = data.publicUrl;
+      }
+  }
+
+  // Save to Database
+  const { error } = await supabase.from("bug_reports").insert([{
+      user_id: userId,
+      description: description,
+      screenshot_url: screenshotUrl
+  }]);
+
+  if (error) {
+      console.error("Bug Report DB Error:", error);
+      return res.status(500).json({ success: false, message: "Failed to save report" });
+  }
+
+  res.json({ success: true, message: "Bug reported successfully!" });
+}));
+
 // --- UPLOAD ---
 app.post("/upload", upload.single("file"), safeRoute(async (req, res) => {
   if (!req.file) return res.status(400).json({ success: false });

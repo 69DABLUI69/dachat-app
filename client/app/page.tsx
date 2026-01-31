@@ -135,7 +135,7 @@ export default function DaChat() {
   const [tagline, setTagline] = useState("Next Gen Communication");
   const [showMobileChat, setShowMobileChat] = useState(false);
   
-  // ⚡️ NEW FEATURE STATES
+  // NEW FEATURE STATES
   const [showMobileMembers, setShowMobileMembers] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -143,9 +143,15 @@ export default function DaChat() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showSoundboard, setShowSoundboard] = useState(false);
 
+  // BUG REPORTING VARIABLES
+  const [showReportBug, setShowReportBug] = useState(false);
+  const [bugDesc, setBugDesc] = useState("");
+  const [bugFile, setBugFile] = useState<File | null>(null);
+  const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  // ⚡️ FEATURE: MARKDOWN PARSER
+  // FEATURE: MARKDOWN PARSER
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -214,7 +220,7 @@ export default function DaChat() {
 
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
-  // ⚡️ UPDATE: SOCKET LISTENERS (With Edit/Reply/Soundboard)
+  // UPDATE: SOCKET LISTENERS (With Edit/Reply/Soundboard)
   useEffect(() => { 
       socket.connect(); 
       const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
@@ -294,7 +300,7 @@ export default function DaChat() {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  // ⚡️ FEATURE: UPDATED SEND MESSAGE (Handles Edit & Reply)
+  // FEATURE: UPDATED SEND MESSAGE (Handles Edit & Reply)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if (editingId) {
           const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
@@ -314,7 +320,35 @@ export default function DaChat() {
       setMessage(""); setReplyTo(null); 
   };
 
-  // ⚡️ FEATURE: SOUNDBOARD TRIGGER
+  // FUNCTION TO HANDLE BUG REPORTING
+  const handleReportBug = async () => {
+      if (!bugDesc.trim()) return alert("Please describe the bug.");
+      
+      setIsSubmittingBug(true);
+      const formData = new FormData();
+      formData.append("userId", user.id);
+      formData.append("description", bugDesc);
+      if (bugFile) formData.append("screenshot", bugFile);
+
+      try {
+          const res = await fetch(`${BACKEND_URL}/report-bug`, { method: "POST", body: formData });
+          const data = await res.json();
+          if (data.success) {
+              alert("Thanks! Bug reported.");
+              setShowReportBug(false);
+              setBugDesc("");
+              setBugFile(null);
+          } else {
+              alert("Failed to report bug: " + data.message);
+          }
+      } catch (e) {
+          alert("Connection error");
+      } finally {
+          setIsSubmittingBug(false);
+      }
+  };
+
+  // FEATURE: SOUNDBOARD TRIGGER
   const playSoundEffect = (soundId: string) => { const roomId = activeVoiceChannelId; if (roomId) socket.emit("play_sound", { roomId, soundId }); };
 
   const deleteMessage = (msgId: number) => { const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`; socket.emit("delete_message", { messageId: msgId, roomId }); setChatHistory(prev => prev.filter(m => m.id !== msgId)); };
@@ -352,14 +386,14 @@ export default function DaChat() {
   const answerCall = () => { if (incomingCall) { joinVoiceRoom(incomingCall.roomId); setIncomingCall(null); } };
   const rejectCall = () => { if (!incomingCall) return; socket.emit("reject_call", { callerId: incomingCall.senderId }); setIncomingCall(null); };
   
-// ✅ UPDATED: Call Join Logic
+// UPDATED: Call Join Logic
   const joinVoiceRoom = useCallback((roomId: string) => {
       if (!user) return;
       setActiveVoiceChannelId(roomId);
       setIsCallExpanded(true);
       setInCall(true);
       
-      // ✅ FIX: Tell server we joined so we get music updates & show up in the list
+      // FIX: Tell server we joined so we get music updates & show up in the list
       socket.emit("join_voice", { roomId, userData: user });
 
       if (joinSoundRef.current) { 
@@ -437,7 +471,7 @@ export default function DaChat() {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      {/* 2. SIDEBAR - ⚡️ FEATURE: CATEGORIES ADDED */}
+      {/* 2. SIDEBAR - FEATURE: CATEGORIES ADDED */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
@@ -579,7 +613,7 @@ export default function DaChat() {
                         <div ref={messagesEndRef} />
                     </div>
 
-                    {/* ⚡️ FEATURE: EDIT / REPLY BANNER */}
+                    {/* FEATURE: EDIT / REPLY BANNER */}
                     {replyTo && (
                         <div className="px-4 py-2 bg-black/40 border-t border-white/5 flex justify-between items-center animate-in slide-in-from-bottom-2">
                             <div className="text-xs text-white/60"> {t('chat_replying')} <span className="font-bold text-white">{replyTo.sender_name}</span> </div>
@@ -732,7 +766,12 @@ export default function DaChat() {
               <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto">
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
-                  <div> <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> <div className="flex flex-col md:flex-row gap-6 items-start"> <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> <div className="flex flex-col gap-2 w-full"> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <div className="flex-1 w-full flex flex-col gap-4"> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> </div> </div> </div>
+                  <div> <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> <div className="flex flex-col md:flex-row gap-6 items-start"> <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> <div className="flex flex-col gap-2 w-full"><button 
+    onClick={() => setShowReportBug(true)} 
+    className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4"
+>
+    🐞 Report a Bug
+</button> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <div className="flex-1 w-full flex flex-col gap-4"> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> </div> </div> </div>
                   <div className="h-px bg-white/10 w-full" />
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                       <div className="space-y-4"> <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> <div className="space-y-1"> <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > <option value="en">English (Default)</option> <option value="ro">Română (Romanian)</option> <option value="de">Deutsch (German)</option> <option value="pl">Polski (Polish)</option> <option value="it">Italiano (Italian)</option> <option value="es">Español (Spanish)</option> <option value="pt">Português (Portuguese)</option> <option value="sv">Svenska (Swedish)</option> <option value="bg">Български (Bulgarian)</option> <option value="jp">日本語 (Japanese)</option> <option value="zh">中文 (Chinese)</option> </select> </div> <div className="space-y-1"> <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select> </div> </div> </div>
@@ -754,6 +793,56 @@ export default function DaChat() {
           </div>
       )}
 
+      {/* 🐛 BUG REPORT MODAL */}
+      {showReportBug && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-md p-6 flex flex-col gap-4 border border-red-500/30 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
+                  <div className="flex justify-between items-center">
+                      <h2 className="text-xl font-bold text-white flex items-center gap-2">🐞 Report Issue</h2>
+                      <button onClick={() => setShowReportBug(false)} className="text-white/50 hover:text-white">✕</button>
+                  </div>
+                  
+                  <div className="space-y-1">
+                      <label className="text-xs font-bold text-white/50 uppercase">Description</label>
+                      <textarea 
+                          className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-red-500/50 outline-none resize-none" 
+                          placeholder="What went wrong? Steps to reproduce..."
+                          value={bugDesc}
+                          onChange={(e) => setBugDesc(e.target.value)}
+                      />
+                  </div>
+
+                  <div className="space-y-1">
+                      <label className="text-xs font-bold text-white/50 uppercase">Screenshot (Optional)</label>
+                      <div 
+                          className="border-2 border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all"
+                          onClick={() => (document.getElementById('bugUpload') as any).click()}
+                      >
+                          {bugFile ? (
+                              <div className="text-green-400 text-sm font-bold flex items-center justify-center gap-2">
+                                  <span>🖼️</span> {bugFile.name}
+                              </div>
+                          ) : (
+                              <div className="text-white/30 text-sm">Click to attach screenshot</div>
+                          )}
+                          <input id="bugUpload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && setBugFile(e.target.files[0])} />
+                      </div>
+                  </div>
+
+                  <div className="flex gap-3 mt-2">
+                      <button onClick={() => setShowReportBug(false)} className="flex-1 py-3 text-white/50 hover:text-white transition-colors font-bold text-sm">Cancel</button>
+                      <button 
+                          onClick={handleReportBug} 
+                          disabled={isSubmittingBug}
+                          className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95 disabled:opacity-50"
+                      >
+                          {isSubmittingBug ? "Sending..." : "Submit Report"}
+                      </button>
+                  </div>
+              </GlassPanel>
+          </div>
+      )}
+
       {/* CONTEXT MENU (Same as before) */}
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
@@ -765,7 +854,7 @@ export default function DaChat() {
   );
 }
 
-// 🎵 MUSIC PLAYER COMPONENT
+// MUSIC PLAYER COMPONENT
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
@@ -810,7 +899,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
             
             {/* Search Bar */}
             <div className="relative z-20 p-3 bg-black/60 backdrop-blur-md border-t border-white/5"> <div className="flex gap-2"> 
-                {/* ✅ FIX: Send full query object */}
+                {/* FIX: Send full query object */}
                 <input className="flex-1 bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-blue-500/50" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} /> 
                 {track?.current && ( <button onClick={() => handleControl('stop')} className="px-3 bg-red-500/10 text-red-500 rounded-lg hover:bg-red-500/20 transition-colors">■</button> )} 
             </div> </div>
