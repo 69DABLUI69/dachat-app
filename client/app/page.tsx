@@ -868,6 +868,95 @@ const saveNotifSettings = async (newSettings: any) => {
     onClick={() => setShowReportBug(true)} 
     className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4"
 >
+
+// ... inside the showSettings modal return block
+
+<div className="space-y-6">
+
+    <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
+
+    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
+
+        {/* Toggle 1: Desktop Notifications */}
+
+        <div className="flex justify-between items-center">
+
+            <div className="flex flex-col">
+
+                <span className="text-sm font-bold">Enable Desktop Notifications</span>
+
+                <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
+
+            </div>
+
+            <button 
+
+                onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
+
+                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+
+            >
+
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
+
+            </button>
+
+        </div>
+
+
+
+        {/* Toggle 2: Streaming Notifications */}
+
+        <div className="flex justify-between items-center">
+
+            <span className="text-sm">People I know start streaming</span>
+
+            <button 
+
+                onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
+
+                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+
+            >
+
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
+
+            </button>
+
+        </div>
+
+
+
+        {/* Dropdown: Reaction settings */}
+
+        <div className="space-y-2">
+
+            <label className="text-sm">Someone reacts to my messages</label>
+
+            <select 
+
+                className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10"
+
+                value={notifSettings.reaction_notifications}
+
+                onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
+
+            >
+
+                <option value="all">All Messages</option>
+
+                <option value="mentions">Only Mentions</option>
+
+                <option value="none">Nothing</option>
+
+            </select>
+
+        </div>
+
+    </div>
+
+</div>
+    
      Report a Bug
 </button> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <div className="flex-1 w-full flex flex-col gap-4"> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> </div> </div> </div>
                   <div className="h-px bg-white/10 w-full" />
@@ -879,49 +968,6 @@ const saveNotifSettings = async (newSettings: any) => {
               </GlassPanel>
           </div>
       )}
-      <div className="space-y-6">
-    <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
-    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
-        {/* Toggle 1: Desktop Notifications */}
-        <div className="flex justify-between items-center">
-            <div className="flex flex-col">
-                <span className="text-sm font-bold">Enable Desktop Notifications</span>
-                <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
-            </div>
-            <button 
-                onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
-                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-            >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-            </button>
-        </div>
-
-        {/* Toggle 2: Streaming Notifications */}
-        <div className="flex justify-between items-center">
-            <span className="text-sm">People I know start streaming</span>
-            <button 
-                onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
-                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-            >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
-            </button>
-        </div>
-
-        {/* Dropdown: Reaction settings */}
-        <div className="space-y-2">
-            <label className="text-sm">Someone reacts to my messages</label>
-            <select 
-                className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10"
-                value={notifSettings.reaction_notifications}
-                onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
-            >
-                <option value="all">All Messages</option>
-                <option value="mentions">Only Mentions</option>
-                <option value="none">Nothing</option>
-            </select>
-        </div>
-    </div>
-</div>
 
       {showServerSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
