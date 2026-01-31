@@ -1012,6 +1012,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [showQueue, setShowQueue] = useState(false);
     const [localVolume, setLocalVolume] = useState(50);
     const [progress, setProgress] = useState(0);
+    const [showControls, setShowControls] = useState(false); // ✅ Visibility State
 
     const handleControl = (action: string) => { onSearch({ action }); };
 
@@ -1049,24 +1050,33 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     }, [track?.current?.videoId, track?.startTime, track?.isPaused]);
 
     return (
-        <div className="relative w-full h-full bg-zinc-950 flex flex-col group overflow-hidden">
+        <div 
+            className="relative w-full h-full bg-zinc-950 flex flex-col group overflow-hidden cursor-pointer"
+            onMouseEnter={() => setShowControls(true)} // 🖥️ Desktop: Hover On
+            onMouseLeave={() => setShowControls(false)} // 🖥️ Desktop: Hover Off
+            onClick={() => setShowControls(!showControls)} // 📱 Mobile: Tap Toggle
+        >
             {track?.current?.image && ( <div className="absolute inset-0 z-0 opacity-20 blur-3xl"> <img src={track.current.image} className="w-full h-full object-cover" alt="bg" /> </div> )}
             
-            <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0">
-                {/* Search Bar at Top */}
-                <div className="flex gap-2 mb-4 bg-black/40 p-2 rounded-xl border border-white/5 backdrop-blur-md z-20">
+            <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0 justify-center">
+                
+                {/* Search Bar (Only visible when controls are shown, optional but cleaner) */}
+                <div 
+                    className={`absolute top-4 left-4 right-4 flex gap-2 bg-black/40 p-2 rounded-xl border border-white/5 backdrop-blur-md z-20 transition-all duration-300 ${showControls ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0 pointer-events-none"}`}
+                    onClick={(e) => e.stopPropagation()}
+                >
                      <input className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none placeholder-white/30" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} />
                      {track?.current && <button onClick={() => handleControl('stop')} className="text-red-400 hover:text-red-300 px-2 font-bold text-xs">STOP</button>}
                 </div>
 
                 {track?.current ? (
-                    <div className="flex-1 flex flex-col items-center justify-center">
-                        <div className="relative w-32 h-32 md:w-48 md:h-48 shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 group-hover:scale-105 transition-transform duration-500 shrink-0 bg-black">
+                    <div className="flex-1 flex flex-col items-center justify-center transition-transform duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95)' : 'scale(1)' }}>
+                        <div className="relative w-32 h-32 md:w-48 md:h-48 shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
-                        <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-lg w-full mb-1">{track.current.title}</h3>
-                        <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
+                        <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-lg w-full mb-1 drop-shadow-md">{track.current.title}</h3>
+                        <p className="text-indigo-400 text-xs font-bold uppercase tracking-widest mb-6 shadow-black drop-shadow-sm"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
                     </div>
                 ) : ( 
                     <div className="flex-1 flex flex-col items-center justify-center text-white/20"> 
@@ -1076,8 +1086,11 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 )}
             </div>
 
-            {/* 🎛️ BOTTOM TOOLBAR (Controls + Progress) */}
-            <div className="relative z-20 bg-black/60 backdrop-blur-xl border-t border-white/10 p-4">
+            {/* 🎛️ BOTTOM TOOLBAR (Hidden by default, slides up on interaction) */}
+            <div 
+                className={`relative z-20 bg-black/80 backdrop-blur-xl border-t border-white/10 p-4 transition-all duration-300 ease-out transform ${showControls ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}`}
+                onClick={(e) => e.stopPropagation()} // Prevent toggling off when clicking buttons
+            >
                 {/* Progress Bar */}
                 {track?.current && (
                     <div className="flex items-center gap-3 text-[10px] font-mono font-bold text-white/50 mb-3">
@@ -1121,7 +1134,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
 
             {/* 📜 QUEUE OVERLAY (Fixed: Absolute inside the tile) */}
             {showQueue && track?.queue && ( 
-                <div className="absolute inset-0 z-30 bg-black/95 flex flex-col animate-in slide-in-from-bottom-full duration-300"> 
+                <div 
+                    className="absolute inset-0 z-30 bg-black/95 flex flex-col animate-in slide-in-from-bottom-full duration-300"
+                    onClick={(e) => e.stopPropagation()} 
+                > 
                     <div className="flex justify-between items-center p-4 border-b border-white/10"> 
                         <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest">Up Next</span> 
                         <button onClick={() => setShowQueue(false)} className="text-white/50 hover:text-white">✕</button> 
