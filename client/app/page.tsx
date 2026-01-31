@@ -725,67 +725,63 @@ const saveNotifSettings = async (newSettings: any) => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-{inCall && (
-             <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col md:flex-row overflow-hidden`}>
+{/* ⬇️ UPDATED GRID CALL LAYOUT ⬇️ */}
+         {inCall && (
+             <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-[#000000] animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  
-                 {/* 1. MAIN STAGE (Music Player / Stream Area) */}
-                 <div className="flex-1 h-[60vh] md:h-full relative bg-black flex flex-col">
-                     
-                     {/* Overlay Buttons (Top Right of Stage) */}
-                     <div className="absolute top-4 right-4 z-[60] flex gap-2">
-                         <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
+                 {/* Top Bar Overlay */}
+                 <div className="absolute top-4 left-4 right-4 z-[60] flex justify-between items-start pointer-events-none">
+                     <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 pointer-events-auto">
+                        <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span className="text-xs font-bold text-white/80">Voice Connected</span>
+                            <span className="text-white/20 mx-1">|</span>
+                            <span className="text-xs text-white/50">{active.channel ? active.channel.name : "Direct Call"}</span>
+                        </div>
+                     </div>
+
+                     <div className="flex gap-2 pointer-events-auto">
+                         <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-full text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
                             <span>🎭</span> Sounds
                          </button>
-                         <button onClick={() => setIsCallExpanded(false)} className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 text-white rounded-lg text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
+                         <button onClick={() => setIsCallExpanded(false)} className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 text-white rounded-full text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
                             <span></span> Minimize 
                          </button>
                      </div>
-
-                     {/* Soundboard Popup */}
-                     {showSoundboard && (
-                        <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-lg p-4 w-64 animate-in zoom-in-95 shadow-2xl">
-                            <div className="flex justify-between items-center mb-3">
-                                <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Soundboard</span>
-                                <button onClick={() => setShowSoundboard(false)} className="text-white/50 hover:text-white">✕</button>
-                            </div>
-                            <div className="grid grid-cols-3 gap-2">
-                                {SOUNDS.map(s => (
-                                    <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-black/40 hover:bg-white/10 rounded-lg flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5">
-                                        {s.emoji}
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-
-                    {/* The Player Itself */}
-                    <div className="w-full h-full">
-                        <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
-                    </div>
                  </div>
 
-                 {/* 2. SIDEBAR (Participants) */}
-                 <div className="w-full md:w-80 h-[40vh] md:h-full bg-[#2b2d31] border-t md:border-t-0 md:border-l border-[#1e1f22] flex flex-col relative z-20 shadow-xl">
-                    <div className="p-3 border-b border-black/20 bg-[#2b2d31] flex justify-between items-center shrink-0">
-                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Voice Connected</span>
-                        <div className="flex items-center gap-1">
-                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                            <span className="text-[10px] text-green-500 font-bold">RTC</span>
+                 {/* Soundboard Popup (Floating) */}
+                 {showSoundboard && (
+                    <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-2xl p-4 w-72 animate-in zoom-in-95 shadow-2xl">
+                        <div className="flex justify-between items-center mb-3">
+                            <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Soundboard</span>
+                            <button onClick={() => setShowSoundboard(false)} className="text-white/50 hover:text-white">✕</button>
+                        </div>
+                        <div className="grid grid-cols-3 gap-2">
+                            {SOUNDS.map(s => (
+                                <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-black/40 hover:bg-white/10 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5 hover:border-indigo-500/50">
+                                    {s.emoji}
+                                </button>
+                            ))}
                         </div>
                     </div>
-                    
-                    <div className="flex-1 relative">
-                        <LiveKitVoiceRoom 
-                           room={activeVoiceChannelId} 
-                           user={user} 
-                           onLeave={() => {
-                               setInCall(false);
-                               setActiveVoiceChannelId(null);
-                               setIsCallExpanded(false);
-                               socket.emit("leave_voice");
-                           }} 
-                        />
-                    </div>
+                 )}
+
+                 {/* MAIN CALL AREA - Unified Grid */}
+                 <div className="flex-1 w-full h-full relative z-10">
+                    <LiveKitVoiceRoom 
+                       room={activeVoiceChannelId} 
+                       user={user} 
+                       onLeave={() => {
+                           setInCall(false);
+                           setActiveVoiceChannelId(null);
+                           setIsCallExpanded(false);
+                           socket.emit("leave_voice");
+                       }} 
+                    >
+                        {/* 🎵 PASSING THE MUSIC PLAYER AS A CHILD TILE */}
+                        <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
+                    </LiveKitVoiceRoom>
                  </div>
              </div>
          )}

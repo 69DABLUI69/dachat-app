@@ -45,57 +45,69 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
 
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`;
 
-  // Discord-style: Darker card, cleaner border
+  // Discord-style: Rectangular card, dark background, centered avatar
   return (
-    <div className={`group relative w-full aspect-square bg-[#1e1f22] rounded-xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#404249]"}`} onClick={() => setShowVolume(false)}>
-        <img src={finalAvatar} alt={participant.identity} className={`w-14 h-14 rounded-full mb-2 object-cover transition-transform ${isSpeaking ? "scale-105" : "scale-100"}`} />
+    <div 
+        className={`group relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-[#2b2d31] rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 shadow-xl ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#313338]"}`} 
+        onClick={() => setShowVolume(false)}
+    >
+        <div className="relative">
+            <img src={finalAvatar} alt={participant.identity} className={`w-24 h-24 rounded-full mb-4 object-cover transition-transform duration-300 ${isSpeaking ? "scale-110 border-2 border-green-500" : "scale-100"}`} />
+            {/* Status Indicator (Bottom Right of Avatar) */}
+            {isSpeaking && <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#2b2d31] rounded-full flex items-center justify-center"><div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div></div>}
+        </div>
         
         {/* Mobile Volume Toggle & Desktop Hover */}
         {!participant.isLocal && (
           <>
             <button 
                 onClick={(e) => { e.stopPropagation(); setShowVolume(!showVolume); }}
-                className={`absolute top-1 right-1 z-20 w-6 h-6 flex items-center justify-center rounded-full bg-black/50 text-white/70 md:opacity-0 md:group-hover:opacity-100 ${showVolume ? "opacity-100 bg-green-600 text-white" : ""}`}
+                className={`absolute top-3 right-3 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:bg-black hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 ${showVolume ? "opacity-100 bg-green-600 text-white" : ""}`}
             >
                 {showVolume ? "✕" : "🔊"}
             </button>
             <div 
                 onClick={(e) => e.stopPropagation()}
-                className={`absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-xl p-2 z-10 transition-all duration-200 
+                className={`absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-2xl p-6 z-10 transition-all duration-200 
                 ${showVolume ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"}`}
             >
+               <span className="text-xs font-bold text-white/50 uppercase mb-2 tracking-widest">User Volume</span>
                <input 
                   type="range" min="0" max="1" step="0.1" value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full accent-green-500 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer mb-1"
+                  className="w-full max-w-[150px] accent-green-500 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer mb-2"
                />
-               <span className="text-[10px] font-mono font-bold text-green-400">{Math.round(volume * 100)}%</span>
+               <span className="text-sm font-mono font-bold text-green-400">{Math.round(volume * 100)}%</span>
             </div>
           </>
         )}
 
-        <div className="flex items-center gap-1.5 relative z-0 max-w-full px-2">
-            <span className="text-white font-bold text-xs truncate">
+        <div className="absolute bottom-4 left-4 flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg backdrop-blur-sm">
+            <span className="text-white font-bold text-sm truncate max-w-[120px]">
                 {participant.identity} {participant.isLocal && "(You)"}
             </span>
             {participant.isMicrophoneEnabled ? null : <span className="text-[10px] text-red-400">🔇</span>}
         </div>
-        
-        {/* Green Ring Animation for Speaking */}
-        {isSpeaking && (
-             <div className="absolute inset-0 rounded-xl ring-2 ring-green-500 animate-pulse pointer-events-none" />
-        )}
     </div>
   );
 }
 
-// 3. Grid Component - Optimized for Sidebar (2 Columns)
-function MyParticipantGrid() {
+// 3. Grid Component - Accepts 'children' (The Music Player)
+function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
   const participants = useParticipants(); 
 
   return (
-    // Discord sidebar style: simple grid with minimal gaps
-    <div className="grid grid-cols-2 gap-2 p-2 h-full content-start overflow-y-auto custom-scrollbar">
+    // Flex Wrap logic to mimic Discord's dynamic grid
+    <div className="flex flex-wrap items-center justify-center gap-4 p-4 h-full w-full overflow-y-auto custom-scrollbar content-center">
+      
+      {/* 🎵 Music Player Tile (Rendered as just another square) */}
+      {children && (
+          <div className="relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-zinc-900 rounded-2xl overflow-hidden border border-white/5 shadow-xl hover:ring-1 hover:ring-indigo-500/50 transition-all">
+             {children}
+          </div>
+      )}
+
+      {/* 👥 Participant Tiles */}
       {participants.map((p) => (
         <VoiceUserTile key={p.identity} participant={p} />
       ))}
@@ -104,7 +116,7 @@ function MyParticipantGrid() {
 }
 
 // 4. Main Component
-export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
+export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any) {
   const [token, setToken] = useState("");
 
   useEffect(() => {
@@ -135,12 +147,13 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
         style={{ height: "100%", display: "flex", flexDirection: "column" }}
         onDisconnected={onLeave} 
       >
-        <div className="flex-1 overflow-hidden bg-[#2b2d31]">
-           <MyParticipantGrid />
+        <div className="flex-1 overflow-hidden bg-[#111214]"> {/* Discord Background Color */}
+           {/* Pass the Music Player (children) into the Grid */}
+           <MyParticipantGrid>{children}</MyParticipantGrid>
         </div>
 
-        {/* Discord Style: Control Bar at bottom of sidebar */}
-        <div className="bg-[#1e1f22] p-2 border-t border-black/20">
+        {/* Discord Style Control Bar */}
+        <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center">
             <ControlBar 
               variation="minimal" 
               controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
