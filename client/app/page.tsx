@@ -843,7 +843,7 @@ const saveNotifSettings = async (newSettings: any) => {
                       <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> 
                         <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> 
                         <div className="flex flex-col gap-2 w-full">
-                          <button onClick={() => setShowReportBug(true)} className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4">
+                          <button onClick={() => setShowReportBug(true)} className="text-xs w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4">
                             Report a Bug
                           </button> 
                           <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> 
@@ -987,49 +987,6 @@ const saveNotifSettings = async (newSettings: any) => {
           </div>
       )}
 
-      {showServerSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col gap-4 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300">
-                  <h2 className="text-xl font-bold">Server Settings</h2>
-                  <div className="flex justify-center mb-4 cursor-pointer group" onClick={()=>(document.getElementById('serverImg') as any).click()}> <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-20 h-20 rounded-2xl border-2 border-white/20 group-hover:border-white/50 transition-all group-hover:scale-105" /> <input id="serverImg" type="file" className="hidden" onChange={(e)=>e.target.files && setNewServerFile(e.target.files[0])} /> </div>
-                  <input className="bg-white/10 p-3 rounded text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all" value={serverEditForm.name} onChange={e=>setServerEditForm({...serverEditForm, name: e.target.value})} />
-                  <div className="flex justify-end gap-2"> <button onClick={()=>setShowServerSettings(false)} className="text-white/50 px-4 hover:text-white transition-colors">{t('btn_cancel')}</button> <button onClick={saveServerSettings} className="bg-white text-black px-6 py-2 rounded font-bold hover:scale-105 transition-transform">{t('btn_save')}</button> </div>
-              </GlassPanel>
-          </div>
-      )}
-
-      {showReportBug && (
-          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-md p-6 flex flex-col gap-4 border border-red-500/30 shadow-[0_0_50px_rgba(220,38,38,0.1)]">
-                  <div className="flex justify-between items-center">
-                      <h1 className="text-xl font-bold text-white flex items-center gap-2">Report Issue</h1>
-                      <button onClick={() => setShowReportBug(false)} className="text-white/50 hover:text-white">✕</button>
-                  </div>
-                  <div className="space-y-1">
-                      <label className="text-xs font-bold text-white/50 uppercase">Description</label>
-                      <textarea className="w-full h-32 bg-black/40 border border-white/10 rounded-xl p-3 text-sm text-white focus:border-red-500/50 outline-none resize-none" placeholder="What went wrong? Steps to reproduce..." value={bugDesc} onChange={(e) => setBugDesc(e.target.value)} />
-                  </div>
-                  <div className="space-y-1">
-                      <label className="text-xs font-bold text-white/50 uppercase">Screenshot (Optional)</label>
-                      <div className="border-2 border-dashed border-white/10 rounded-xl p-4 text-center cursor-pointer hover:border-white/30 hover:bg-white/5 transition-all" onClick={() => (document.getElementById('bugUpload') as any).click()} >
-                          {bugFile ? (
-                              <div className="text-green-400 text-sm font-bold flex items-center justify-center gap-2"> <span>🖼️</span> {bugFile.name} </div>
-                          ) : (
-                              <div className="text-white/30 text-sm">Click to attach screenshot</div>
-                          )}
-                          <input id="bugUpload" type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files && setBugFile(e.target.files[0])} />
-                      </div>
-                  </div>
-                  <div className="flex gap-3 mt-2">
-                      <button onClick={() => setShowReportBug(false)} className="flex-1 py-3 text-white/50 hover:text-white transition-colors font-bold text-sm">Cancel</button>
-                      <button onClick={handleReportBug} disabled={isSubmittingBug} className="flex-1 py-3 bg-red-600 hover:bg-red-500 text-white rounded-xl font-bold shadow-lg shadow-red-900/20 transition-all active:scale-95 disabled:opacity-50" >
-                          {isSubmittingBug ? "Sending..." : "Submit Report"}
-                      </button>
-                  </div>
-              </GlassPanel>
-          </div>
-      )}
-
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
               {contextMenu.type === 'message' && ( <> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> )} </> )}
@@ -1043,6 +1000,9 @@ const saveNotifSettings = async (newSettings: any) => {
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
+    // 🔊 Local Volume State
+    const [localVolume, setLocalVolume] = useState(50); 
+    
     const handleControl = (action: string) => { onSearch({ action }); };
     const iframeSrc = useMemo(() => {
         if (!track?.current || track.isPaused) return "";
@@ -1063,6 +1023,20 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         </div>
                         <h3 className="text-white font-bold text-center line-clamp-1 px-2 text-sm md:text-base w-full">{track.current.title}</h3>
                         <p className="text-indigo-400 text-[10px] mt-1 font-bold uppercase tracking-widest mb-4"> {track.isPaused ? "⏸ PAUSED" : "▶ NOW PLAYING"} </p>
+
+                        {/* 🔊 Volume Slider for Music - REMOVED opacity-50 and hover effects so it is always visible */}
+<div className="flex items-center gap-2 w-48 mb-4 bg-black/40 px-3 py-2 rounded-full border border-white/10 shadow-lg">
+    <span className="text-xs">🔈</span>
+    <input 
+        type="range" 
+        min="0" max="100" 
+        value={localVolume} 
+        onChange={(e) => setLocalVolume(parseInt(e.target.value))}
+        className="w-full h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+    />
+    <span className="text-xs">🔊</span>
+</div>
+
                         <div className="flex items-center gap-4 mb-2">
                              <button onClick={() => handleControl(track.isPaused ? 'resume' : 'pause')} className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center text-xl hover:scale-110 transition-transform active:scale-95"> {track.isPaused ? "▶" : "⏸"} </button>
                              <button onClick={() => handleControl('skip')} className="w-10 h-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20 hover:scale-110 transition-all active:scale-95"> ⏭ </button>
