@@ -725,11 +725,14 @@ const saveNotifSettings = async (newSettings: any) => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-         {inCall && (
-             <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
-                 <div className="absolute top-4 left-0 right-0 px-4 flex justify-between items-start z-[60] pointer-events-none">
-                     <div /> 
-                     <div className="flex gap-2 pointer-events-auto">
+{inCall && (
+             <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col md:flex-row overflow-hidden`}>
+                 
+                 {/* 1. MAIN STAGE (Music Player / Stream Area) */}
+                 <div className="flex-1 h-[60vh] md:h-full relative bg-black flex flex-col">
+                     
+                     {/* Overlay Buttons (Top Right of Stage) */}
+                     <div className="absolute top-4 right-4 z-[60] flex gap-2">
                          <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
                             <span>🎭</span> Sounds
                          </button>
@@ -737,18 +740,17 @@ const saveNotifSettings = async (newSettings: any) => {
                             <span></span> Minimize 
                          </button>
                      </div>
-                 </div>
 
-                 <div className="flex-1 flex flex-col md:flex-row gap-4 p-4 overflow-hidden h-full relative pt-16">
-                    {showSoundboard && (
-                        <div className="absolute top-14 right-4 z-[70] bg-black/90 border border-white/20 rounded-2xl p-4 w-64 animate-in zoom-in-95 shadow-2xl">
+                     {/* Soundboard Popup */}
+                     {showSoundboard && (
+                        <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-lg p-4 w-64 animate-in zoom-in-95 shadow-2xl">
                             <div className="flex justify-between items-center mb-3">
                                 <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Soundboard</span>
-                                <button onClick={() => setShowSoundboard(false)}>✕</button>
+                                <button onClick={() => setShowSoundboard(false)} className="text-white/50 hover:text-white">✕</button>
                             </div>
                             <div className="grid grid-cols-3 gap-2">
                                 {SOUNDS.map(s => (
-                                    <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-white/10 hover:bg-white/20 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5">
+                                    <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-black/40 hover:bg-white/10 rounded-lg flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5">
                                         {s.emoji}
                                     </button>
                                 ))}
@@ -756,11 +758,23 @@ const saveNotifSettings = async (newSettings: any) => {
                         </div>
                     )}
 
-                    <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 shadow-lg relative">
+                    {/* The Player Itself */}
+                    <div className="w-full h-full">
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </div>
+                 </div>
 
-                    <div className="w-full md:w-1/2 h-1/2 md:h-full bg-zinc-900 rounded-2xl overflow-hidden border border-white/10 relative shadow-lg">
+                 {/* 2. SIDEBAR (Participants) */}
+                 <div className="w-full md:w-80 h-[40vh] md:h-full bg-[#2b2d31] border-t md:border-t-0 md:border-l border-[#1e1f22] flex flex-col relative z-20 shadow-xl">
+                    <div className="p-3 border-b border-black/20 bg-[#2b2d31] flex justify-between items-center shrink-0">
+                        <span className="text-xs font-bold text-white/40 uppercase tracking-widest">Voice Connected</span>
+                        <div className="flex items-center gap-1">
+                            <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                            <span className="text-[10px] text-green-500 font-bold">RTC</span>
+                        </div>
+                    </div>
+                    
+                    <div className="flex-1 relative">
                         <LiveKitVoiceRoom 
                            room={activeVoiceChannelId} 
                            user={user} 

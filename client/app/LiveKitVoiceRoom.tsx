@@ -18,9 +18,7 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.o
 function VoiceUserTile({ participant }: { participant: Participant }) {
   const isSpeaking = useIsSpeaking(participant);
   const [avatarUrl, setAvatarUrl] = useState("");
-  // 🔊 Local Volume State
   const [volume, setVolume] = useState(1); 
-  // 📱 Mobile Toggle State
   const [showVolume, setShowVolume] = useState(false);
 
   useEffect(() => {
@@ -47,60 +45,57 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
 
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`;
 
+  // Discord-style: Darker card, cleaner border
   return (
-    <div className={`group relative aspect-square bg-zinc-800 rounded-2xl flex flex-col items-center justify-center border-2 transition-all duration-200 ${isSpeaking ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]" : "border-white/5"}`} onClick={() => setShowVolume(false)}>
-        <img src={finalAvatar} alt={participant.identity} className={`w-16 h-16 rounded-full mb-3 object-cover transition-transform ${isSpeaking ? "scale-110" : "scale-100"}`} />
+    <div className={`group relative w-full aspect-square bg-[#1e1f22] rounded-xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#404249]"}`} onClick={() => setShowVolume(false)}>
+        <img src={finalAvatar} alt={participant.identity} className={`w-14 h-14 rounded-full mb-2 object-cover transition-transform ${isSpeaking ? "scale-105" : "scale-100"}`} />
         
-        {/* 🔊 CONTROLS OVERLAY */}
+        {/* Mobile Volume Toggle & Desktop Hover */}
         {!participant.isLocal && (
           <>
-            {/* 📱 Mobile Toggle Button (Always visible on mobile, hidden on hover) */}
             <button 
                 onClick={(e) => { e.stopPropagation(); setShowVolume(!showVolume); }}
-                className={`absolute top-2 right-2 z-20 w-8 h-8 flex items-center justify-center rounded-full bg-black/50 text-white/70 hover:bg-black hover:text-white transition-all md:opacity-0 md:group-hover:opacity-100 ${showVolume ? "opacity-100 bg-green-600 text-white" : ""}`}
+                className={`absolute top-1 right-1 z-20 w-6 h-6 flex items-center justify-center rounded-full bg-black/50 text-white/70 md:opacity-0 md:group-hover:opacity-100 ${showVolume ? "opacity-100 bg-green-600 text-white" : ""}`}
             >
                 {showVolume ? "✕" : "🔊"}
             </button>
-
-            {/* Volume Slider Overlay */}
             <div 
-                onClick={(e) => e.stopPropagation()} // Prevent closing when using slider
-                className={`absolute inset-0 bg-black/85 flex flex-col items-center justify-center rounded-2xl p-4 z-10 backdrop-blur-sm transition-all duration-200 
+                onClick={(e) => e.stopPropagation()}
+                className={`absolute inset-0 bg-black/90 flex flex-col items-center justify-center rounded-xl p-2 z-10 transition-all duration-200 
                 ${showVolume ? "opacity-100 pointer-events-auto" : "opacity-0 pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto"}`}
             >
-               <span className="text-[10px] font-bold text-white/50 mb-2 uppercase tracking-widest">User Volume</span>
                <input 
                   type="range" min="0" max="1" step="0.1" value={volume}
                   onChange={(e) => setVolume(parseFloat(e.target.value))}
-                  className="w-full accent-green-500 h-1.5 bg-white/20 rounded-lg appearance-none cursor-pointer mb-2"
+                  className="w-full accent-green-500 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer mb-1"
                />
-               <span className="text-xs font-mono font-bold text-green-400">{Math.round(volume * 100)}%</span>
+               <span className="text-[10px] font-mono font-bold text-green-400">{Math.round(volume * 100)}%</span>
             </div>
           </>
         )}
 
-        <div className="flex items-center gap-2 relative z-0">
-            <span className="text-white font-bold text-sm truncate max-w-[100px]">{participant.identity} {participant.isLocal && "(You)"}</span>
-            {participant.isMicrophoneEnabled ? <span className="text-[10px] text-white/50">🎙️</span> : <span className="text-[10px] text-red-400">🔇</span>}
+        <div className="flex items-center gap-1.5 relative z-0 max-w-full px-2">
+            <span className="text-white font-bold text-xs truncate">
+                {participant.identity} {participant.isLocal && "(You)"}
+            </span>
+            {participant.isMicrophoneEnabled ? null : <span className="text-[10px] text-red-400">🔇</span>}
         </div>
         
+        {/* Green Ring Animation for Speaking */}
         {isSpeaking && (
-            <div className="absolute bottom-4 flex gap-1 h-3 items-end z-0">
-                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '60%', animationDelay: '0ms' }} />
-                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '100%', animationDelay: '100ms' }} />
-                <div className="w-1 bg-green-500 animate-bounce" style={{ height: '80%', animationDelay: '200ms' }} />
-            </div>
+             <div className="absolute inset-0 rounded-xl ring-2 ring-green-500 animate-pulse pointer-events-none" />
         )}
     </div>
   );
 }
 
-// 3. Grid Component (Iterates over all participants)
+// 3. Grid Component - Optimized for Sidebar (2 Columns)
 function MyParticipantGrid() {
-  const participants = useParticipants(); // Get all users in the room
+  const participants = useParticipants(); 
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4 h-full content-start overflow-y-auto custom-scrollbar">
+    // Discord sidebar style: simple grid with minimal gaps
+    <div className="grid grid-cols-2 gap-2 p-2 h-full content-start overflow-y-auto custom-scrollbar">
       {participants.map((p) => (
         <VoiceUserTile key={p.identity} participant={p} />
       ))}
@@ -127,7 +122,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
     })();
   }, [room, user?.username, user?.avatar_url]);
 
-  if (token === "") return <div className="flex items-center justify-center h-full text-white/50 animate-pulse">Connecting to Voice...</div>;
+  if (token === "") return <div className="flex items-center justify-center h-full text-white/50 animate-pulse text-xs uppercase tracking-widest">Connecting...</div>;
 
   return (
     <LayoutContextProvider>
@@ -140,14 +135,17 @@ export default function LiveKitVoiceRoom({ room, user, onLeave }: any) {
         style={{ height: "100%", display: "flex", flexDirection: "column" }}
         onDisconnected={onLeave} 
       >
-        <div className="flex-1 overflow-hidden bg-zinc-950/50">
+        <div className="flex-1 overflow-hidden bg-[#2b2d31]">
            <MyParticipantGrid />
         </div>
 
-        <ControlBar 
-          variation="minimal" 
-          controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
-        />
+        {/* Discord Style: Control Bar at bottom of sidebar */}
+        <div className="bg-[#1e1f22] p-2 border-t border-black/20">
+            <ControlBar 
+              variation="minimal" 
+              controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
+            />
+        </div>
         
         <RoomAudioRenderer />
       </LiveKitRoom>
