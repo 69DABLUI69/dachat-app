@@ -575,11 +575,12 @@ io.on("connection", (socket) => {
     } catch (err) { console.error("Message Fetch Error:", err); }
   });
 
-  // ⚡️ FEATURE: Send Message (With Reply)
-  socket.on("send_message", async (data) => {
+  // FEATURE: Send Message (With Reply)
+socket.on("send_message", async (data) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url, replyToId } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
     
+    // 1. Prepare the payload (includes reply logic)
     const messagePayload = { 
         ...data, 
         id: data.id || Date.now(), 
@@ -587,8 +588,28 @@ io.on("connection", (socket) => {
         reply_to_id: replyToId
     };
     
+    // 2. Broadcast the message to the room
     if (room) io.to(room).emit("receive_message", messagePayload);
 
+    // 3. Handle Notifications for DM recipients
+    if (recipientId) {
+        const { data: recipient } = await supabase
+            .from("users")
+            .select("notification_settings")
+            .eq("id", recipientId)
+            .single();
+
+        // Only send push if recipient has desktop notifications enabled
+        if (recipient?.notification_settings?.desktop_notifications) {
+            io.to(recipientId.toString()).emit("push_notification", {
+                title: `New message from ${senderName}`,
+                body: content,
+                icon: avatar_url // Uses sender's avatar for the notification icon
+            });
+        }
+    }
+
+    // 4. Save to Database (ensures message history is preserved)
     try {
         await supabase.from("messages").insert([{
             id: messagePayload.id,
@@ -601,8 +622,10 @@ io.on("connection", (socket) => {
             recipient_id: recipientId || null,
             reply_to_id: replyToId || null
         }]);
-    } catch (err) { console.error("DB Save Error:", err); }
-  });
+    } catch (err) { 
+        console.error("DB Save Error:", err); 
+    }
+});
 
   // ⚡️ FEATURE: Edit Message
   socket.on("edit_message", async ({ messageId, newContent, roomId }) => {

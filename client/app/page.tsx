@@ -268,6 +268,43 @@ useEffect(() => {
 
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
+// 1. Notification Permission Request
+useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+}, []);
+
+// 2. Handle Incoming Push Events
+useEffect(() => {
+    socket.on("push_notification", (data) => {
+        if (Notification.permission === "granted" && document.hidden) {
+            new Notification(data.title, {
+                body: data.body,
+                icon: data.icon || "/logo.png"
+            });
+        }
+    });
+    return () => { socket.off("push_notification"); };
+}, []);
+
+// 3. Update the Settings UI (Replace the "App Preferences" section)
+const [notifSettings, setNotifSettings] = useState(user?.notification_settings || {
+    desktop_notifications: true,
+    streaming_notifications: true,
+    voice_join_notifications: true,
+    reaction_notifications: "all"
+});
+
+const saveNotifSettings = async (newSettings: any) => {
+    setNotifSettings(newSettings);
+    await fetch(`${BACKEND_URL}/update-profile`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, notification_settings: newSettings })
+    });
+};
+
   // UPDATE: SOCKET LISTENERS (With Edit/Reply/Soundboard)
   useEffect(() => { 
       socket.connect(); 
@@ -842,6 +879,49 @@ useEffect(() => {
               </GlassPanel>
           </div>
       )}
+      <div className="space-y-6">
+    <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
+    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
+        {/* Toggle 1: Desktop Notifications */}
+        <div className="flex justify-between items-center">
+            <div className="flex flex-col">
+                <span className="text-sm font-bold">Enable Desktop Notifications</span>
+                <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
+            </div>
+            <button 
+                onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
+                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+            >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
+            </button>
+        </div>
+
+        {/* Toggle 2: Streaming Notifications */}
+        <div className="flex justify-between items-center">
+            <span className="text-sm">People I know start streaming</span>
+            <button 
+                onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
+                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+            >
+                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
+            </button>
+        </div>
+
+        {/* Dropdown: Reaction settings */}
+        <div className="space-y-2">
+            <label className="text-sm">Someone reacts to my messages</label>
+            <select 
+                className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10"
+                value={notifSettings.reaction_notifications}
+                onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
+            >
+                <option value="all">All Messages</option>
+                <option value="mentions">Only Mentions</option>
+                <option value="none">Nothing</option>
+            </select>
+        </div>
+    </div>
+</div>
 
       {showServerSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
