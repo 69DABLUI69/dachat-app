@@ -188,11 +188,51 @@ export default function DaChat() {
 
   const closeChangelog = () => { localStorage.setItem("dachat_version", APP_VERSION); setShowChangelog(false); };
 
-  useEffect(() => { ringtoneAudioRef.current = new Audio(selectedRingtone); ringtoneAudioRef.current.loop = true; }, [selectedRingtone]);
+// NEW IMPROVED CODE
+useEffect(() => {
+    // Initialize the audio object and set volume
+    ringtoneAudioRef.current = new Audio(selectedRingtone);
+    ringtoneAudioRef.current.loop = true;
+    ringtoneAudioRef.current.volume = 0.5; // Ensure it's audible
+    ringtoneAudioRef.current.load();
 
-  useEffect(() => {
-      if (incomingCall) { ringtoneAudioRef.current?.play().catch(e => console.error("Ringtone blocked:", e)); } else { ringtoneAudioRef.current?.pause(); if (ringtoneAudioRef.current) ringtoneAudioRef.current.currentTime = 0; }
-  }, [incomingCall]);
+    return () => {
+        if (ringtoneAudioRef.current) {
+            ringtoneAudioRef.current.pause();
+            ringtoneAudioRef.current = null;
+        }
+    };
+}, [selectedRingtone]);
+
+useEffect(() => {
+    const playRingtone = async () => {
+        if (incomingCall && ringtoneAudioRef.current) {
+            try {
+                ringtoneAudioRef.current.currentTime = 0;
+                await ringtoneAudioRef.current.play();
+            } catch (error) {
+                console.error("Autoplay blocked. User must click the page first.", error);
+            }
+        } else if (!incomingCall && ringtoneAudioRef.current) {
+            ringtoneAudioRef.current.pause();
+            ringtoneAudioRef.current.currentTime = 0;
+        }
+    };
+    playRingtone();
+}, [incomingCall]);
+
+useEffect(() => {
+      const unlockAudio = () => {
+          if (ringtoneAudioRef.current) {
+              ringtoneAudioRef.current.play().then(() => {
+                  ringtoneAudioRef.current?.pause();
+              }).catch(() => {});
+              window.removeEventListener('click', unlockAudio);
+          }
+      };
+      window.addEventListener('click', unlockAudio);
+      return () => window.removeEventListener('click', unlockAudio);
+  }, []);
 
   useEffect(() => {
       const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
