@@ -18,6 +18,24 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.o
 function VoiceUserTile({ participant }: { participant: Participant }) {
   const isSpeaking = useIsSpeaking(participant);
   const [avatarUrl, setAvatarUrl] = useState("");
+  // 🔊 Local Volume State (0.0 to 1.0 for LiveKit)
+  const [volume, setVolume] = useState(1); 
+
+  useEffect(() => {
+    // Apply volume locally to this participant's audio tracks
+    participant.audioTrackPublications.forEach((publication) => {
+      if (publication.track && publication.track.kind === 'audio') {
+        // @ts-ignore - setVolume exists on RemoteAudioTrack
+        if(publication.track.setVolume) {
+            (publication.track as any).setVolume(volume);
+        } else {
+             // Fallback for HTMLAudioElement if attached directly
+             const el = publication.track.attachedElements?.[0];
+             if(el) el.volume = volume;
+        }
+      }
+    });
+  }, [volume, participant]);
 
   useEffect(() => {
     const updateAvatar = () => {
@@ -40,7 +58,6 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
     const onMetadataChanged = () => updateAvatar();
     
     // 👇 FIX: Cast to 'any' to bypass TypeScript enum error
-    // The event 'metadataChanged' works at runtime, TS just complains about the enum key.
     participant.on('metadataChanged' as any, onMetadataChanged);
 
     return () => {
@@ -52,20 +69,36 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`;
 
   return (
-    <div className={`relative aspect-square bg-zinc-800 rounded-2xl flex flex-col items-center justify-center border-2 transition-all duration-200 ${isSpeaking ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]" : "border-white/5"}`}>
+    <div className={`group relative aspect-square bg-zinc-800 rounded-2xl flex flex-col items-center justify-center border-2 transition-all duration-200 ${isSpeaking ? "border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]" : "border-white/5"}`}>
         <img 
             src={finalAvatar} 
             alt={participant.identity}
             className={`w-16 h-16 rounded-full mb-3 object-cover transition-transform ${isSpeaking ? "scale-110" : "scale-100"}`}
         />
-        <div className="flex items-center gap-2">
+        
+        {/* 🔊 Hover Volume Slider for Remote Users */}
+        {!participant.isLocal && (
+          <div className="absolute inset-0 bg-black/80 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center rounded-2xl p-4 z-10 backdrop-blur-sm">
+             <span className="text-[10px] font-bold text-white/50 mb-2 uppercase tracking-widest">User Volume</span>
+             <input 
+                type="range" 
+                min="0" max="1" step="0.1"
+                value={volume}
+                onChange={(e) => setVolume(parseFloat(e.target.value))}
+                className="w-full accent-green-500 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer mb-1"
+             />
+             <span className="text-[10px] mt-1 text-white font-mono">{Math.round(volume * 100)}%</span>
+          </div>
+        )}
+
+        <div className="flex items-center gap-2 relative z-0">
             <span className="text-white font-bold text-sm truncate max-w-[100px]">
-                {participant.identity}
+                {participant.identity} {participant.isLocal && "(You)"}
             </span>
             {participant.isMicrophoneEnabled ? <span className="text-[10px] text-white/50">🎙️</span> : <span className="text-[10px] text-red-400">🔇</span>}
         </div>
         {isSpeaking && (
-            <div className="absolute bottom-4 flex gap-1 h-3 items-end">
+            <div className="absolute bottom-4 flex gap-1 h-3 items-end z-0">
                 <div className="w-1 bg-green-500 animate-bounce" style={{ height: '60%', animationDelay: '0ms' }} />
                 <div className="w-1 bg-green-500 animate-bounce" style={{ height: '100%', animationDelay: '100ms' }} />
                 <div className="w-1 bg-green-500 animate-bounce" style={{ height: '80%', animationDelay: '200ms' }} />
