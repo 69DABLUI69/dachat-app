@@ -1094,8 +1094,8 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
                         
-                        {/* 🖼️ IMAGE CONTAINER - Fixed Aspect Ratio (Video) */}
-                        <div className="relative aspect-video w-full max-w-[320px] shadow-2xl rounded-xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
+                        {/* 🖼️ IMAGE CONTAINER - Updated to Rounded Square */}
+                        <div className="relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
