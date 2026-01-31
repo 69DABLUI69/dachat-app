@@ -373,7 +373,10 @@ const saveNotifSettings = async (newSettings: any) => {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
+const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
+      // 🛑 PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
+      if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
+
       if (editingId) {
           const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
           socket.emit("edit_message", { messageId: editingId, newContent: textMsg, roomId });
@@ -1058,11 +1061,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
         if (!track?.current || track.isPaused) return "";
         const totalElapsedMs = track.elapsed + (track.startTime ? (Date.now() - track.startTime) : 0);
         const startSeconds = Math.floor(totalElapsedMs / 1000);
-        // enablejsapi=1 is crucial for volume control
         return `https://www.youtube.com/embed/${track.current.videoId}?autoplay=1&controls=0&start=${startSeconds}&rel=0&origin=${window.location.origin}&enablejsapi=1`;
     }, [track?.current?.videoId, track?.startTime, track?.isPaused]);
 
-    // 🎨 Elegant SVG Icons (No Emojis)
+    // 🎨 Elegant SVG Icons
     const PlayIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>;
     const PauseIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>;
     const SkipIcon = () => <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>;
@@ -1094,14 +1096,13 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
                         
-                        {/* 🖼️ IMAGE CONTAINER - Updated to Rounded Square */}
-                        <div className="relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
+                        {/* 🖼️ IMAGE CONTAINER - Added mt-8 to move lower */}
+                        <div className="mt-8 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
 
                         <h3 className="text-white font-bold text-center line-clamp-1 px-4 text-lg w-full mb-1 drop-shadow-md">{track.current.title}</h3>
-                        <p className="text-indigo-400 text-[10px] font-bold uppercase tracking-widest mb-2 shadow-black drop-shadow-sm opacity-80"> {track.isPaused ? "Paused" : "Now Playing"} </p>
                     </div>
                 ) : ( 
                     <div className="flex-1 flex flex-col items-center justify-center text-white/20"> 
@@ -1127,10 +1128,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
                 )}
 
-                {/* 🎚️ CONTROLS ROW (3-Column Layout to fix centering) */}
+                {/* 🎚️ CONTROLS ROW */}
                 <div className="flex items-center justify-between gap-4">
                     
-                    {/* LEFT: Volume (Flex-1 keeps it anchored left) */}
+                    {/* LEFT: Volume */}
                     <div className="flex-1 flex items-center gap-2 min-w-0 group/vol">
                         <button className="hover:text-white transition-colors" onClick={() => setLocalVolume(localVolume === 0 ? 50 : 0)}><VolumeIcon /></button>
                         <input 
@@ -1140,7 +1141,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         />
                     </div>
 
-                    {/* CENTER: Play/Skip (Auto width, perfectly centered) */}
+                    {/* CENTER: Play/Skip */}
                     <div className="flex items-center gap-4 shrink-0">
                          <button 
                             onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
@@ -1156,7 +1157,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                          </button>
                     </div>
 
-                    {/* RIGHT: Queue Toggle (Flex-1 anchors right) */}
+                    {/* RIGHT: Queue Toggle */}
                     <div className="flex-1 flex justify-end min-w-0">
                          <button 
                             onClick={() => setShowQueue(!showQueue)} 
