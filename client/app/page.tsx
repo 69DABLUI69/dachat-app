@@ -34,7 +34,6 @@ const TRANSLATIONS: any = {
   }
 };
 
-// 🔊 SOUNDBOARD SOUNDS
 const SOUNDS = [
     { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
     { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
@@ -135,7 +134,6 @@ export default function DaChat() {
   const [tagline, setTagline] = useState("Next Gen Communication");
   const [showMobileChat, setShowMobileChat] = useState(false);
   
-  // NEW FEATURE STATES
   const [showMobileMembers, setShowMobileMembers] = useState(false);
   const [touchStart, setTouchStart] = useState<number | null>(null);
   const [touchEnd, setTouchEnd] = useState<number | null>(null);
@@ -143,7 +141,6 @@ export default function DaChat() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showSoundboard, setShowSoundboard] = useState(false);
 
-  // BUG REPORTING VARIABLES
   const [showReportBug, setShowReportBug] = useState(false);
   const [bugDesc, setBugDesc] = useState("");
   const [bugFile, setBugFile] = useState<File | null>(null);
@@ -151,7 +148,6 @@ export default function DaChat() {
 
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
-  // FEATURE: MARKDOWN PARSER
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
@@ -188,7 +184,6 @@ export default function DaChat() {
 
   const closeChangelog = () => { localStorage.setItem("dachat_version", APP_VERSION); setShowChangelog(false); };
 
-// RINGTOME HANDLING
 useEffect(() => {
     ringtoneAudioRef.current = new Audio(selectedRingtone);
     ringtoneAudioRef.current.loop = true;
@@ -233,10 +228,9 @@ useEffect(() => {
       return () => window.removeEventListener('click', unlockAudio);
   }, []);
 
-  // 🛡️ IMMERSION FIX: Prevent browser context menu globally
 useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
-        e.preventDefault(); // Stop browser menu
+        e.preventDefault(); 
     };
     document.addEventListener("contextmenu", handleGlobalContextMenu);
     return () => document.removeEventListener("contextmenu", handleGlobalContextMenu);
@@ -268,14 +262,12 @@ useEffect(() => {
 
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
-// 1. Notification Permission Request
 useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
         Notification.requestPermission();
     }
 }, []);
 
-// 2. Handle Incoming Push Events
 useEffect(() => {
     socket.on("push_notification", (data) => {
         if (Notification.permission === "granted" && document.hidden) {
@@ -288,7 +280,6 @@ useEffect(() => {
     return () => { socket.off("push_notification"); };
 }, []);
 
-// 3. Update the Settings UI (Replace the "App Preferences" section)
 const [notifSettings, setNotifSettings] = useState(user?.notification_settings || {
     desktop_notifications: true,
     streaming_notifications: true,
@@ -305,7 +296,6 @@ const saveNotifSettings = async (newSettings: any) => {
     });
 };
 
-  // UPDATE: SOCKET LISTENERS (With Edit/Reply/Soundboard)
   useEffect(() => { 
       socket.connect(); 
       const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
@@ -524,44 +514,33 @@ const saveNotifSettings = async (newSettings: any) => {
 
   return (
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
-      {/* 🛠️ GLOBAL CUSTOM SCROLLBAR CSS */}
       <style>{`
-        /* Hide default scrollbars for the whole app */
         * {
           scrollbar-width: thin;
           scrollbar-color: rgba(255, 255, 255, 0.1) transparent;
         }
-
-        /* Webkit browsers (Chrome, Safari, Edge) */
         ::-webkit-scrollbar {
           width: 6px;
           height: 6px;
         }
-
         ::-webkit-scrollbar-track {
           background: transparent;
         }
-
         ::-webkit-scrollbar-thumb {
           background: rgba(255, 255, 255, 0.1);
           border-radius: 10px;
           transition: background 0.2s ease;
         }
-
         ::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.2);
         }
-
-        /* Specific class for chats and lists to ensure visibility */
         .custom-scrollbar::-webkit-scrollbar {
           width: 5px;
         }
-        
         .custom-scrollbar::-webkit-scrollbar-thumb {
           background: rgba(255, 255, 255, 0.08);
           border-radius: 20px;
         }
-
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
           background: rgba(255, 255, 255, 0.15);
         }
@@ -569,7 +548,6 @@ const saveNotifSettings = async (newSettings: any) => {
 
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-black to-black z-0"></div>
       
-      {/* 1. DOCK */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
@@ -587,7 +565,6 @@ const saveNotifSettings = async (newSettings: any) => {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      {/* 2. SIDEBAR */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
@@ -662,7 +639,6 @@ const saveNotifSettings = async (newSettings: any) => {
         </div>
       </div>
 
-      {/* 3. MAIN CONTENT */}
       <div 
         onTouchStart={onTouchStart} 
         onTouchMove={onTouchMove} 
@@ -697,7 +673,6 @@ const saveNotifSettings = async (newSettings: any) => {
                  </div>
              ) : (active.channel || active.friend) ? (
                  <>
-                    {/* 🛠️ CHAT AREA SCROLLBAR */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {chatHistory.map((msg, i) => ( 
                             <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
@@ -750,7 +725,6 @@ const saveNotifSettings = async (newSettings: any) => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-{/* LAYER 2: CALL UI */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-black animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  <div className="absolute top-4 left-0 right-0 px-4 flex justify-between items-start z-[60] pointer-events-none">
@@ -803,7 +777,6 @@ const saveNotifSettings = async (newSettings: any) => {
          )}
       </div>
 
-      {/* 4. MEMBER LIST */}
       {view === "servers" && active.server && (
           <div 
              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
@@ -817,7 +790,6 @@ const saveNotifSettings = async (newSettings: any) => {
                   <div className="text-[10px] font-bold text-white/30 uppercase">Members — {serverMembers.length}</div>
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
-              {/* 🛠️ MEMBER LIST SCROLLBAR */}
               <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
                   {serverMembers.map(m => ( <div key={m.id} onContextMenu={(e) => handleContextMenu(e, 'user', m)} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div> {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>} </div> ))}
               </div>
@@ -860,111 +832,157 @@ const saveNotifSettings = async (newSettings: any) => {
 
       {showSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              {/* 🛠️ SETTINGS SCROLLBAR */}
               <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
-                  <div> <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> <div className="flex flex-col md:flex-row gap-6 items-start"> <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> <div className="flex flex-col gap-2 w-full"><button 
-    onClick={() => setShowReportBug(true)} 
-    className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4"
->
-
-// ... inside the showSettings modal return block
-
-<div className="space-y-6">
-
-    <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
-
-    <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
-
-        {/* Toggle 1: Desktop Notifications */}
-
-        <div className="flex justify-between items-center">
-
-            <div className="flex flex-col">
-
-                <span className="text-sm font-bold">Enable Desktop Notifications</span>
-
-                <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
-
-            </div>
-
-            <button 
-
-                onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
-
-                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-
-            >
-
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-
-            </button>
-
-        </div>
-
-
-
-        {/* Toggle 2: Streaming Notifications */}
-
-        <div className="flex justify-between items-center">
-
-            <span className="text-sm">People I know start streaming</span>
-
-            <button 
-
-                onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
-
-                className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-
-            >
-
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
-
-            </button>
-
-        </div>
-
-
-
-        {/* Dropdown: Reaction settings */}
-
-        <div className="space-y-2">
-
-            <label className="text-sm">Someone reacts to my messages</label>
-
-            <select 
-
-                className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10"
-
-                value={notifSettings.reaction_notifications}
-
-                onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
-
-            >
-
-                <option value="all">All Messages</option>
-
-                <option value="mentions">Only Mentions</option>
-
-                <option value="none">Nothing</option>
-
-            </select>
-
-        </div>
-
-    </div>
-
-</div>
-    
-     Report a Bug
-</button> <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> </div> <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> </div> <div className="flex-1 w-full flex flex-col gap-4"> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> </div> </div> </div>
-                  <div className="h-px bg-white/10 w-full" />
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-4"> <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> <div className="space-y-1"> <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > <option value="en">English (Default)</option> <option value="ro">Română (Romanian)</option> <option value="de">Deutsch (German)</option> <option value="pl">Polski (Polish)</option> <option value="it">Italiano (Italian)</option> <option value="es">Español (Spanish)</option> <option value="pt">Português (Portuguese)</option> <option value="sv">Svenska (Swedish)</option> <option value="bg">Български (Bulgarian)</option> <option value="jp">日本語 (Japanese)</option> <option value="zh">中文 (Chinese)</option> </select> </div> <div className="space-y-1"> <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} </select> </div> </div> </div>
-                      <div className="space-y-4"> <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3> <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> <div className="flex justify-between items-center"> <span className="font-bold text-sm">{t('set_2fa')}</span> <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> </div> {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg hover:bg-blue-600/30 transition-colors">{t('set_setup_2fa')}</button>} {setupStep === 1 && ( <div className="flex flex-col items-center gap-3 animate-in fade-in"> <img src={qrCodeUrl} className="w-24 h-24 rounded-lg border-2 border-white" /> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> </div> )} {user.is_2fa_enabled && ( <div className="pt-2 border-t border-white/10"> <div className="flex justify-between items-center cursor-pointer hover:opacity-80" onClick={() => setShowPassChange(!showPassChange)}> <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> </div> {showPassChange && ( <div className="flex flex-col gap-3 animate-in fade-in pt-3"> <div className="relative"> <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> </div> <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> </div> )} </div> )} </div> </div>
+                  
+                  {/* USER PROFILE SECTION */}
+                  <div> 
+                    <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> 
+                    <div className="flex flex-col md:flex-row gap-6 items-start"> 
+                      <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> 
+                        <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> 
+                        <div className="flex flex-col gap-2 w-full">
+                          <button onClick={() => setShowReportBug(true)} className="w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4">
+                            Report a Bug
+                          </button> 
+                          <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> 
+                          <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> 
+                          <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> 
+                        </div> 
+                        <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> 
+                      </div> 
+                      <div className="flex-1 w-full flex flex-col gap-4"> 
+                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
+                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
+                      </div> 
+                    </div> 
                   </div>
-                  <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> <div className="flex gap-3"> <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> </div> </div>
+
+                  <div className="h-px bg-white/10 w-full" />
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* PREFERENCES COLUMN */}
+                      <div className="space-y-8"> 
+                          <div className="space-y-4">
+                            <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> 
+                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
+                                <div className="space-y-1"> 
+                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> 
+                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > 
+                                        <option value="en">English (Default)</option> 
+                                        <option value="ro">Română (Romanian)</option> 
+                                        <option value="de">Deutsch (German)</option> 
+                                        <option value="pl">Polski (Polish)</option> 
+                                        <option value="it">Italiano (Italian)</option> 
+                                        <option value="es">Español (Spanish)</option> 
+                                        <option value="pt">Português (Portuguese)</option> 
+                                        <option value="sv">Svenska (Swedish)</option> 
+                                        <option value="bg">Български (Bulgarian)</option> 
+                                        <option value="jp">日本語 (Japanese)</option> 
+                                        <option value="zh">中文 (Chinese)</option> 
+                                    </select> 
+                                </div> 
+                                <div className="space-y-1"> 
+                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
+                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> 
+                                        {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} 
+                                    </select> 
+                                </div> 
+                            </div>
+                          </div>
+
+                          {/* 🔔 NOTIFICATION SETTINGS SECTION */}
+                          <div className="space-y-4">
+                              <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
+                              <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
+                                  {/* Toggle 1: Desktop Notifications */}
+                                  <div className="flex justify-between items-center">
+                                      <div className="flex flex-col">
+                                          <span className="text-sm font-bold">Enable Desktop Notifications</span>
+                                          <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
+                                      </div>
+                                      <button 
+                                          onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
+                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                      >
+                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
+                                      </button>
+                                  </div>
+
+                                  {/* Toggle 2: Streaming Notifications */}
+                                  <div className="flex justify-between items-center">
+                                      <span className="text-sm">People I know start streaming</span>
+                                      <button 
+                                          onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
+                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                      >
+                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
+                                      </button>
+                                  </div>
+
+                                  {/* Dropdown: Reaction settings */}
+                                  <div className="space-y-2">
+                                      <label className="text-sm">Someone reacts to my messages</label>
+                                      <select 
+                                          className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10 text-white outline-none"
+                                          value={notifSettings.reaction_notifications}
+                                          onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
+                                      >
+                                          <option value="all">All Messages</option>
+                                          <option value="mentions">Only Mentions</option>
+                                          <option value="none">Nothing</option>
+                                      </select>
+                                  </div>
+                              </div>
+                          </div>
+                      </div>
+
+                      {/* SECURITY COLUMN */}
+                      <div className="space-y-4"> 
+                        <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3> 
+                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
+                            <div className="flex justify-between items-center"> 
+                                <span className="font-bold text-sm">{t('set_2fa')}</span> 
+                                <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> 
+                            </div> 
+                            {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg hover:bg-blue-600/30 transition-colors">{t('set_setup_2fa')}</button>} 
+                            {setupStep === 1 && ( 
+                                <div className="flex flex-col items-center gap-3 animate-in fade-in"> 
+                                    <img src={qrCodeUrl} className="w-24 h-24 rounded-lg border-2 border-white" /> 
+                                    <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> 
+                                    <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> 
+                                </div> 
+                            )} 
+                            {user.is_2fa_enabled && ( 
+                                <div className="pt-2 border-t border-white/10"> 
+                                    <div className="flex justify-between items-center cursor-pointer hover:opacity-80" onClick={() => setShowPassChange(!showPassChange)}> 
+                                        <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> 
+                                        <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> 
+                                    </div> 
+                                    {showPassChange && ( 
+                                        <div className="flex flex-col gap-3 animate-in fade-in pt-3"> 
+                                            <div className="relative"> 
+                                                <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> 
+                                                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> 
+                                            </div> 
+                                            <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> 
+                                            <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> 
+                                        </div> 
+                                    )} 
+                                </div> 
+                            )} 
+                        </div> 
+                      </div>
+                  </div>
+
+                  <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
+                      <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> 
+                      <div className="flex gap-3"> 
+                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> 
+                        <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
+                      </div> 
+                  </div>
               </GlassPanel>
           </div>
       )}
@@ -1022,7 +1040,6 @@ const saveNotifSettings = async (newSettings: any) => {
   );
 }
 
-// MUSIC PLAYER COMPONENT
 const RoomPlayer = memo(({ track, onSearch, t }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
