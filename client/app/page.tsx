@@ -1,7 +1,8 @@
 "use client";
 import { useEffect, useState, useRef, memo, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
-import EmojiPicker, { Theme } from "emoji-picker-react";
+// 👇 FIXED: Added EmojiStyle to imports
+import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 import LiveKitVoiceRoom from "./LiveKitVoiceRoom"; 
 
 // 🌍 TRANSLATIONS DATABASE
@@ -84,7 +85,7 @@ export default function DaChat() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [activeReactionMessageId, setActiveReactionMessageId] = useState<number | null>(null); // ✅ Added
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState<number | null>(null);
 
   const [is2FALogin, setIs2FALogin] = useState(false); 
   const [twoFACode, setTwoFACode] = useState("");
@@ -755,9 +756,10 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                                             {activeReactionMessageId === msg.id && (
                                                 <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
                                                      <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                                                         {/* 👇 FIXED: Using EmojiStyle.NATIVE enum */}
                                                          <EmojiPicker 
                                                              theme={Theme.DARK} 
-                                                             emojiStyle="native"
+                                                             emojiStyle={EmojiStyle.NATIVE}
                                                              lazyLoadEmojis={true}
                                                              width={300}
                                                              height={350}
