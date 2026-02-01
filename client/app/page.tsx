@@ -1353,9 +1353,9 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
             
             {/* Main Content */}
             <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0 justify-center items-center">
-                {/* Search Bar (Floating) */}
+                {/* Search Bar (Floating) - FIXED: Pushed down on mobile (top-20) to clear buttons */}
                 <div 
-                    className={`absolute top-4 left-4 right-4 flex gap-2 bg-black/60 p-2 rounded-xl border border-white/5 backdrop-blur-md z-30 transition-all duration-300 ${showControls ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0 pointer-events-none"}`}
+                    className={`absolute top-20 md:top-4 left-4 right-4 flex gap-2 bg-black/60 p-2 rounded-xl border border-white/5 backdrop-blur-md z-30 transition-all duration-300 ${showControls ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0 pointer-events-none"}`}
                     onClick={(e) => e.stopPropagation()}
                 >
                      <input className="flex-1 bg-transparent border-none text-xs text-white focus:outline-none placeholder-white/40" placeholder={t('room_search')} value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && search.trim()) { onSearch({ query: search, action: 'queue' }); setSearch(""); } }} />
@@ -1365,8 +1365,8 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
                         
-                        {/* 🖼️ IMAGE CONTAINER - MOVED LOWER (mt-24) */}
-                        <div className="mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
+                        {/* 🖼️ IMAGE CONTAINER - FIXED: Added mt-32 for mobile so search bar doesn't cover it */}
+                        <div className="mt-32 md:mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
@@ -1397,7 +1397,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
                 )}
 
-                {/* 🎚️ CONTROLS ROW - PERFECTLY CENTERED */}
+                {/* 🎚️ CONTROLS ROW */}
                 <div className="flex items-center justify-between gap-4">
                     
                     {/* LEFT: Volume */}
@@ -1410,7 +1410,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         />
                     </div>
 
-                    {/* CENTER: Play/Skip (Balanced with invisible spacer) */}
+                    {/* CENTER: Play/Skip */}
                     <div className="flex items-center gap-4 shrink-0">
                          {/* 🛑 INVISIBLE SPACER: Balances the Skip button so Play stays center */}
                          <div className="w-8 h-8 opacity-0 pointer-events-none"></div>
@@ -1429,7 +1429,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                          </button>
                     </div>
 
-                    {/* RIGHT: Queue Toggle (Icon Only) */}
+                    {/* RIGHT: Queue Toggle */}
                     <div className="flex-1 flex justify-end min-w-0">
                          <button 
                             onClick={() => setShowQueue(!showQueue)} 
