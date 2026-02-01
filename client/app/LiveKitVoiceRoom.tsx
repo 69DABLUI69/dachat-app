@@ -12,17 +12,16 @@ import {
   useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Participant, Track } from "livekit-client";
+import { Participant, Track, RoomEvent } from "livekit-client";
 
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
 
-// --- CUSTOM SCREEN SHARE BUTTON (To enable Audio) ---
+// --- CUSTOM SCREEN SHARE BUTTON (Forces Audio) ---
 function CustomScreenShareButton() {
     const { localParticipant } = useLocalParticipant();
     const [enabled, setEnabled] = useState(false);
 
-    // Sync state with actual participant state
     useEffect(() => {
         if (!localParticipant) return;
         const updateState = () => setEnabled(localParticipant.isScreenShareEnabled);
@@ -43,11 +42,22 @@ function CustomScreenShareButton() {
         if (!localParticipant) return;
         const newState = !enabled;
         try {
-            // ✅ CRITICAL: This enables System Audio Capture
-            await localParticipant.setScreenShareEnabled(newState, { audio: true, selfBrowserSurface: "include" });
+            if (newState) {
+                // ⚠️ CRITICAL: Browser Requirement Alert
+                alert("🔊 TO SHARE AUDIO:\n\n1. Select 'Entire Screen' or 'Browser Tab'.\n2. Check the 'Share system audio' box in the bottom-left corner.\n\n(Audio does NOT work with 'Window' selection)");
+                
+                // Simple audio: true is most compatible
+                await localParticipant.setScreenShareEnabled(true, { 
+                    audio: true,
+                    selfBrowserSurface: "include" 
+                });
+            } else {
+                await localParticipant.setScreenShareEnabled(false);
+            }
             setEnabled(newState);
         } catch (e) {
             console.error("Screen Share Error:", e);
+            alert("Failed to share screen. Check permissions.");
             setEnabled(false);
         }
     };
@@ -56,7 +66,7 @@ function CustomScreenShareButton() {
         <button 
             onClick={toggleShare}
             className={`lk-button-group ${enabled ? 'text-green-500 bg-white/10' : 'text-white hover:bg-white/5'} p-3 rounded-full transition-all flex items-center justify-center`}
-            title="Share Screen (with Audio)"
+            title="Share Screen (Remember to check 'Share System Audio')"
         >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
@@ -86,14 +96,28 @@ function VoiceUserTile({
   const [volume, setVolume] = useState(1); 
   const [showVolume, setShowVolume] = useState(false);
 
+  // ✅ UPDATED: Robust Volume Control for NEW tracks (like Screen Audio)
   useEffect(() => {
-    participant.audioTrackPublications.forEach((publication) => {
-      if (publication.track && publication.track.kind === 'audio') {
-        // @ts-ignore
-        if(publication.track.setVolume) { (publication.track as any).setVolume(volume); }
-        else { const el = publication.track.attachedElements?.[0]; if(el) el.volume = volume; }
-      }
-    });
+    const applyVolume = () => {
+        participant.audioTrackPublications.forEach((publication) => {
+            if (publication.track && publication.track.attachedElements) {
+                publication.track.attachedElements.forEach(el => {
+                    el.volume = volume;
+                });
+            }
+        });
+    };
+
+    applyVolume(); // Apply immediately
+    
+    // Re-apply if a new track (like screen audio) is subscribed
+    const handleTrackSubscribed = () => {
+        // Small delay to ensure DOM element is attached by RoomAudioRenderer
+        setTimeout(applyVolume, 100); 
+    };
+
+    participant.on(RoomEvent.TrackSubscribed, handleTrackSubscribed);
+    return () => { participant.off(RoomEvent.TrackSubscribed, handleTrackSubscribed); };
   }, [volume, participant]);
 
   useEffect(() => {
@@ -104,9 +128,9 @@ function VoiceUserTile({
       setAvatarUrl("");
     };
     updateAvatar();
-    participant.on('metadataChanged' as any, updateAvatar);
-    return () => { participant.off('metadataChanged' as any, updateAvatar); };
-  }, [participant, participant.metadata]);
+    participant.on(RoomEvent.ParticipantMetadataChanged, updateAvatar);
+    return () => { participant.off(RoomEvent.ParticipantMetadataChanged, updateAvatar); };
+  }, [participant]);
 
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`;
 
@@ -140,6 +164,7 @@ function VoiceUserTile({
             {isSpeaking && <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#2b2d31] rounded-full flex items-center justify-center"><div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div></div>}
         </div>
         
+        {/* Mobile Volume Toggle */}
         {!participant.isLocal && (
           <>
             <button 
@@ -279,10 +304,9 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
         <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center items-center gap-2">
             <ControlBar 
               variation="minimal" 
-              // 🛑 Disable default screen share so we can use our custom one
               controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
             />
-            {/* ✅ Custom Audio-Enabled Screen Share Button */}
+            {/* Custom Audio-Enabled Screen Share Button */}
             <CustomScreenShareButton />
         </div>
         
