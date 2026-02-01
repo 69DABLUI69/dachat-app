@@ -1007,6 +1007,26 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                                           <span className="text-sm font-bold">Enable Desktop Notifications</span>
                                           <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
                                       </div>
+                                      <button 
+    onClick={() => {
+        if ("Notification" in window) {
+            // This triggers the PermissionRequested event in C#
+            Notification.requestPermission().then(perm => {
+                if (perm === "granted") {
+                    new Notification("Test Notification", {
+                        body: "If you see this, it works!",
+                        icon: "/logo.png"
+                    });
+                } else {
+                    alert("Permission denied or blocked by browser/app.");
+                }
+            });
+        }
+    }}
+    className="mt-2 text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded text-white"
+>
+    🧪 Test Notification
+</button>
 <button 
         onClick={() => {
             if ("Notification" in window && Notification.permission !== "granted") {
