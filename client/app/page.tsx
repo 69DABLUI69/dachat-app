@@ -84,6 +84,7 @@ export default function DaChat() {
   const [chatHistory, setChatHistory] = useState<any[]>([]);
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [activeReactionMessageId, setActiveReactionMessageId] = useState<number | null>(null); // ✅ Added
 
   const [is2FALogin, setIs2FALogin] = useState(false); 
   const [twoFACode, setTwoFACode] = useState("");
@@ -304,6 +305,25 @@ const saveNotifSettings = async (newSettings: any) => {
       
       socket.on("receive_message", (msg) => { const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; if (user && normalized.sender_id === user.id) return; setChatHistory(prev => [...prev, normalized]); });
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
+      
+      // ✅ Reaction Handler
+      socket.on("reaction_updated", ({ messageId, userId, emoji, action }) => {
+        setChatHistory(prev => prev.map(msg => {
+            if (msg.id !== messageId) return msg;
+            
+            const currentReactions = msg.reactions || [];
+            let newReactions;
+
+            if (action === "add") {
+                newReactions = [...currentReactions, { user_id: userId, emoji }];
+            } else {
+                newReactions = currentReactions.filter((r: any) => !(r.user_id === userId && r.emoji === emoji));
+            }
+            
+            return { ...msg, reactions: newReactions };
+        }));
+      });
+
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       
       socket.on("message_updated", (updatedMsg) => {
@@ -334,7 +354,7 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
       
-      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); socket.off("trigger_sound"); }; 
+      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); socket.off("trigger_sound"); socket.off("reaction_updated");}; 
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
@@ -374,7 +394,7 @@ const saveNotifSettings = async (newSettings: any) => {
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
 const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
-      // 🛑 PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
+      //  PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
       if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
 
       if (editingId) {
@@ -393,6 +413,19 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
       setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url, reply_to_id: replyTo ? replyTo.id : null }]);
       if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
       setMessage(""); setReplyTo(null); 
+  };
+
+  // ✅ New Helper Function for Reactions
+  const toggleReaction = (msg: any, emoji: string) => {
+    const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
+    socket.emit("toggle_reaction", { 
+        messageId: msg.id, 
+        userId: user.id, 
+        emoji, 
+        roomId,
+        messageOwnerId: msg.sender_id 
+    });
+    setActiveReactionMessageId(null); 
   };
 
   const handleReportBug = async () => {
@@ -677,26 +710,85 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
              ) : (active.channel || active.friend) ? (
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {chatHistory.map((msg, i) => ( 
-                            <div key={msg.id || i} className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} onContextMenu={(e) => handleContextMenu(e, 'message', msg)}> 
-                                <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
-                                <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col`}> 
-                                    <div className="flex items-center gap-2 mb-1"> 
-                                        <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
-                                        {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
+                        {chatHistory.map((msg, i) => {
+                            // Group reactions by emoji
+                            const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
+                            (msg.reactions || []).forEach((r: any) => {
+                                if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
+                                reactionCounts[r.emoji].count++;
+                                if (r.user_id === user.id) reactionCounts[r.emoji].hasReacted = true;
+                            });
+
+                            return (
+                                <div key={msg.id || i} 
+                                     className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} 
+                                     onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
+                                     onMouseLeave={() => setActiveReactionMessageId(null)}
+                                > 
+                                    <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
+                                    
+                                    <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col relative`}> 
+                                        
+                                        <div className="flex items-center gap-2 mb-1"> 
+                                            <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
+                                            {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
+                                        </div> 
+
+                                        {msg.reply_to_id && (
+                                            <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
+                                                <span>⤴️ {t('chat_replying')}</span>
+                                            </div>
+                                        )}
+
+                                        <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
+                                            {formatMessage(msg.content)} 
+                                            
+                                            {/* ➕ ADD REACTION BUTTON */}
+                                            <button 
+                                                onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
+                                                className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
+                                            >
+                                                🙂
+                                            </button>
+                                            
+                                            {/* EMOJI PICKER POPUP */}
+                                            {activeReactionMessageId === msg.id && (
+                                                <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
+                                                     <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                                                         <EmojiPicker 
+                                                             theme={Theme.DARK} 
+                                                             emojiStyle="native"
+                                                             lazyLoadEmojis={true}
+                                                             width={300}
+                                                             height={350}
+                                                             onEmojiClick={(e) => toggleReaction(msg, e.emoji)}
+                                                         />
+                                                     </div>
+                                                </div>
+                                            )}
+                                        </div> 
+
+                                        {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" alt="attachment" />} 
+                                        
+                                        {/* 😊 REACTIONS DISPLAY ROW */}
+                                        {Object.keys(reactionCounts).length > 0 && (
+                                            <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
+                                                {Object.entries(reactionCounts).map(([emoji, data]) => (
+                                                    <button 
+                                                        key={emoji}
+                                                        onClick={() => toggleReaction(msg, emoji)}
+                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
+                                                    >
+                                                        <span>{emoji}</span>
+                                                        <span className="font-bold text-[10px]">{data.count}</span>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div> 
-                                    {msg.reply_to_id && (
-                                        <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
-                                            <span>⤴️ {t('chat_replying')}</span>
-                                        </div>
-                                    )}
-                                    <div className={`group px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
-                                        {formatMessage(msg.content)} 
-                                    </div> 
-                                    {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" />} 
                                 </div> 
-                            </div> 
-                        ))}
+                            );
+                        })}
                         <div ref={messagesEndRef} />
                     </div>
 

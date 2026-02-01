@@ -6,14 +6,14 @@ const cors = require("cors");
 const multer = require("multer");
 const { createClient } = require("@supabase/supabase-js");
 const yts = require("yt-search"); 
-const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
 const { AccessToken } = require('livekit-server-sdk');
-
 const speakeasy = require("speakeasy");
 const QRCode = require("qrcode");
 
-const app = express();
+const STEAM_API_KEY = "CD1B7F0E29E06F43E0F94CF1431C27AE";
 const PORT = process.env.PORT || 3001;
+
+const app = express();
 
 // 1. MIDDLEWARE
 app.use(cors());
@@ -55,7 +55,10 @@ const safeRoute = (handler) => async (req, res, next) => {
   }
 };
 
-// --- AUTH ROUTES ---
+// ==============================================================================
+// 🔐 AUTH ROUTES
+// ==============================================================================
+
 app.post("/register", safeRoute(async (req, res) => {
   const { username, password } = req.body;
 
@@ -155,7 +158,10 @@ app.post("/auth/change-password", safeRoute(async (req, res) => {
     res.json({ success: true });
 }));
 
-// --- USER & FRIEND ROUTES ---
+// ==============================================================================
+// 👥 USER & FRIEND ROUTES
+// ==============================================================================
+
 app.get("/users/:id", safeRoute(async (req, res) => {
   const { data } = await supabase.from("users").select("*").eq("id", req.params.id).single();
   res.json({ success: true, user: data });
@@ -229,7 +235,10 @@ app.post("/remove-friend", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-// --- SERVER ROUTES ---
+// ==============================================================================
+// 🖥️ SERVER & CHANNEL ROUTES
+// ==============================================================================
+
 app.get("/my-servers/:userId", safeRoute(async (req, res) => {
   const { userId } = req.params;
   const { data: members } = await supabase.from("members").select("server_id").eq("user_id", userId);
@@ -332,7 +341,11 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
   res.json(formatted || []);
 }));
 
-// 🎵 UPDATED: Room Audio State with Queue & Timing
+// ==============================================================================
+// 🎵 AUDIO & INTEGRATIONS
+// ==============================================================================
+
+// Room Audio State with Queue & Timing
 let roomAudioState = {};
 
 app.post("/channels/play", safeRoute(async (req, res) => {
@@ -410,26 +423,21 @@ app.post("/channels/play", safeRoute(async (req, res) => {
   res.json({ success: true, state });
 }));
 
-// 🐛 NEW: BUG REPORT ROUTE
+// 🐛 BUG REPORT ROUTE
 app.post("/report-bug", upload.single("screenshot"), safeRoute(async (req, res) => {
   const { description, userId } = req.body;
-  
   if (!description) return res.status(400).json({ success: false, message: "Description required" });
 
   let screenshotUrl = null;
-
-  // Upload screenshot if provided
   if (req.file) {
       const fileName = `bugs/${Date.now()}_${req.file.originalname.replace(/[^a-zA-Z0-9.]/g, "_")}`;
       const { error: uploadError } = await supabase.storage.from("uploads").upload(fileName, req.file.buffer, { contentType: req.file.mimetype });
-      
       if (!uploadError) {
           const { data } = supabase.storage.from("uploads").getPublicUrl(fileName);
           screenshotUrl = data.publicUrl;
       }
   }
 
-  // Save to Database
   const { error } = await supabase.from("bug_reports").insert([{
       user_id: userId,
       description: description,
@@ -440,7 +448,6 @@ app.post("/report-bug", upload.single("screenshot"), safeRoute(async (req, res) 
       console.error("Bug Report DB Error:", error);
       return res.status(500).json({ success: false, message: "Failed to save report" });
   }
-
   res.json({ success: true, message: "Bug reported successfully!" });
 }));
 
@@ -486,7 +493,7 @@ app.post("/users/steam-status", safeRoute(async (req, res) => {
     res.json({ success: true, players });
 }));
 
-// ⚡️ LIVEKIT TOKEN GENERATION (FIXED)
+// ⚡️ LIVEKIT TOKEN GENERATION
 app.get("/livekit/token", safeRoute(async (req, res) => {
     const { roomName, participantName, avatarUrl } = req.query;
 
@@ -505,7 +512,7 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
             process.env.LIVEKIT_API_SECRET,
             {
                 identity: participantName,
-                ttl: 600, // ✅ Fixed: Use integer seconds (10 mins)
+                ttl: 600, 
                 metadata: JSON.stringify({ avatarUrl: avatarUrl || "" }) 
             }
         );
@@ -525,9 +532,9 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
     }
 }));
 
-// ----------------------------------------------------------------------
+// ==============================================================================
 // 🔥 SOCKET.IO LOGIC
-// ----------------------------------------------------------------------
+// ==============================================================================
 
 const onlineUsers = new Map(); 
 let voiceRooms = {};           
@@ -576,6 +583,9 @@ io.on("connection", (socket) => {
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);
     try {
+      // ✅ Fetch messages AND their reactions using Supabase relationship
+      const selectQuery = "*, reactions:message_reactions(*)"; 
+
       if (roomId.toString().startsWith("dm-")) {
           const parts = roomId.split("-");
           if(parts.length >= 3) {
@@ -583,7 +593,7 @@ io.on("connection", (socket) => {
               const u2 = parts[2];
               const { data } = await supabase
                   .from("messages")
-                  .select("*")
+                  .select(selectQuery)
                   .or(`and(sender_id.eq.${u1},recipient_id.eq.${u2}),and(sender_id.eq.${u2},recipient_id.eq.${u1})`)
                   .order("created_at", { ascending: true });
               socket.emit("load_messages", data || []);
@@ -591,7 +601,7 @@ io.on("connection", (socket) => {
       } else {
           const { data } = await supabase
               .from("messages")
-              .select("*")
+              .select(selectQuery) 
               .eq("channel_id", roomId)
               .order("created_at", { ascending: true });
           socket.emit("load_messages", data || []);
@@ -600,7 +610,7 @@ io.on("connection", (socket) => {
   });
 
   // FEATURE: Send Message (With Reply)
-socket.on("send_message", async (data) => {
+  socket.on("send_message", async (data) => {
     const { content, senderId, senderName, fileUrl, channelId, recipientId, avatar_url, replyToId } = data;
     let room = channelId ? channelId.toString() : recipientId ? `dm-${[senderId, recipientId].sort((a,b)=>a-b).join('-')}` : null;
     
@@ -628,12 +638,12 @@ socket.on("send_message", async (data) => {
             io.to(recipientId.toString()).emit("push_notification", {
                 title: `New message from ${senderName}`,
                 body: content,
-                icon: avatar_url // Uses sender's avatar for the notification icon
+                icon: avatar_url 
             });
         }
     }
 
-    // 4. Save to Database (ensures message history is preserved)
+    // 4. Save to Database
     try {
         await supabase.from("messages").insert([{
             id: messagePayload.id,
@@ -649,13 +659,49 @@ socket.on("send_message", async (data) => {
     } catch (err) { 
         console.error("DB Save Error:", err); 
     }
-});
+  });
 
   // ⚡️ FEATURE: Edit Message
   socket.on("edit_message", async ({ messageId, newContent, roomId }) => {
       const { error } = await supabase.from("messages").update({ content: newContent, is_edited: true }).eq("id", messageId);
       if (!error && roomId) {
           io.to(roomId.toString()).emit("message_updated", { id: messageId, content: newContent, is_edited: true });
+      }
+  });
+
+  // ⚡️ FEATURE: Toggle Reaction (NEW)
+  socket.on("toggle_reaction", async ({ messageId, userId, emoji, roomId, messageOwnerId }) => {
+      // Check if reaction exists
+      const { data: existing } = await supabase
+          .from("message_reactions")
+          .select("id")
+          .eq("message_id", messageId)
+          .eq("user_id", userId)
+          .eq("emoji", emoji)
+          .maybeSingle();
+
+      if (existing) {
+          // REMOVE reaction
+          await supabase.from("message_reactions").delete().eq("id", existing.id);
+          io.to(roomId).emit("reaction_updated", { messageId, userId, emoji, action: "remove" });
+      } else {
+          // ADD reaction
+          await supabase.from("message_reactions").insert([{ message_id: messageId, user_id: userId, emoji }]);
+          io.to(roomId).emit("reaction_updated", { messageId, userId, emoji, action: "add" });
+
+          // 🔔 NOTIFICATION LOGIC
+          if (messageOwnerId && messageOwnerId !== userId) {
+             const { data: owner } = await supabase.from("users").select("notification_settings").eq("id", messageOwnerId).single();
+             const settings = owner?.notification_settings || {};
+             
+             if (settings.reaction_notifications === "all" && settings.desktop_notifications) {
+                 io.to(messageOwnerId.toString()).emit("push_notification", {
+                     title: "New Reaction",
+                     body: `Someone reacted ${emoji} to your message`,
+                     icon: "/logo.png"
+                 });
+             }
+          }
       }
   });
 
@@ -678,7 +724,7 @@ socket.on("send_message", async (data) => {
       io.to(callerId.toString()).emit("call_rejected");
   });
 
-// --- 4. VOICE ROOM HANDLING (Music Sync & Avatars) ---
+  // --- 4. VOICE ROOM HANDLING ---
   socket.on("join_voice", ({ roomId, userData }) => {
     const rId = roomId.toString();
     socket.join(rId); 
@@ -699,16 +745,13 @@ socket.on("send_message", async (data) => {
     io.emit("voice_state_update", { channelId: rId, users: userIds });
   });
 
-  // ✅ Clean up on Explicit Leave
   socket.on("leave_voice", () => {
       cleanupVoiceUser(socket, io);
   });
 
   // --- 5. DISCONNECT ---
   socket.on("disconnect", () => {
-    // ✅ Clean up on Browser Close / Refresh
     cleanupVoiceUser(socket, io);
-
     if (socket.userData && socket.userData.id) {
       const userId = socket.userData.id;
       if (onlineUsers.has(userId)) {
