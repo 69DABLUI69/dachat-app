@@ -1365,8 +1365,8 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
                         
-                        {/* 🖼️ IMAGE CONTAINER - MOVED LOWER (mt-16) */}
-                        <div className="mt-16 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
+                        {/* 🖼️ IMAGE CONTAINER - MOVED LOWER (mt-24) */}
+                        <div className="mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
@@ -1397,10 +1397,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
                 )}
 
-                {/* 🎚️ CONTROLS ROW - CENTERED LAYOUT */}
+                {/* 🎚️ CONTROLS ROW - PERFECTLY CENTERED */}
                 <div className="flex items-center justify-between gap-4">
                     
-                    {/* LEFT: Volume (Takes 1 share) */}
+                    {/* LEFT: Volume */}
                     <div className="flex-1 flex items-center gap-2 min-w-0 justify-start group/vol">
                         <button className="hover:text-white transition-colors" onClick={() => setLocalVolume(localVolume === 0 ? 50 : 0)}><VolumeIcon /></button>
                         <input 
@@ -1410,11 +1410,14 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         />
                     </div>
 
-                    {/* CENTER: Play/Skip (Centered by equal siblings) */}
-                    <div className="flex-1 flex items-center gap-4 shrink-0">
+                    {/* CENTER: Play/Skip (Balanced with invisible spacer) */}
+                    <div className="flex items-center gap-4 shrink-0">
+                         {/* 🛑 INVISIBLE SPACER: Balances the Skip button so Play stays center */}
+                         <div className="w-8 h-8 opacity-0 pointer-events-none"></div>
+
                          <button 
                             onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
-                            className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-white/10"
+                            className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-white/10"
                          > 
                             {track?.isPaused ? <PlayIcon /> : <PauseIcon />} 
                          </button>
@@ -1426,7 +1429,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                          </button>
                     </div>
 
-                    {/* RIGHT: Queue Toggle (Takes 1 share, Icon Only) */}
+                    {/* RIGHT: Queue Toggle (Icon Only) */}
                     <div className="flex-1 flex justify-end min-w-0">
                          <button 
                             onClick={() => setShowQueue(!showQueue)} 
