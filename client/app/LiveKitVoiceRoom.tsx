@@ -7,9 +7,11 @@ import {
   useParticipants,
   useIsSpeaking,
   LayoutContextProvider,
+  useTracks,
+  VideoTrack,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
-import { Participant } from "livekit-client";
+import { Participant, Track } from "livekit-client";
 
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
@@ -48,11 +50,11 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
   // Discord-style: Rectangular card, dark background, centered avatar
   return (
     <div 
-        className={`group relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-[#2b2d31] rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 shadow-xl ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#313338]"}`} 
+        className={`group relative w-full h-full bg-[#2b2d31] rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 shadow-xl ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#313338]"}`} 
         onClick={() => setShowVolume(false)}
     >
         <div className="relative">
-            <img src={finalAvatar} alt={participant.identity} className={`w-24 h-24 rounded-full mb-4 object-cover transition-transform duration-300 ${isSpeaking ? "scale-110 border-2 border-green-500" : "scale-100"}`} />
+            <img src={finalAvatar} alt={participant.identity} className={`w-16 h-16 md:w-24 md:h-24 rounded-full mb-4 object-cover transition-transform duration-300 ${isSpeaking ? "scale-110 border-2 border-green-500" : "scale-100"}`} />
             {/* Status Indicator (Bottom Right of Avatar) */}
             {isSpeaking && <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#2b2d31] rounded-full flex items-center justify-center"><div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div></div>}
         </div>
@@ -92,13 +94,56 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
   );
 }
 
-// 3. Grid Component - Accepts 'children' (The Music Player)
-// 3. Grid Component - Accepts 'children' (The Music Player)
+// 3. Grid Component - Logic for Screen Share Layout vs Grid Layout
 function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
   const participants = useParticipants(); 
+  
+  // 🔍 Check for Screen Share Tracks
+  const screenTracks = useTracks([Track.Source.ScreenShare]);
+  const screenTrack = screenTracks[0]; // We focus on the first screen share found
 
+  // 🅰️ LAYOUT A: Screen Share Active (Stage View)
+  if (screenTrack) {
+    return (
+        <div className="flex flex-col h-full w-full bg-[#111214]">
+            {/* STAGE: The Screen Share */}
+            <div className="flex-1 w-full relative p-2 min-h-0">
+                <div className="w-full h-full bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl relative group">
+                    <VideoTrack 
+                        trackRef={screenTrack} 
+                        className="w-full h-full object-contain"
+                    />
+                    <div className="absolute bottom-4 right-4 bg-black/60 px-3 py-1 rounded text-xs font-bold text-white backdrop-blur-md">
+                        🖥️ {screenTrack.participant.identity}'s Screen
+                    </div>
+                </div>
+            </div>
+
+            {/* STRIP: Participants & Music Player */}
+            <div className="h-40 shrink-0 w-full overflow-x-auto custom-scrollbar border-t border-white/5 bg-[#1e1f22]/50">
+                <div className="flex items-center gap-3 p-3 h-full min-w-max">
+                    {/* Music Player (Smaller in this view) */}
+                    {children && (
+                        <div className="w-64 h-full shrink-0 rounded-xl overflow-hidden shadow-lg border border-white/5">
+                            {children}
+                        </div>
+                    )}
+                    
+                    {/* User Tiles (Row) */}
+                    {participants.map((p) => (
+                        <div key={p.identity} className="w-48 h-full shrink-0">
+                            <VoiceUserTile participant={p} />
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
+  }
+
+  // 🅱️ LAYOUT B: No Screen Share (Standard Grid)
   return (
-    <div className="w-full h-full overflow-y-auto custom-scrollbar relative">
+    <div className="w-full h-full overflow-y-auto custom-scrollbar relative bg-[#111214]">
       <div className="flex flex-wrap items-center justify-center content-center gap-4 p-4 w-full min-h-full">
         
         {/* 🎵 Music Player Tile */}
@@ -110,7 +155,9 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
 
         {/* 👥 Participant Tiles */}
         {participants.map((p) => (
-          <VoiceUserTile key={p.identity} participant={p} />
+          <div key={p.identity} className="w-full md:w-[48%] lg:w-[32%] h-64 md:h-80">
+             <VoiceUserTile participant={p} />
+          </div>
         ))}
       </div>
     </div>
@@ -141,7 +188,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
   return (
     <LayoutContextProvider>
       <LiveKitRoom
-        video={false}
+        video={true} // ✅ Allow Video (Screen Share counts as video)
         audio={true}
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
@@ -149,7 +196,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
         style={{ height: "100%", display: "flex", flexDirection: "column" }}
         onDisconnected={onLeave} 
       >
-        <div className="flex-1 overflow-hidden bg-[#111214]"> {/* Discord Background Color */}
+        <div className="flex-1 overflow-hidden bg-[#111214]"> 
            {/* Pass the Music Player (children) into the Grid */}
            <MyParticipantGrid>{children}</MyParticipantGrid>
         </div>
@@ -158,7 +205,8 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
         <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center">
             <ControlBar 
               variation="minimal" 
-              controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
+              // ✅ Enable Screen Share Button here
+              controls={{ microphone: true, camera: false, screenShare: true, chat: false, settings: true, leave: true }}
             />
         </div>
         
