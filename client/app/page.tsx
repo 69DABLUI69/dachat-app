@@ -10,7 +10,7 @@ const TRANSLATIONS: any = {
     auth_user: "Username", auth_pass: "Password", auth_login: "Log in", auth_register: "Create Account", auth_back: "Back to Login", auth_2fa: "Enter code from Authenticator", auth_verify: "Verify 2FA", auth_remember: "Remember me",
     dock_dm: "Direct Messages", side_req: "Requests", side_friends: "Friends", side_channels: "Channels",
     status_on: "Online", status_off: "Offline", status_playing: "Playing", steam_join: "🚀 Join Lobby", steam_launch: "▶ Launch Game",
-    chat_placeholder: "Message...", chat_select: "Select a Channel", call_return: "🔊 Call in Progress — Click to Return",
+    chat_placeholder: "Message... @mention", chat_select: "Select a Channel", call_return: "🔊 Call in Progress — Click to Return",
     btn_accept: "Accept", btn_decline: "Decline", btn_cancel: "Cancel", btn_save: "Save", btn_close: "Close", btn_stop: "Stop",
     set_header: "Settings", set_2fa: "Two-Factor Auth", set_setup_2fa: "Setup 2FA", set_verify: "Verify & Enable", set_scan: "Scan with Google Authenticator",
     set_ringtone: "Incoming Call Ringtone", set_pass_change: "Change Password", set_new_pass: "New Password", set_confirm: "Confirm & Logout",
@@ -23,7 +23,7 @@ const TRANSLATIONS: any = {
     auth_user: "Nume utilizator", auth_pass: "Parolă", auth_login: "Autentificare", auth_register: "Creează Cont", auth_back: "Înapoi la Login", auth_2fa: "Introdu codul din Authenticator", auth_verify: "Verifică 2FA", auth_remember: "Ține-mă minte",
     dock_dm: "Mesaje Directe", side_req: "Cereri", side_friends: "Prieteni", side_channels: "Canale",
     status_on: "Conectat", status_off: "Deconectat", status_playing: "Se joacă", steam_join: "🚀 Intră în Lobby", steam_launch: "▶ Pornește Jocul",
-    chat_placeholder: "Scrie un mesaj...", chat_select: "Selectează un Canal", call_return: "🔊 Apel în Desfășurare — Apasă pentru a reveni",
+    chat_placeholder: "Scrie un mesaj... @mențiune", chat_select: "Selectează un Canal", call_return: "🔊 Apel în Desfășurare — Apasă pentru a reveni",
     btn_accept: "Acceptă", btn_decline: "Refuză", btn_cancel: "Anulează", btn_save: "Salvează", btn_close: "Închide", btn_stop: "Oprește",
     set_header: "Setări", set_2fa: "Autentificare în 2 Pași", set_setup_2fa: "Activează 2FA", set_verify: "Verifică & Activează", set_scan: "Scanează cu Google Authenticator",
     set_ringtone: "Ton de Apel", set_pass_change: "Schimbă Parola", set_new_pass: "Parolă Nouă", set_confirm: "Confirmă & Delogare",
@@ -85,6 +85,10 @@ export default function DaChat() {
   const [showGifPicker, setShowGifPicker] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<number | null>(null);
+
+  // ⚡️ FEATURE: Mentions State
+  const [showMentions, setShowMentions] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState("");
 
   const [is2FALogin, setIs2FALogin] = useState(false); 
   const [twoFACode, setTwoFACode] = useState("");
@@ -294,7 +298,7 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("connect", handleConnect);
       if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
-socket.on("receive_message", (msg) => { 
+      socket.on("receive_message", (msg) => { 
           // 1. Normalize data
           const normalized = { 
               ...msg, 
@@ -494,26 +498,33 @@ socket.on("receive_message", (msg) => {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
-      //  PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
-      if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
+  // ⚡️ FEATURE: Handle Message Input with Mentions
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setMessage(val);
 
-      if (editingId) {
-          const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
-          socket.emit("edit_message", { messageId: editingId, newContent: textMsg, roomId });
-          setChatHistory(prev => prev.map(m => m.id === editingId ? { ...m, content: textMsg, is_edited: true } : m));
-          setEditingId(null);
-          setMessage("");
-          return;
+      // Check if the last word is a mention trigger
+      const match = val.match(/@(\w*)$/);
+      
+      // Show list ONLY if we are in a server (view === 'servers') or active.server is present
+      // If you want it for DMs too, add `|| active.friend`
+      if (match && active.server) {
+          setShowMentions(true);
+          setMentionQuery(match[1].toLowerCase());
+      } else {
+          setShowMentions(false);
       }
-      const content = textMsg || (fileUrl ? "Sent an image" : ""); 
-      const payload: any = { 
-          content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString(), 
-          replyToId: replyTo ? replyTo.id : null 
-      };
-      setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url, reply_to_id: replyTo ? replyTo.id : null }]);
-      if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
-      setMessage(""); setReplyTo(null); 
+  };
+
+  // ⚡️ FEATURE: Insert Mention
+  const insertMention = (username: string) => {
+      const newVal = message.replace(/@(\w*)$/, `@${username} `);
+      setMessage(newVal);
+      setShowMentions(false);
+      // Focus back to input (handled by React state usually, but ref ensures it)
+      if(fileInputRef.current?.nextSibling) {
+          (fileInputRef.current.nextSibling as HTMLElement).focus();
+      }
   };
 
   // ✅ New Helper Function for Reactions
@@ -916,12 +927,45 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                     <div className="p-4 relative">
                         {showEmojiPicker && <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"><EmojiPicker theme={Theme.DARK} onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)} lazyLoadEmojis={true}/></div>}
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
+                        
+                        {/* ⚡️ FEATURE: Mention List UI */}
+                        {showMentions && (
+                            <div className="absolute bottom-20 left-4 right-4 z-50 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 flex flex-col animate-in slide-in-from-bottom-2 custom-scrollbar">
+                                <div className="px-3 py-2 text-[10px] font-bold text-white/40 bg-white/5 border-b border-white/5 uppercase tracking-widest">
+                                    Members matching "@ {mentionQuery}"
+                                </div>
+                                <div className="overflow-y-auto">
+                                    {/* Filters Server Members when in server, or friends when in DM (optional) */}
+                                    {(active.server ? serverMembers : []).filter(m => m.username.toLowerCase().includes(mentionQuery)).map(m => (
+                                        <div 
+                                            key={m.id} 
+                                            onClick={() => insertMention(m.username)}
+                                            className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-600/20 hover:text-indigo-200 cursor-pointer transition-colors"
+                                        >
+                                            <UserAvatar src={m.avatar_url} className="w-6 h-6 rounded-full" />
+                                            <span className="text-sm font-bold">{m.username}</span>
+                                        </div>
+                                    ))}
+                                    {(active.server ? serverMembers : []).filter(m => m.username.toLowerCase().includes(mentionQuery)).length === 0 && (
+                                        <div className="p-4 text-center text-white/20 text-xs">No matching members found</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <button className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false);}} onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}>{emojiBtnIcon}</button>
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
-                            <input className="flex-1 bg-transparent outline-none px-2 min-w-0" placeholder={t('chat_placeholder')} value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} /> 
+                            {/* UPDATED INPUT with new handler */}
+                            <input 
+                                className="flex-1 bg-transparent outline-none px-2 min-w-0" 
+                                placeholder={t('chat_placeholder')} 
+                                value={message} 
+                                onChange={handleMessageChange} 
+                                onKeyDown={e=>e.key==='Enter'&&sendMessage(message)} 
+                            /> 
                         </div>
                     </div>
                  </>
