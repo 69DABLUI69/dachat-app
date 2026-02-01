@@ -154,6 +154,29 @@ export default function DaChat() {
   const [bugFile, setBugFile] = useState<File | null>(null);
   const [isSubmittingBug, setIsSubmittingBug] = useState(false);
 
+  // 📝 HELPER: Send Message (Defined FIRST to be in scope)
+  const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
+      //  PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
+      if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
+
+      if (editingId) {
+          const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
+          socket.emit("edit_message", { messageId: editingId, newContent: textMsg, roomId });
+          setChatHistory(prev => prev.map(m => m.id === editingId ? { ...m, content: textMsg, is_edited: true } : m));
+          setEditingId(null);
+          setMessage("");
+          return;
+      }
+      const content = textMsg || (fileUrl ? "Sent an image" : ""); 
+      const payload: any = { 
+          content, senderId: user.id, senderName: user.username, fileUrl, avatar_url: user.avatar_url, id: Date.now(), created_at: new Date().toISOString(), 
+          replyToId: replyTo ? replyTo.id : null 
+      };
+      setChatHistory(prev => [...prev, { ...payload, sender_id: user.id, sender_name: user.username, file_url: fileUrl, avatar_url: user.avatar_url, reply_to_id: replyTo ? replyTo.id : null }]);
+      if (view === "servers" && active.channel) { payload.channelId = active.channel.id; socket.emit("send_message", payload); } else if (view === "dms" && active.friend) { payload.recipientId = active.friend.id; socket.emit("send_message", payload); } 
+      setMessage(""); setReplyTo(null); 
+  };
+
   const t = (key: string) => TRANSLATIONS[lang]?.[key] || TRANSLATIONS['en'][key] || key;
 
   const formatMessage = (content: string) => {
@@ -320,7 +343,11 @@ const saveNotifSettings = async (newSettings: any) => {
                   const index = prev.findIndex(f => f.id === normalized.sender_id);
                   
                   if (index === -1) return prev; // Not a friend
-                  if (index === 0) return prev;  // Already at top
+                  if (index === 0) {
+                      // Already at top, but still verify unread status
+                      // We can return here if logic doesn't require state change, but unreadMap is separate
+                      return prev; 
+                  }
                   
                   // Move friend to top
                   const newArr = [...prev];
@@ -360,22 +387,15 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("push_notification", (data) => {
         
         // 1. Determine if the app is visible to the user
-        // "hidden" means minimized or fully obscured (reliable)
-        // "visible" means on screen
         const isHidden = document.visibilityState === "hidden";
         
         // Fallback: use hasFocus if visibilityState is "visible" but user might be on another window
         const isNotFocused = !document.hasFocus();
 
-        // Debugging
         console.log(`🔔 Notification Check -> Hidden: ${isHidden}, NotFocused: ${isNotFocused}`);
 
         // 2. LOGIC: 
-        // - If Hidden (minimized): ALWAYS Notify
-        // - If Visible but Not Focused (clicked on Chrome): Notify
-        // - If Focused: DO NOT Notify
         if (isHidden || isNotFocused) {
-            
             const showToast = () => {
                 new Notification(data.title, {
                     body: data.body,
