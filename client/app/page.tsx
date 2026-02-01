@@ -116,6 +116,9 @@ export default function DaChat() {
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
   
+  // ⚡️ FEATURE: Unread Messages Map
+  const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
+
   const [selectedRingtone, setSelectedRingtone] = useState(RINGTONES[0].url);
   const ringtoneAudioRef = useRef<HTMLAudioElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -291,7 +294,38 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("connect", handleConnect);
       if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
-      socket.on("receive_message", (msg) => { const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; if (user && normalized.sender_id === user.id) return; setChatHistory(prev => [...prev, normalized]); });
+      socket.on("receive_message", (msg) => { 
+          const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; 
+          
+          if (user && normalized.sender_id === user.id) return; 
+          
+          setChatHistory(prev => [...prev, normalized]); 
+
+          // ⚡️ FEATURE: Reorder Friends & Show Unread Dot
+          if (msg.sender_id && msg.sender_id !== user.id) {
+              setFriends(prev => {
+                  const index = prev.findIndex(f => f.id === msg.sender_id);
+                  if (index <= 0) {
+                      // If index is 0, they are already at top
+                      if (index === 0) return prev;
+                      // If not found (-1), don't break list (maybe user isn't friend yet)
+                      return prev; 
+                  }
+                  
+                  // Move friend to top
+                  const newArr = [...prev];
+                  const [movedFriend] = newArr.splice(index, 1);
+                  newArr.unshift(movedFriend);
+                  return newArr;
+              });
+
+              // Mark as unread if not currently active
+              if (active.friend?.id !== msg.sender_id) {
+                  setUnreadMap(prev => ({ ...prev, [msg.sender_id]: true }));
+              }
+          }
+      });
+
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       
       // ✅ Reaction Handler
@@ -312,7 +346,7 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-// ✅ Notification Handler (Robust Visibility Check)
+      // ✅ Notification Handler (Robust Visibility Check)
       socket.on("push_notification", (data) => {
         
         // 1. Determine if the app is visible to the user
@@ -403,9 +437,9 @@ const saveNotifSettings = async (newSettings: any) => {
           socket.off("trigger_sound"); 
           socket.off("reaction_updated"); 
           socket.off("voice_states");
-          socket.off("push_notification"); // ✅ CLEANUP ADDED
+          socket.off("push_notification"); 
       }; 
-  }, [user, viewingProfile, active.server, inCall]);
+  }, [user, viewingProfile, active.server, inCall, active.friend]); // Added active.friend to dependencies
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
   useEffect(() => { if (user) { fetchServers(user.id); fetchFriends(user.id); fetchRequests(user.id); } }, [user]);
@@ -434,7 +468,18 @@ const saveNotifSettings = async (newSettings: any) => {
 
   const selectServer = async (server: any) => { setView("servers"); setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); setIsCallExpanded(false); const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); const chData = await res.json(); setChannels(chData); if(!active.channel && chData.length > 0) { const firstText = chData.find((c:any) => c.type === 'text'); if (firstText) joinChannel(firstText); } const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); setServerMembers(await memRes.json()); };
   const joinChannel = (channel: any) => { if (channel.type === 'voice') { if (inCall && activeVoiceChannelId === channel.id.toString()) setIsCallExpanded(true); else if (channel.id) joinVoiceRoom(channel.id.toString()); } else { setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); } };
-  const selectFriend = (friend: any) => { setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); const ids = [user.id, friend.id].sort((a, b) => a - b); socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); };
+  
+  // ✅ UPDATED: Clear unread dot when selecting friend
+  const selectFriend = (friend: any) => { 
+      setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); 
+      setChatHistory([]); 
+      setIsCallExpanded(false); 
+      setShowMobileChat(true); 
+      setUnreadMap(prev => ({ ...prev, [friend.id]: false })); // 👈 Clear Unread
+      const ids = [user.id, friend.id].sort((a, b) => a - b); 
+      socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); 
+  };
+
   const selectRequest = (requestUser: any) => { setActive((prev: any) => ({ ...prev, pendingRequest: requestUser, friend: null, channel: null })); setIsCallExpanded(false); setShowMobileChat(true); };
 
   const sendFriendRequest = async () => { const usernameToAdd = prompt("Enter username to request:"); if (!usernameToAdd) return; await fetch(`${BACKEND_URL}/send-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, usernameToAdd }) }); };
@@ -714,7 +759,14 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                             <div key={f.id} onContextMenu={(e) => handleContextMenu(e, 'user', f)} className={`p-2 rounded-lg flex items-center gap-3 cursor-pointer hover:bg-white/5 transition-all duration-200 hover:translate-x-1 ${active.friend?.id===f.id?"bg-white/10 scale-[1.02]":""}`} > 
                                 <div className="relative"> <UserAvatar onClick={(e:any)=>{e.stopPropagation(); viewUserProfile(f.id)}} src={f.avatar_url} className={`w-8 h-8 rounded-full ${isPlaying ? "ring-2 ring-green-500" : ""}`} /> {isOnline && <div className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-black rounded-full"></div>} </div>
                                 <div className="flex-1 min-w-0" onClick={()=>selectFriend(f)}>
-                                    <div className="flex justify-between items-center"> <div className="text-xs font-bold truncate">{f.username}</div> {isPlaying && <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3 opacity-50" />} </div>
+                                    <div className="flex justify-between items-center"> 
+                                        <div className="text-xs font-bold truncate">{f.username}</div> 
+                                        {/* ✅ UNREAD DOT */}
+                                        {unreadMap[f.id] && (
+                                            <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6] animate-pulse ml-2"></div>
+                                        )}
+                                        {isPlaying && <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3 opacity-50" />} 
+                                    </div>
                                     {isPlaying ? ( <div className="flex flex-col gap-1 mt-1"> <div className="text-[10px] text-green-400 font-bold truncate">{t('status_playing')} {steamInfo.gameextrainfo}</div> <a href={lobbyId ? `steam://joinlobby/${steamInfo.gameid}/${lobbyId}/${f.steam_id}` : `steam://run/${steamInfo.gameid}`} className="bg-green-600/20 hover:bg-green-600/40 text-green-400 text-[9px] font-bold px-2 py-1 rounded border border-green-600/30 text-center transition-colors block" onClick={(e) => e.stopPropagation()}> {lobbyId ? t('steam_join') : t('steam_launch')} </a> </div> ) : ( <div className={`text-[9px] transition-colors duration-300 ${isOnline ? "text-green-400/50" : "text-white/30"}`}> {isOnline ? t('status_on') : t('status_off')} </div> )}
                                 </div> 
                             </div> 
@@ -805,7 +857,6 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                                             {activeReactionMessageId === msg.id && (
                                                 <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
                                                      <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
-                                                         {/* 👇 FIXED: Using EmojiStyle.NATIVE enum */}
                                                          <EmojiPicker 
                                                              theme={Theme.DARK} 
                                                              emojiStyle={EmojiStyle.NATIVE}
