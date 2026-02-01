@@ -9,6 +9,7 @@ import {
   LayoutContextProvider,
   useTracks,
   VideoTrack,
+  useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Participant, Track } from "livekit-client";
@@ -16,11 +17,63 @@ import { Participant, Track } from "livekit-client";
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
 
-// 2. Individual User Tile (Updated with Stop Watching logic)
+// --- CUSTOM SCREEN SHARE BUTTON (To enable Audio) ---
+function CustomScreenShareButton() {
+    const { localParticipant } = useLocalParticipant();
+    const [enabled, setEnabled] = useState(false);
+
+    // Sync state with actual participant state
+    useEffect(() => {
+        if (!localParticipant) return;
+        const updateState = () => setEnabled(localParticipant.isScreenShareEnabled);
+        
+        localParticipant.on('trackPublished', updateState);
+        localParticipant.on('trackUnpublished', updateState);
+        localParticipant.on('localTrackUnpublished', updateState);
+        updateState();
+
+        return () => {
+            localParticipant.off('trackPublished', updateState);
+            localParticipant.off('trackUnpublished', updateState);
+            localParticipant.off('localTrackUnpublished', updateState);
+        };
+    }, [localParticipant]);
+
+    const toggleShare = async () => {
+        if (!localParticipant) return;
+        const newState = !enabled;
+        try {
+            // ✅ CRITICAL: This enables System Audio Capture
+            await localParticipant.setScreenShareEnabled(newState, { audio: true, selfBrowserSurface: "include" });
+            setEnabled(newState);
+        } catch (e) {
+            console.error("Screen Share Error:", e);
+            setEnabled(false);
+        }
+    };
+
+    return (
+        <button 
+            onClick={toggleShare}
+            className={`lk-button-group ${enabled ? 'text-green-500 bg-white/10' : 'text-white hover:bg-white/5'} p-3 rounded-full transition-all flex items-center justify-center`}
+            title="Share Screen (with Audio)"
+        >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
+                <path d="M8 21h8" />
+                <path d="M12 17v4" />
+                <path d="M17 8l5-5" />
+                <path d="M17 3h5v5" />
+            </svg>
+        </button>
+    );
+}
+
+// 2. Individual User Tile
 function VoiceUserTile({ 
     participant, 
     screenTrackRef, 
-    isWatching, // 🆕 New prop to check active state
+    isWatching, 
     onWatch 
 }: { 
     participant: Participant, 
@@ -67,7 +120,6 @@ function VoiceUserTile({
             <div className="absolute top-3 left-3 z-30 flex gap-2">
                 <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded animate-pulse">LIVE</span>
                 
-                {/* 🆕 Dynamic Watch/Stop Button */}
                 {!participant.isLocal && onWatch && (
                     <button 
                         onClick={(e) => { e.stopPropagation(); onWatch(); }}
@@ -88,7 +140,6 @@ function VoiceUserTile({
             {isSpeaking && <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#2b2d31] rounded-full flex items-center justify-center"><div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div></div>}
         </div>
         
-        {/* Mobile Volume Toggle */}
         {!participant.isLocal && (
           <>
             <button 
@@ -123,15 +174,12 @@ function VoiceUserTile({
   );
 }
 
-// 3. Grid Component - Handles Logic for Choosing Streams
+// 3. Grid Component
 function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
   const participants = useParticipants(); 
   const screenTracks = useTracks([Track.Source.ScreenShare]);
-  
-  // State: Which stream is the user actively watching?
   const [viewingTrack, setViewingTrack] = useState<any>(null);
 
-  // Auto-close stream if the user stops sharing
   useEffect(() => {
       if (viewingTrack) {
           const stillExists = screenTracks.find(t => t.participant.identity === viewingTrack.participant.identity);
@@ -139,56 +187,31 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
       }
   }, [screenTracks, viewingTrack]);
 
-  // 🅰️ LAYOUT A: Watching a Specific Stream
+  // A: Stage View
   if (viewingTrack) {
     return (
         <div className="flex flex-col h-full w-full bg-[#111214]">
-            {/* STAGE: The Screen Share */}
             <div className="flex-1 w-full relative p-2 min-h-0 flex flex-col">
                 <div className="flex justify-between items-center mb-2 px-2">
                     <div className="text-white font-bold flex items-center gap-2">
                         <span className="text-red-500 animate-pulse">●</span>
                         Watching {viewingTrack.participant.identity}'s Stream
                     </div>
-                    <button 
-                        onClick={() => setViewingTrack(null)}
-                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all border border-white/10"
-                    >
-                        Exit Stream ✕
-                    </button>
+                    <button onClick={() => setViewingTrack(null)} className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all border border-white/10">Exit Stream ✕</button>
                 </div>
-
                 <div className="flex-1 w-full bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl relative group">
-                    <VideoTrack 
-                        trackRef={viewingTrack} 
-                        className="w-full h-full object-contain"
-                    />
+                    <VideoTrack trackRef={viewingTrack} className="w-full h-full object-contain"/>
                 </div>
             </div>
-
-            {/* STRIP: Participants & Music Player */}
             <div className="h-40 shrink-0 w-full overflow-x-auto custom-scrollbar border-t border-white/5 bg-[#1e1f22]/50">
                 <div className="flex items-center gap-3 p-3 h-full min-w-max">
-                    {/* Music Player (Smaller in this view) */}
-                    {children && (
-                        <div className="w-64 h-full shrink-0 rounded-xl overflow-hidden shadow-lg border border-white/5">
-                            {children}
-                        </div>
-                    )}
-                    
-                    {/* User Tiles (Row) */}
+                    {children && <div className="w-64 h-full shrink-0 rounded-xl overflow-hidden shadow-lg border border-white/5">{children}</div>}
                     {participants.map((p) => {
                         const trackRef = screenTracks.find(t => t.participant.identity === p.identity);
                         const isThisUser = viewingTrack?.participant.identity === p.identity;
-
                         return (
                             <div key={p.identity} className="w-48 h-full shrink-0">
-                                <VoiceUserTile 
-                                    participant={p} 
-                                    screenTrackRef={trackRef} 
-                                    isWatching={isThisUser} // 🆕 Pass active state
-                                    onWatch={() => isThisUser ? setViewingTrack(null) : setViewingTrack(trackRef)} // 🆕 Toggle stream
-                                />
+                                <VoiceUserTile participant={p} screenTrackRef={trackRef} isWatching={isThisUser} onWatch={() => isThisUser ? setViewingTrack(null) : setViewingTrack(trackRef)} />
                             </div>
                         );
                     })}
@@ -198,30 +221,16 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
     );
   }
 
-  // 🅱️ LAYOUT B: Standard Grid (Choosing a Stream)
+  // B: Grid View
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar relative bg-[#111214]">
       <div className="flex flex-wrap items-center justify-center content-center gap-4 p-4 w-full min-h-full">
-        
-        {/* 🎵 Music Player Tile */}
-        {children && (
-            <div className="relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-zinc-900 rounded-2xl overflow-hidden border border-white/5 shadow-xl hover:ring-1 hover:ring-indigo-500/50 transition-all shrink-0">
-               {children}
-            </div>
-        )}
-
-        {/* 👥 Participant Tiles */}
+        {children && <div className="relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-zinc-900 rounded-2xl overflow-hidden border border-white/5 shadow-xl hover:ring-1 hover:ring-indigo-500/50 transition-all shrink-0">{children}</div>}
         {participants.map((p) => {
-          // Find if this specific user is sharing
           const trackRef = screenTracks.find(t => t.participant.identity === p.identity);
-          
           return (
             <div key={p.identity} className="w-full md:w-[48%] lg:w-[32%] h-64 md:h-80">
-               <VoiceUserTile 
-                  participant={p} 
-                  screenTrackRef={trackRef}
-                  onWatch={() => setViewingTrack(trackRef)} // Pass click handler
-               />
+               <VoiceUserTile participant={p} screenTrackRef={trackRef} onWatch={() => setViewingTrack(trackRef)} />
             </div>
           );
         })}
@@ -254,7 +263,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
   return (
     <LayoutContextProvider>
       <LiveKitRoom
-        video={true} // ✅ Allow Video (Screen Share)
+        video={true} 
         audio={true}
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
@@ -263,16 +272,18 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
         onDisconnected={onLeave} 
       >
         <div className="flex-1 overflow-hidden bg-[#111214]"> 
-           {/* Pass the Music Player (children) into the Grid */}
            <MyParticipantGrid>{children}</MyParticipantGrid>
         </div>
 
-        {/* Discord Style Control Bar */}
-        <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center">
+        {/* CUSTOM CONTROL BAR */}
+        <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center items-center gap-2">
             <ControlBar 
               variation="minimal" 
-              controls={{ microphone: true, camera: false, screenShare: true, chat: false, settings: true, leave: true }}
+              // 🛑 Disable default screen share so we can use our custom one
+              controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
             />
+            {/* ✅ Custom Audio-Enabled Screen Share Button */}
+            <CustomScreenShareButton />
         </div>
         
         <RoomAudioRenderer />
