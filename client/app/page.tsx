@@ -1411,7 +1411,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
 
                     {/* CENTER: Play/Skip (Centered by equal siblings) */}
-                    <div className="flex items-center gap-4 shrink-0">
+                    <div className="flex-1 flex items-center gap-4 shrink-0">
                          <button 
                             onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
                             className="w-10 h-10 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-white/10"
