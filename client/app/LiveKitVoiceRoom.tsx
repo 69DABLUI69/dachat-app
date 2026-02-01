@@ -16,14 +16,16 @@ import { Participant, Track } from "livekit-client";
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
 
-// 2. Individual User Tile (Updated with Stream Button)
+// 2. Individual User Tile (Updated with Stop Watching logic)
 function VoiceUserTile({ 
     participant, 
     screenTrackRef, 
+    isWatching, // 🆕 New prop to check active state
     onWatch 
 }: { 
     participant: Participant, 
     screenTrackRef?: any, 
+    isWatching?: boolean,
     onWatch?: () => void 
 }) {
   const isSpeaking = useIsSpeaking(participant);
@@ -64,12 +66,18 @@ function VoiceUserTile({
         {screenTrackRef && (
             <div className="absolute top-3 left-3 z-30 flex gap-2">
                 <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded animate-pulse">LIVE</span>
+                
+                {/* 🆕 Dynamic Watch/Stop Button */}
                 {!participant.isLocal && onWatch && (
                     <button 
                         onClick={(e) => { e.stopPropagation(); onWatch(); }}
-                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded shadow-lg transition-transform hover:scale-105 active:scale-95"
+                        className={`text-[10px] font-bold px-3 py-1 rounded shadow-lg transition-transform hover:scale-105 active:scale-95 ${
+                            isWatching 
+                            ? "bg-red-500/20 hover:bg-red-500/40 text-red-200 border border-red-500/50" 
+                            : "bg-indigo-600 hover:bg-indigo-500 text-white"
+                        }`}
                     >
-                        Watch Stream 👁️
+                        {isWatching ? "Stop Watching ✕" : "Watch Stream 👁️"}
                     </button>
                 )}
             </div>
@@ -171,12 +179,15 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
                     {/* User Tiles (Row) */}
                     {participants.map((p) => {
                         const trackRef = screenTracks.find(t => t.participant.identity === p.identity);
+                        const isThisUser = viewingTrack?.participant.identity === p.identity;
+
                         return (
                             <div key={p.identity} className="w-48 h-full shrink-0">
                                 <VoiceUserTile 
                                     participant={p} 
                                     screenTrackRef={trackRef} 
-                                    onWatch={() => setViewingTrack(trackRef)} // Allow switching streams
+                                    isWatching={isThisUser} // 🆕 Pass active state
+                                    onWatch={() => isThisUser ? setViewingTrack(null) : setViewingTrack(trackRef)} // 🆕 Toggle stream
                                 />
                             </div>
                         );
