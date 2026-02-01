@@ -312,19 +312,26 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-// ✅ Notification Handler (Refined Logic)
+// ✅ Notification Handler (Robust Visibility Check)
       socket.on("push_notification", (data) => {
         
-        // 1. Check if the app is FOCUSED (Active)
-        const isAppActive = document.hasFocus();
+        // 1. Determine if the app is visible to the user
+        // "hidden" means minimized or fully obscured (reliable)
+        // "visible" means on screen
+        const isHidden = document.visibilityState === "hidden";
         
-        // Debugging: Check your console to see if the app thinks it's focused
-        console.log("🔔 Notification Event. App Focused:", isAppActive);
+        // Fallback: use hasFocus if visibilityState is "visible" but user might be on another window
+        const isNotFocused = !document.hasFocus();
 
-        // 2. Only proceed if the app is NOT active (Background/Minimized)
-        if (!isAppActive) {
+        // Debugging
+        console.log(`🔔 Notification Check -> Hidden: ${isHidden}, NotFocused: ${isNotFocused}`);
+
+        // 2. LOGIC: 
+        // - If Hidden (minimized): ALWAYS Notify
+        // - If Visible but Not Focused (clicked on Chrome): Notify
+        // - If Focused: DO NOT Notify
+        if (isHidden || isNotFocused) {
             
-            // Helper to actually show the notification
             const showToast = () => {
                 new Notification(data.title, {
                     body: data.body,
@@ -332,11 +339,9 @@ const saveNotifSettings = async (newSettings: any) => {
                 });
             };
 
-            // 3. Handle Permission Checks
             if (Notification.permission === "granted") {
                 showToast();
             } else if (Notification.permission !== "denied") {
-                // Try to ask for permission (WebView2 often allows this automatically)
                 Notification.requestPermission().then((perm) => {
                     if (perm === "granted") showToast();
                 });
