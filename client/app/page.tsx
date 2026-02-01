@@ -294,23 +294,29 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("connect", handleConnect);
       if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
-      socket.on("receive_message", (msg) => { 
-          const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; 
+socket.on("receive_message", (msg) => { 
+          // 1. Normalize data
+          const normalized = { 
+              ...msg, 
+              sender_id: msg.sender_id || msg.senderId, 
+              sender_name: msg.sender_name || msg.senderName, 
+              file_url: msg.file_url || msg.fileUrl,
+              channel_id: msg.channel_id || msg.channelId // Ensure we catch channel ID
+          }; 
           
           if (user && normalized.sender_id === user.id) return; 
           
           setChatHistory(prev => [...prev, normalized]); 
 
           // ⚡️ FEATURE: Reorder Friends & Show Unread Dot
-          if (msg.sender_id && msg.sender_id !== user.id) {
+          // 🛑 FIX: Added check (!normalized.channel_id) so this ONLY runs for DMs
+          if (!normalized.channel_id && normalized.sender_id && normalized.sender_id !== user.id) {
+              
               setFriends(prev => {
-                  const index = prev.findIndex(f => f.id === msg.sender_id);
-                  if (index <= 0) {
-                      // If index is 0, they are already at top
-                      if (index === 0) return prev;
-                      // If not found (-1), don't break list (maybe user isn't friend yet)
-                      return prev; 
-                  }
+                  const index = prev.findIndex(f => f.id === normalized.sender_id);
+                  
+                  if (index === -1) return prev; // Not a friend
+                  if (index === 0) return prev;  // Already at top
                   
                   // Move friend to top
                   const newArr = [...prev];
@@ -319,9 +325,9 @@ const saveNotifSettings = async (newSettings: any) => {
                   return newArr;
               });
 
-              // Mark as unread if not currently active
-              if (active.friend?.id !== msg.sender_id) {
-                  setUnreadMap(prev => ({ ...prev, [msg.sender_id]: true }));
+              // Mark as unread if this isn't the currently active chat
+              if (active.friend?.id !== normalized.sender_id) {
+                  setUnreadMap(prev => ({ ...prev, [normalized.sender_id]: true }));
               }
           }
       });
