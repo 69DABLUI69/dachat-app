@@ -569,7 +569,10 @@ io.on("connection", (socket) => {
     socket.userData = { id: userId };
     if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
     onlineUsers.get(userId).add(socket.id);
+    
+    // ✅ CRITICAL FIX: Join user's personal room for notifications
     socket.join(userId.toString());
+    
     socket.emit("connected");
     io.emit("user_connected", userId);
   });
@@ -579,6 +582,7 @@ io.on("connection", (socket) => {
     socket.emit("online_users", onlineIds);
   });
 
+  // ✅ New Listener for sidebar avatars
   socket.on("get_voice_states", () => {
       const states = {};
       for(const [roomId, users] of Object.entries(voiceRooms)) {
@@ -635,19 +639,26 @@ io.on("connection", (socket) => {
 
     // 3. Handle Notifications for DM recipients
     if (recipientId) {
-        const { data: recipient } = await supabase
-            .from("users")
-            .select("notification_settings")
-            .eq("id", recipientId)
-            .single();
+        try {
+            const { data: recipient } = await supabase
+                .from("users")
+                .select("notification_settings")
+                .eq("id", recipientId)
+                .single();
 
-        // Only send push if recipient has desktop notifications enabled
-        if (recipient?.notification_settings?.desktop_notifications) {
-            io.to(recipientId.toString()).emit("push_notification", {
-                title: `New message from ${senderName}`,
-                body: content,
-                icon: avatar_url 
-            });
+            // ✅ FIX: Check settings safely. Default to TRUE if undefined/null.
+            const settings = recipient?.notification_settings || {};
+            const showNotif = settings.desktop_notifications !== false; // Only hide if explicitly FALSE
+
+            if (showNotif) {
+                io.to(recipientId.toString()).emit("push_notification", {
+                    title: `New message from ${senderName}`,
+                    body: content || "Sent an attachment",
+                    icon: avatar_url || "/logo.png"
+                });
+            }
+        } catch (err) {
+            console.error("Notification Error:", err);
         }
     }
 
@@ -702,7 +713,7 @@ io.on("connection", (socket) => {
              const { data: owner } = await supabase.from("users").select("notification_settings").eq("id", messageOwnerId).single();
              const settings = owner?.notification_settings || {};
              
-             if (settings.reaction_notifications === "all" && settings.desktop_notifications) {
+             if (settings.reaction_notifications === "all" && settings.desktop_notifications !== false) {
                  io.to(messageOwnerId.toString()).emit("push_notification", {
                      title: "New Reaction",
                      body: `Someone reacted ${emoji} to your message`,

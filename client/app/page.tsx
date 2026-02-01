@@ -1,7 +1,6 @@
 "use client";
 import { useEffect, useState, useRef, memo, useCallback, useMemo } from "react";
 import { io, Socket } from "socket.io-client";
-// 👇 FIXED: Added EmojiStyle to imports
 import EmojiPicker, { Theme, EmojiStyle } from "emoji-picker-react";
 import LiveKitVoiceRoom from "./LiveKitVoiceRoom"; 
 
@@ -264,16 +263,10 @@ useEffect(() => {
 
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
-useEffect(() => {
-    socket.on("push_notification", (data) => {
-        if (Notification.permission === "granted" && document.hidden) {
-            new Notification(data.title, {
-                body: data.body,
-                icon: data.icon || "/logo.png"
-            });
-        }
-    });
-    return () => { socket.off("push_notification"); };
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+        // We don't ask here anymore, user must click the button
+    }
 }, []);
 
 const [notifSettings, setNotifSettings] = useState(user?.notification_settings || {
@@ -319,9 +312,20 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-socket.on("voice_states", (states) => {
-          setVoiceStates(states);
+      // ✅ Notification Handler (Consolidated)
+      socket.on("push_notification", (data) => {
+        if (Notification.permission === "granted") {
+            // Show notification if app is hidden (or allow always if preferred)
+            if (document.hidden) { 
+                new Notification(data.title, {
+                    body: data.body,
+                    icon: data.icon || "/logo.png"
+                });
+            }
+        }
       });
+
+      socket.on("voice_states", (states) => { setVoiceStates(states); });
 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
       
@@ -353,7 +357,30 @@ socket.on("voice_states", (states) => {
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
       
-      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); socket.off("trigger_sound"); socket.off("reaction_updated"); socket.off("voice_states");}; 
+      return () => { 
+          socket.off("receive_message"); 
+          socket.off("load_messages"); 
+          socket.off("voice_state_update"); 
+          socket.off("user_updated"); 
+          socket.off("new_friend_request"); 
+          socket.off("incoming_call"); 
+          socket.off("server_updated"); 
+          socket.off("new_server_invite"); 
+          socket.off("user_connected"); 
+          socket.off("user_disconnected"); 
+          socket.off("online_users"); 
+          socket.off("request_accepted"); 
+          socket.off("friend_removed"); 
+          socket.off("message_deleted"); 
+          socket.off("audio_state_update"); 
+          socket.off("audio_state_clear"); 
+          socket.off("call_rejected"); 
+          socket.off("message_updated"); 
+          socket.off("trigger_sound"); 
+          socket.off("reaction_updated"); 
+          socket.off("voice_states");
+          socket.off("push_notification"); // ✅ CLEANUP ADDED
+      }; 
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
@@ -1008,36 +1035,16 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                                           <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
                                       </div>
                                       <button 
-    onClick={() => {
-        if ("Notification" in window) {
-            // This triggers the PermissionRequested event in C#
-            Notification.requestPermission().then(perm => {
-                if (perm === "granted") {
-                    new Notification("Test Notification", {
-                        body: "If you see this, it works!",
-                        icon: "/logo.png"
-                    });
-                } else {
-                    alert("Permission denied or blocked by browser/app.");
-                }
-            });
-        }
-    }}
-    className="mt-2 text-xs bg-white/10 hover:bg-white/20 px-3 py-1 rounded text-white"
->
-    🧪 Test Notification
-</button>
-<button 
-        onClick={() => {
-            if ("Notification" in window && Notification.permission !== "granted") {
-                Notification.requestPermission();
-            }
-            saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
-        }}
-        className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-    >
-        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-    </button>
+                                          onClick={() => {
+                                              if ("Notification" in window && Notification.permission !== "granted") {
+                                                  Notification.requestPermission();
+                                              }
+                                              saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
+                                          }}
+                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                      >
+                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
+                                      </button>
                                   </div>
 
                                   {/* Toggle 2: Streaming Notifications */}
