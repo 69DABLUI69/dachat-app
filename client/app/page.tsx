@@ -312,28 +312,35 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-// ✅ Notification Handler (Updated for App Compatibility)
+// ✅ Notification Handler (Refined Logic)
       socket.on("push_notification", (data) => {
-        // Debugging: Log to console to verify event arrival
-        console.log("🔔 Notification Event Received:", data);
+        
+        // 1. Check if the app is FOCUSED (Active)
+        const isAppActive = document.hasFocus();
+        
+        // Debugging: Check your console to see if the app thinks it's focused
+        console.log("🔔 Notification Event. App Focused:", isAppActive);
 
-        // 1. If permission isn't granted yet, try asking (WebView2 might allow this)
-        if (Notification.permission !== "granted") {
-            Notification.requestPermission().then((perm) => {
-                if (perm === "granted") {
-                    new Notification(data.title, {
-                        body: data.body,
-                        icon: data.icon || "/logo.png"
-                    });
-                }
-            });
-        } 
-        // 2. If granted, show immediately (Removed visibility checks)
-        else {
-            new Notification(data.title, {
-                body: data.body,
-                icon: data.icon || "/logo.png"
-            });
+        // 2. Only proceed if the app is NOT active (Background/Minimized)
+        if (!isAppActive) {
+            
+            // Helper to actually show the notification
+            const showToast = () => {
+                new Notification(data.title, {
+                    body: data.body,
+                    icon: data.icon || "/logo.png"
+                });
+            };
+
+            // 3. Handle Permission Checks
+            if (Notification.permission === "granted") {
+                showToast();
+            } else if (Notification.permission !== "denied") {
+                // Try to ask for permission (WebView2 often allows this automatically)
+                Notification.requestPermission().then((perm) => {
+                    if (perm === "granted") showToast();
+                });
+            }
         }
       });
 
