@@ -93,24 +93,26 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
 }
 
 // 3. Grid Component - Accepts 'children' (The Music Player)
+// 3. Grid Component - Accepts 'children' (The Music Player)
 function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
   const participants = useParticipants(); 
 
   return (
-    // Flex Wrap logic to mimic Discord's dynamic grid
-    <div className="flex flex-wrap items-center justify-center gap-4 p-4 h-full w-full overflow-y-auto custom-scrollbar content-center">
-      
-      {/* 🎵 Music Player Tile (Rendered as just another square) */}
-      {children && (
-          <div className="relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-zinc-900 rounded-2xl overflow-hidden border border-white/5 shadow-xl hover:ring-1 hover:ring-indigo-500/50 transition-all">
-             {children}
-          </div>
-      )}
+    <div className="w-full h-full overflow-y-auto custom-scrollbar relative">
+      <div className="flex flex-wrap items-center justify-center content-center gap-4 p-4 w-full min-h-full">
+        
+        {/* 🎵 Music Player Tile */}
+        {children && (
+            <div className="relative w-full md:w-[48%] lg:w-[32%] h-64 md:h-80 bg-zinc-900 rounded-2xl overflow-hidden border border-white/5 shadow-xl hover:ring-1 hover:ring-indigo-500/50 transition-all shrink-0">
+               {children}
+            </div>
+        )}
 
-      {/* 👥 Participant Tiles */}
-      {participants.map((p) => (
-        <VoiceUserTile key={p.identity} participant={p} />
-      ))}
+        {/* 👥 Participant Tiles */}
+        {participants.map((p) => (
+          <VoiceUserTile key={p.identity} participant={p} />
+        ))}
+      </div>
     </div>
   );
 }

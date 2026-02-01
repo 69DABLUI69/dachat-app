@@ -579,6 +579,14 @@ io.on("connection", (socket) => {
     socket.emit("online_users", onlineIds);
   });
 
+  socket.on("get_voice_states", () => {
+      const states = {};
+      for(const [roomId, users] of Object.entries(voiceRooms)) {
+          states[roomId] = users.map(u => u.userData.id);
+      }
+      socket.emit("voice_states", states);
+  });
+
   // --- 2. CHAT & ROOMS ---
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);

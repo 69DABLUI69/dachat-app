@@ -265,12 +265,6 @@ useEffect(() => {
   const saveSteamId = async () => { const id = prompt("Enter your Steam ID64 (looks like 765611980...):"); if(!id) return; await fetch(`${BACKEND_URL}/users/link-steam`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, steamId: id }) }); setUser({...user, steam_id: id}); };
 
 useEffect(() => {
-    if ("Notification" in window && Notification.permission === "default") {
-        Notification.requestPermission();
-    }
-}, []);
-
-useEffect(() => {
     socket.on("push_notification", (data) => {
         if (Notification.permission === "granted" && document.hidden) {
             new Notification(data.title, {
@@ -300,9 +294,9 @@ const saveNotifSettings = async (newSettings: any) => {
 
   useEffect(() => { 
       socket.connect(); 
-      const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); } };
+      const handleConnect = () => { if (user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");} };
       socket.on("connect", handleConnect);
-      if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); }
+      if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
       socket.on("receive_message", (msg) => { const normalized = { ...msg, sender_id: msg.sender_id || msg.senderId, sender_name: msg.sender_name || msg.senderName, file_url: msg.file_url || msg.fileUrl }; if (user && normalized.sender_id === user.id) return; setChatHistory(prev => [...prev, normalized]); });
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
@@ -323,6 +317,10 @@ const saveNotifSettings = async (newSettings: any) => {
             
             return { ...msg, reactions: newReactions };
         }));
+      });
+
+socket.on("voice_states", (states) => {
+          setVoiceStates(states);
       });
 
       socket.on("message_deleted", (messageId) => { setChatHistory(prev => prev.filter(msg => msg.id !== messageId)); });
@@ -355,7 +353,7 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
       
-      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); socket.off("trigger_sound"); socket.off("reaction_updated");}; 
+      return () => { socket.off("receive_message"); socket.off("load_messages"); socket.off("voice_state_update"); socket.off("user_updated"); socket.off("new_friend_request"); socket.off("incoming_call"); socket.off("server_updated"); socket.off("new_server_invite"); socket.off("user_connected"); socket.off("user_disconnected"); socket.off("online_users"); socket.off("request_accepted"); socket.off("friend_removed"); socket.off("message_deleted"); socket.off("audio_state_update"); socket.off("audio_state_clear"); socket.off("call_rejected"); socket.off("message_updated"); socket.off("trigger_sound"); socket.off("reaction_updated"); socket.off("voice_states");}; 
   }, [user, viewingProfile, active.server, inCall]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
@@ -1009,12 +1007,17 @@ const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => {
                                           <span className="text-sm font-bold">Enable Desktop Notifications</span>
                                           <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
                                       </div>
-                                      <button 
-                                          onClick={() => saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                      >
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-                                      </button>
+<button 
+        onClick={() => {
+            if ("Notification" in window && Notification.permission !== "granted") {
+                Notification.requestPermission();
+            }
+            saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
+        }}
+        className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+    >
+        <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
+    </button>
                                   </div>
 
                                   {/* Toggle 2: Streaming Notifications */}
