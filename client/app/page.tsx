@@ -312,16 +312,28 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-      // ✅ Notification Handler (Consolidated)
+// ✅ Notification Handler (Updated for App Compatibility)
       socket.on("push_notification", (data) => {
-        if (Notification.permission === "granted") {
-            // Show notification if app is hidden (or allow always if preferred)
-            if (document.hidden) { 
-                new Notification(data.title, {
-                    body: data.body,
-                    icon: data.icon || "/logo.png"
-                });
-            }
+        // Debugging: Log to console to verify event arrival
+        console.log("🔔 Notification Event Received:", data);
+
+        // 1. If permission isn't granted yet, try asking (WebView2 might allow this)
+        if (Notification.permission !== "granted") {
+            Notification.requestPermission().then((perm) => {
+                if (perm === "granted") {
+                    new Notification(data.title, {
+                        body: data.body,
+                        icon: data.icon || "/logo.png"
+                    });
+                }
+            });
+        } 
+        // 2. If granted, show immediately (Removed visibility checks)
+        else {
+            new Notification(data.title, {
+                body: data.body,
+                icon: data.icon || "/logo.png"
+            });
         }
       });
 
