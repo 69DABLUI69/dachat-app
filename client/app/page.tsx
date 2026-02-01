@@ -1406,7 +1406,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         <input 
                             type="range" min="0" max="100" value={localVolume} 
                             onChange={(e) => setLocalVolume(parseInt(e.target.value))}
-                            className="w-20 md:w-24 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white opacity-60 hover:opacity-100 transition-opacity"
+                            className="w-14 md:w-16 h-1 bg-white/20 rounded-lg appearance-none cursor-pointer accent-white opacity-60 hover:opacity-100 transition-opacity"
                         />
                     </div>
 
