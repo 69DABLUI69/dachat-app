@@ -16,8 +16,16 @@ import { Participant, Track } from "livekit-client";
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
 
-// 2. Individual User Tile
-function VoiceUserTile({ participant }: { participant: Participant }) {
+// 2. Individual User Tile (Updated with Stream Button)
+function VoiceUserTile({ 
+    participant, 
+    screenTrackRef, 
+    onWatch 
+}: { 
+    participant: Participant, 
+    screenTrackRef?: any, 
+    onWatch?: () => void 
+}) {
   const isSpeaking = useIsSpeaking(participant);
   const [avatarUrl, setAvatarUrl] = useState("");
   const [volume, setVolume] = useState(1); 
@@ -47,19 +55,32 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
 
   const finalAvatar = avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${participant.identity}`;
 
-  // Discord-style: Rectangular card, dark background, centered avatar
   return (
     <div 
         className={`group relative w-full h-full bg-[#2b2d31] rounded-2xl flex flex-col items-center justify-center overflow-hidden transition-all duration-200 shadow-xl ${isSpeaking ? "ring-2 ring-green-500" : "hover:bg-[#313338]"}`} 
         onClick={() => setShowVolume(false)}
     >
+        {/* 🔴 STREAMING BADGE & BUTTON */}
+        {screenTrackRef && (
+            <div className="absolute top-3 left-3 z-30 flex gap-2">
+                <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded animate-pulse">LIVE</span>
+                {!participant.isLocal && onWatch && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onWatch(); }}
+                        className="bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded shadow-lg transition-transform hover:scale-105 active:scale-95"
+                    >
+                        Watch Stream 👁️
+                    </button>
+                )}
+            </div>
+        )}
+
         <div className="relative">
             <img src={finalAvatar} alt={participant.identity} className={`w-16 h-16 md:w-24 md:h-24 rounded-full mb-4 object-cover transition-transform duration-300 ${isSpeaking ? "scale-110 border-2 border-green-500" : "scale-100"}`} />
-            {/* Status Indicator (Bottom Right of Avatar) */}
             {isSpeaking && <div className="absolute bottom-0 right-0 w-6 h-6 bg-[#2b2d31] rounded-full flex items-center justify-center"><div className="w-4 h-4 bg-green-500 rounded-full animate-pulse"></div></div>}
         </div>
         
-        {/* Mobile Volume Toggle & Desktop Hover */}
+        {/* Mobile Volume Toggle */}
         {!participant.isLocal && (
           <>
             <button 
@@ -94,28 +115,46 @@ function VoiceUserTile({ participant }: { participant: Participant }) {
   );
 }
 
-// 3. Grid Component - Logic for Screen Share Layout vs Grid Layout
+// 3. Grid Component - Handles Logic for Choosing Streams
 function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
   const participants = useParticipants(); 
-  
-  // 🔍 Check for Screen Share Tracks
   const screenTracks = useTracks([Track.Source.ScreenShare]);
-  const screenTrack = screenTracks[0]; // We focus on the first screen share found
+  
+  // State: Which stream is the user actively watching?
+  const [viewingTrack, setViewingTrack] = useState<any>(null);
 
-  // 🅰️ LAYOUT A: Screen Share Active (Stage View)
-  if (screenTrack) {
+  // Auto-close stream if the user stops sharing
+  useEffect(() => {
+      if (viewingTrack) {
+          const stillExists = screenTracks.find(t => t.participant.identity === viewingTrack.participant.identity);
+          if (!stillExists) setViewingTrack(null);
+      }
+  }, [screenTracks, viewingTrack]);
+
+  // 🅰️ LAYOUT A: Watching a Specific Stream
+  if (viewingTrack) {
     return (
         <div className="flex flex-col h-full w-full bg-[#111214]">
             {/* STAGE: The Screen Share */}
-            <div className="flex-1 w-full relative p-2 min-h-0">
-                <div className="w-full h-full bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl relative group">
+            <div className="flex-1 w-full relative p-2 min-h-0 flex flex-col">
+                <div className="flex justify-between items-center mb-2 px-2">
+                    <div className="text-white font-bold flex items-center gap-2">
+                        <span className="text-red-500 animate-pulse">●</span>
+                        Watching {viewingTrack.participant.identity}'s Stream
+                    </div>
+                    <button 
+                        onClick={() => setViewingTrack(null)}
+                        className="bg-zinc-800 hover:bg-zinc-700 text-white px-4 py-1.5 rounded-lg text-xs font-bold transition-all border border-white/10"
+                    >
+                        Exit Stream ✕
+                    </button>
+                </div>
+
+                <div className="flex-1 w-full bg-black rounded-xl overflow-hidden border border-white/10 shadow-2xl relative group">
                     <VideoTrack 
-                        trackRef={screenTrack} 
+                        trackRef={viewingTrack} 
                         className="w-full h-full object-contain"
                     />
-                    <div className="absolute bottom-4 right-4 bg-black/60 px-3 py-1 rounded text-xs font-bold text-white backdrop-blur-md">
-                        🖥️ {screenTrack.participant.identity}'s Screen
-                    </div>
                 </div>
             </div>
 
@@ -130,18 +169,25 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
                     )}
                     
                     {/* User Tiles (Row) */}
-                    {participants.map((p) => (
-                        <div key={p.identity} className="w-48 h-full shrink-0">
-                            <VoiceUserTile participant={p} />
-                        </div>
-                    ))}
+                    {participants.map((p) => {
+                        const trackRef = screenTracks.find(t => t.participant.identity === p.identity);
+                        return (
+                            <div key={p.identity} className="w-48 h-full shrink-0">
+                                <VoiceUserTile 
+                                    participant={p} 
+                                    screenTrackRef={trackRef} 
+                                    onWatch={() => setViewingTrack(trackRef)} // Allow switching streams
+                                />
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
         </div>
     );
   }
 
-  // 🅱️ LAYOUT B: No Screen Share (Standard Grid)
+  // 🅱️ LAYOUT B: Standard Grid (Choosing a Stream)
   return (
     <div className="w-full h-full overflow-y-auto custom-scrollbar relative bg-[#111214]">
       <div className="flex flex-wrap items-center justify-center content-center gap-4 p-4 w-full min-h-full">
@@ -154,11 +200,20 @@ function MyParticipantGrid({ children }: { children?: React.ReactNode }) {
         )}
 
         {/* 👥 Participant Tiles */}
-        {participants.map((p) => (
-          <div key={p.identity} className="w-full md:w-[48%] lg:w-[32%] h-64 md:h-80">
-             <VoiceUserTile participant={p} />
-          </div>
-        ))}
+        {participants.map((p) => {
+          // Find if this specific user is sharing
+          const trackRef = screenTracks.find(t => t.participant.identity === p.identity);
+          
+          return (
+            <div key={p.identity} className="w-full md:w-[48%] lg:w-[32%] h-64 md:h-80">
+               <VoiceUserTile 
+                  participant={p} 
+                  screenTrackRef={trackRef}
+                  onWatch={() => setViewingTrack(trackRef)} // Pass click handler
+               />
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -188,7 +243,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
   return (
     <LayoutContextProvider>
       <LiveKitRoom
-        video={true} // ✅ Allow Video (Screen Share counts as video)
+        video={true} // ✅ Allow Video (Screen Share)
         audio={true}
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
@@ -205,7 +260,6 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
         <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center">
             <ControlBar 
               variation="minimal" 
-              // ✅ Enable Screen Share Button here
               controls={{ microphone: true, camera: false, screenShare: true, chat: false, settings: true, leave: true }}
             />
         </div>
