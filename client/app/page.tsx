@@ -163,6 +163,9 @@ export default function DaChat() {
 
   const [serverSettingsTab, setServerSettingsTab] = useState("overview"); // 'overview', 'roles', 'moderation'
 
+  const [serverRoles, setServerRoles] = useState<any[]>([]);
+  const [activeRole, setActiveRole] = useState<any>(null);
+
   // 📝 HELPER: Send Message (Defined FIRST to be in scope)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       //  PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
@@ -662,6 +665,50 @@ const saveNotifSettings = async (newSettings: any) => {
       }); 
       setShowServerSettings(false); 
   };
+
+// --- ROLE MANAGEMENT FUNCTIONS ---
+  const createRole = async () => {
+      const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id })
+      });
+      const data = await res.json();
+      if (data.success) {
+          setServerRoles([...serverRoles, data.role]);
+          setActiveRole(data.role);
+      } else {
+          alert(data.message);
+      }
+  };
+
+  const updateRole = async () => {
+      if (!activeRole) return;
+      const res = await fetch(`${BACKEND_URL}/servers/roles/update`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id, updates: activeRole })
+      });
+      const data = await res.json();
+      if (data.success) {
+          setServerRoles(serverRoles.map(r => r.id === activeRole.id ? data.role : r));
+          alert("Role Saved!");
+      }
+  };
+
+  const deleteRole = async () => {
+      if (!activeRole || !confirm("Delete this role?")) return;
+      const res = await fetch(`${BACKEND_URL}/servers/roles/delete`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id })
+      });
+      if ((await res.json()).success) {
+          setServerRoles(serverRoles.filter(r => r.id !== activeRole.id));
+          setActiveRole(null);
+      }
+  };
+  
   const promoteMember = async (targetId: number) => { if(!confirm("Toggle Moderator Status?")) return; await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) }); };
   const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
   const isMod = getRole()?.is_admin;
@@ -1429,31 +1476,105 @@ const saveNotifSettings = async (newSettings: any) => {
                               </div>
                           )}
 
-                          {/* --- ROLES TAB (Mock) --- */}
+{/* --- ROLES TAB (Fully Functional) --- */}
                           {serverSettingsTab === 'roles' && (
-                              <div className="space-y-4">
-                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5">
-                                      <div className="flex items-center gap-3">
-                                          <div className="w-4 h-4 rounded-full bg-yellow-500" />
-                                          <span className="font-bold text-white">Admin</span>
+                              <div className="flex h-full gap-6">
+                                  {/* Role List */}
+                                  <div className="w-48 shrink-0 flex flex-col gap-2">
+                                      <div className="text-xs font-bold text-[#b5bac1] uppercase mb-1">Roles</div>
+                                      <div className="space-y-1 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                                          {serverRoles.map((role) => (
+                                              <div 
+                                                  key={role.id}
+                                                  onClick={() => setActiveRole(role)}
+                                                  className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${activeRole?.id === role.id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}
+                                              >
+                                                  <div className="flex items-center gap-2">
+                                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: role.color }} />
+                                                      <span className="text-sm font-medium truncate max-w-[100px]">{role.name}</span>
+                                                  </div>
+                                                  <span className="text-xs opacity-50">›</span>
+                                              </div>
+                                          ))}
                                       </div>
-                                      <span className="text-xs text-green-400">∞ Permissions</span>
+                                      <button onClick={createRole} className="w-full py-2 bg-[#2b2d31] hover:bg-[#35373c] text-white text-xs font-bold rounded flex items-center justify-center gap-1 border border-white/10 transition-colors">
+                                          <span>+</span> Create Role
+                                      </button>
                                   </div>
-                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5">
-                                      <div className="flex items-center gap-3">
-                                          <div className="w-4 h-4 rounded-full bg-blue-500" />
-                                          <span className="font-bold text-white">Moderator</span>
+
+                                  {/* Role Editor */}
+                                  {activeRole ? (
+                                      <div className="flex-1 space-y-6 animate-in fade-in slide-in-from-right-4">
+                                          <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                                              <h3 className="text-lg font-bold text-white">Edit Role - {activeRole.name}</h3>
+                                              <button onClick={deleteRole} className="text-red-400 text-xs font-bold hover:underline">Delete Role</button>
+                                          </div>
+
+                                          <div className="space-y-4">
+                                              <div className="space-y-1.5">
+                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Name</label>
+                                                  <input 
+                                                      className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium"
+                                                      value={activeRole.name}
+                                                      onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}
+                                                  />
+                                              </div>
+
+                                              <div className="space-y-1.5">
+                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Color</label>
+                                                  <div className="flex gap-3">
+                                                      <input 
+                                                          type="color" 
+                                                          className="w-10 h-10 rounded cursor-pointer bg-transparent border-none"
+                                                          value={activeRole.color}
+                                                          onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}
+                                                      />
+                                                      <input 
+                                                          className="flex-1 bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs uppercase"
+                                                          value={activeRole.color}
+                                                          onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}
+                                                      />
+                                                  </div>
+                                              </div>
+
+                                              <div className="h-px bg-white/10 w-full my-4" />
+
+                                              <div className="space-y-3">
+                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Permissions</label>
+                                                  <div className="space-y-2">
+                                                      {[
+                                                          { key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' },
+                                                          { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' },
+                                                          { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' },
+                                                          { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' },
+                                                      ].map((perm) => (
+                                                          <div key={perm.key} className="flex items-center justify-between p-3 bg-[#2b2d31] rounded border border-white/5">
+                                                              <div>
+                                                                  <div className="text-sm font-bold text-white">{perm.label}</div>
+                                                                  <div className="text-xs text-[#b5bac1]">{perm.desc}</div>
+                                                              </div>
+                                                              <div 
+                                                                  onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })}
+                                                                  className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${activeRole.permissions?.[perm.key] ? 'bg-green-500' : 'bg-gray-500'}`}
+                                                              >
+                                                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${activeRole.permissions?.[perm.key] ? 'right-1' : 'left-1'}`} />
+                                                              </div>
+                                                          </div>
+                                                      ))}
+                                                  </div>
+                                              </div>
+                                          </div>
+                                          
+                                          <div className="pt-4 flex justify-end">
+                                              <button onClick={updateRole} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] shadow-lg transition-transform active:scale-95">Save Role Changes</button>
+                                          </div>
                                       </div>
-                                      <span className="text-xs text-white/50">4 Members</span>
-                                  </div>
-                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5 opacity-50">
-                                      <div className="flex items-center gap-3">
-                                          <div className="w-4 h-4 rounded-full bg-gray-500" />
-                                          <span className="font-bold text-white">@everyone</span>
+                                  ) : (
+                                      <div className="flex-1 flex flex-col items-center justify-center text-[#b5bac1] opacity-50">
+                                          <span className="text-4xl mb-2">🎭</span>
+                                          <span className="text-sm font-bold">Select a Role to Edit</span>
                                       </div>
-                                      <span className="text-xs text-white/50">Default</span>
-                                  </div>
-                                  <div className="text-center text-xs text-white/30 mt-4 italic">Role management coming soon...</div>
+                                  )}
                               </div>
                           )}
 

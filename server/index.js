@@ -354,6 +354,52 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 }));
 
 // ==============================================================================
+// 🛡️ ROLE MANAGEMENT ROUTES
+// ==============================================================================
+
+app.get("/servers/:id/roles", safeRoute(async (req, res) => {
+  const { data } = await supabase.from("roles").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
+  res.json(data || []);
+}));
+
+app.post("/servers/roles/create", safeRoute(async (req, res) => {
+  const { serverId, userId } = req.body;
+  
+  // Check if admin
+  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  const { data } = await supabase.from("roles").insert([{ 
+    server_id: serverId, 
+    name: "New Role", 
+    color: "#99aab5", 
+    permissions: { administrator: false, manage_channels: false, kick_members: false, ban_members: false } 
+  }]).select().single();
+  
+  res.json({ success: true, role: data });
+}));
+
+app.post("/servers/roles/update", safeRoute(async (req, res) => {
+  const { serverId, userId, roleId, updates } = req.body;
+  
+  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  const { data } = await supabase.from("roles").update(updates).eq("id", roleId).select().single();
+  res.json({ success: true, role: data });
+}));
+
+app.post("/servers/roles/delete", safeRoute(async (req, res) => {
+  const { serverId, userId, roleId } = req.body;
+  
+  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  await supabase.from("roles").delete().eq("id", roleId);
+  res.json({ success: true });
+}));
+
+// ==============================================================================
 // 🎵 AUDIO & INTEGRATIONS
 // ==============================================================================
 
