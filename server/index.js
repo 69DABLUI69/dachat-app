@@ -391,7 +391,44 @@ app.post("/servers/roles/create", safeRoute(async (req, res) => {
   res.json({ success: true, role: data });
 }));
 
-// ... (keep update and delete routes) ...
+// ✅ NEW: Update Role Route
+app.post("/servers/roles/update", safeRoute(async (req, res) => {
+  const { serverId, userId, roleId, updates } = req.body;
+  
+  // 1. Check Permissions
+  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  // 2. Perform Update
+  const { data, error } = await supabase.from("roles")
+    .update({ 
+        name: updates.name, 
+        color: updates.color, 
+        permissions: updates.permissions 
+    })
+    .eq("id", roleId)
+    .select()
+    .single();
+
+  if (error) return res.json({ success: false, message: error.message });
+  
+  res.json({ success: true, role: data });
+}));
+
+// ✅ NEW: Delete Role Route
+app.post("/servers/roles/delete", safeRoute(async (req, res) => {
+  const { serverId, userId, roleId } = req.body;
+
+  // 1. Check Permissions
+  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  // 2. Perform Delete
+  const { error } = await supabase.from("roles").delete().eq("id", roleId);
+  if (error) return res.json({ success: false, message: error.message });
+
+  res.json({ success: true });
+}));
 
 // ✅ NEW: Route to Assign Role
 app.post("/servers/roles/assign", safeRoute(async (req, res) => {
