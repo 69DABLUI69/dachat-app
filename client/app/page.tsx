@@ -666,29 +666,45 @@ const saveNotifSettings = async (newSettings: any) => {
       setShowServerSettings(true); 
   };
   const saveServerSettings = async () => { 
-      let finalImg = serverEditForm.imageUrl; 
-      if (newServerFile) { 
-          const formData = new FormData(); 
-          formData.append("file", newServerFile); 
-          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
-          finalImg = (await res.json()).fileUrl; 
-      } 
-      
-      await fetch(`${BACKEND_URL}/servers/update`, { 
-          method: "POST", 
-          headers: { "Content-Type": "application/json" }, 
-          body: JSON.stringify({ 
-              serverId: active.server.id, 
-              userId: user.id, 
-              name: serverEditForm.name, 
-              imageUrl: finalImg,
-              description: (serverEditForm as any).description,
-              bannerUrl: (serverEditForm as any).bannerUrl,
-              isPrivate: (serverEditForm as any).isPrivate,
-              systemChannelId: (serverEditForm as any).systemChannelId
-          }) 
-      }); 
-      setShowServerSettings(false); 
+      try {
+          let finalImg = serverEditForm.imageUrl; 
+          
+          // Handle Image Upload
+          if (newServerFile) { 
+              const formData = new FormData(); 
+              formData.append("file", newServerFile); 
+              const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
+              const data = await res.json();
+              if (!data.success) throw new Error("Image upload failed");
+              finalImg = data.fileUrl; 
+          } 
+          
+          // Send Update Request
+          const res = await fetch(`${BACKEND_URL}/servers/update`, { 
+              method: "POST", 
+              headers: { "Content-Type": "application/json" }, 
+              body: JSON.stringify({ 
+                  serverId: active.server.id, 
+                  userId: user.id, 
+                  name: serverEditForm.name, 
+                  imageUrl: finalImg,
+                  description: (serverEditForm as any).description,
+                  bannerUrl: (serverEditForm as any).bannerUrl,
+                  isPrivate: (serverEditForm as any).isPrivate,
+                  systemChannelId: (serverEditForm as any).systemChannelId
+              }) 
+          }); 
+          
+          const data = await res.json();
+          if (data.success) {
+              setShowServerSettings(false); 
+              setNewServerFile(null);
+          } else {
+              alert("Failed to save: " + data.message);
+          }
+      } catch (err: any) {
+          alert("Error: " + err.message);
+      }
   };
 
 // --- ROLE MANAGEMENT FUNCTIONS ---
