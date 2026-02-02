@@ -1386,128 +1386,145 @@ const saveNotifSettings = async (newSettings: any) => {
           </div>
       )}
 
-      {/* SERVER SETTINGS MODAL */}
+      {/* ✅ SERVER SETTINGS MODAL (Updated to match Glass Theme) */}
       {showServerSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
-              <div className="w-full max-w-4xl h-[85vh] bg-[#313338] rounded-md flex overflow-hidden shadow-2xl relative animate-in zoom-in-95">
-                  <div className="w-60 bg-[#2b2d31] flex flex-col pt-12 pb-4 px-2 items-end border-r border-[#1e1f22]">
-                      <div className="w-full px-3 mb-2 text-xs font-bold text-white/50 uppercase truncate text-right">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+              <GlassPanel className="w-full max-w-5xl h-[85vh] flex overflow-hidden relative p-0 rounded-3xl animate-in zoom-in-95 shadow-2xl">
+                  {/* Glass Sidebar */}
+                  <div className="w-64 bg-black/20 flex flex-col pt-12 pb-4 px-3 border-r border-white/5 backdrop-blur-md">
+                      <div className="w-full px-3 mb-4 text-xs font-bold text-white/50 uppercase truncate text-right tracking-widest">
                           {active.server.name}
                       </div>
-                      <div className="w-full space-y-0.5">
+                      <div className="w-full space-y-1">
                           {['Overview', 'Roles', 'Moderation'].map((tab) => (
                               <button
                                   key={tab}
                                   onClick={() => setServerSettingsTab(tab.toLowerCase())}
-                                  className={`w-full text-left px-4 py-1.5 rounded-[4px] text-sm font-medium transition-all ${serverSettingsTab === tab.toLowerCase() ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}
+                                  className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${serverSettingsTab === tab.toLowerCase() ? "bg-white/10 text-white shadow-lg border border-white/5" : "text-white/40 hover:bg-white/5 hover:text-white"}`}
                               >
                                   {tab}
                               </button>
                           ))}
-                          <div className="my-2 h-px bg-white/10 w-[90%] mx-auto" />
-                          <button onClick={() => { setShowServerSettings(false); leaveServer(); }} className="w-full text-left px-4 py-1.5 rounded-[4px] text-sm font-medium text-red-400 hover:bg-red-500/10 flex justify-between group">
+                          <div className="my-4 h-px bg-white/10 w-[90%] mx-auto" />
+                          <button onClick={() => { setShowServerSettings(false); leaveServer(); }} className="w-full text-left px-4 py-3 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 flex justify-between group transition-all">
                               Delete Server <span className="opacity-0 group-hover:opacity-100 transition-opacity">🗑️</span>
                           </button>
                       </div>
                   </div>
-                  <div className="flex-1 flex flex-col bg-[#313338] relative min-w-0">
-                      <div className="absolute top-4 right-8 flex flex-col items-center gap-1 cursor-pointer group" onClick={() => setShowServerSettings(false)}>
-                          <div className="w-9 h-9 rounded-full border-2 border-[#b5bac1] flex items-center justify-center text-[#b5bac1] font-bold group-hover:border-white group-hover:text-white transition-all">✕</div>
-                          <span className="text-[10px] text-[#b5bac1] font-bold uppercase group-hover:text-white">ESC</span>
+
+                  {/* Glass Content Area */}
+                  <div className="flex-1 flex flex-col bg-transparent relative min-w-0">
+                      <div className="absolute top-6 right-8 flex flex-col items-center gap-1 cursor-pointer group z-20" onClick={() => setShowServerSettings(false)}>
+                          <div className="w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/50 font-bold group-hover:bg-white/10 group-hover:text-white transition-all shadow-lg backdrop-blur-md">✕</div>
+                          <span className="text-[9px] text-white/30 font-bold uppercase group-hover:text-white/60 tracking-wider">ESC</span>
                       </div>
-                      <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
-                          <h2 className="text-xl font-bold text-white mb-6 capitalize">{serverSettingsTab}</h2>
+                      
+                      <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">
+                          <h2 className="text-3xl font-bold text-white mb-8 capitalize tracking-tight bg-clip-text text-transparent bg-linear-to-r from-white to-white/60 w-fit">{serverSettingsTab}</h2>
+                          
                           {serverSettingsTab === 'overview' && (
-                              <div className="space-y-8 max-w-2xl">
-                                  <div className="flex gap-8">
-                                      <div className="flex flex-col gap-2 items-center">
+                              <div className="space-y-8 max-w-2xl animate-in slide-in-from-bottom-4 duration-500">
+                                  <div className="flex gap-8 items-start">
+                                      <div className="flex flex-col gap-3 items-center">
                                           <div className="relative group cursor-pointer" onClick={() => (document.getElementById('sUpload') as any).click()}>
-                                              <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-24 h-24 rounded-full border-4 border-[#2b2d31]" />
-                                              <div className="absolute top-0 right-0 bg-white text-black text-[10px] font-bold px-1.5 rounded-full shadow-md">EDIT</div>
-                                              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-bold uppercase">Change</div>
+                                              <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-32 h-32 rounded-full border-4 border-white/5 shadow-2xl group-hover:scale-105 transition-transform" />
+                                              <div className="absolute top-0 right-0 bg-white text-black text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">EDIT</div>
+                                              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-bold uppercase backdrop-blur-sm transition-all">Change</div>
                                           </div>
-                                          <span className="text-xs text-white/40">Minimum 512x512</span>
+                                          <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Icon</span>
                                           <input id="sUpload" type="file" className="hidden" onChange={e => e.target.files && setNewServerFile(e.target.files[0])} />
                                       </div>
-                                      <div className="flex-1 space-y-4">
-                                          <div className="space-y-1.5">
-                                              <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Name</label>
-                                              <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
+                                      <div className="flex-1 space-y-6">
+                                          <div className="space-y-2">
+                                              <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Server Name</label>
+                                              <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold text-lg placeholder-white/20" value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
                                           </div>
-                                          <div className="space-y-1.5">
-                                              <label className="text-xs font-bold text-[#b5bac1] uppercase">Description</label>
-                                              <textarea className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all h-20 resize-none text-sm" placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
+                                          <div className="space-y-2">
+                                              <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Description</label>
+                                              <textarea className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all h-24 resize-none text-sm placeholder-white/20" placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
                                           </div>
                                       </div>
                                   </div>
-                                  <div className="h-px bg-white/10 w-full" />
-                                  <div className="space-y-1.5">
-                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">System Messages Channel</label>
-                                      <select className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500" value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
+                                  
+                                  <div className="h-px bg-linear-to-r from-white/10 to-transparent w-full" />
+                                  
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">System Messages Channel</label>
+                                      <select className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 appearance-none cursor-pointer" value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
                                           {channels.filter(c => c.type === 'text').map(c => (
                                               <option key={c.id} value={c.id}># {c.name}</option>
                                           ))}
                                       </select>
-                                      <span className="text-xs text-[#949ba4]">We'll send welcome messages here.</span>
+                                      <span className="text-[10px] text-white/30 px-1">We'll send welcome messages here.</span>
                                   </div>
-                                  <div className="space-y-1.5">
-                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Banner Image (URL)</label>
-                                      <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs" placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
+
+                                  <div className="space-y-2">
+                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Server Banner Image (URL)</label>
+                                      <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-mono text-xs text-blue-300" placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
                                       {(serverEditForm as any).bannerUrl && (
-                                          <div className="mt-2 h-32 w-full rounded-lg bg-cover bg-center border border-white/10" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
+                                          <div className="mt-4 h-40 w-full rounded-2xl bg-cover bg-center border border-white/10 shadow-2xl" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
                                       )}
                                   </div>
                               </div>
                           )}
+
                           {serverSettingsTab === 'roles' && (
-                              <div className="flex h-full gap-6">
-                                  <div className="w-48 shrink-0 flex flex-col gap-2">
-                                      <div className="text-xs font-bold text-[#b5bac1] uppercase mb-1">Roles</div>
-                                      <div className="space-y-1 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+                              <div className="flex h-full gap-8 animate-in slide-in-from-right-4 duration-500">
+                                  <div className="w-60 shrink-0 flex flex-col gap-3">
+                                      <div className="text-xs font-bold text-white/40 uppercase mb-1 tracking-wider">Roles List</div>
+                                      <div className="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                           {serverRoles.map((role) => (
-                                              <div key={role.id} onClick={() => setActiveRole(role)} className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${activeRole?.id === role.id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}>
-                                                  <div className="flex items-center gap-2">
-                                                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: role.color }} />
-                                                      <span className="text-sm font-medium truncate max-w-[100px]">{role.name}</span>
+                                              <div key={role.id} onClick={() => setActiveRole(role)} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${activeRole?.id === role.id ? "bg-white/10 border-white/10 shadow-lg scale-[1.02]" : "bg-black/20 border-transparent text-white/50 hover:bg-white/5 hover:text-white"}`}>
+                                                  <div className="flex items-center gap-3">
+                                                      <div className="w-3 h-3 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)]" style={{ backgroundColor: role.color }} />
+                                                      <span className="text-sm font-bold truncate max-w-[120px]">{role.name}</span>
                                                   </div>
                                                   <span className="text-xs opacity-50">›</span>
                                               </div>
                                           ))}
                                       </div>
-                                      <button onClick={createRole} className="w-full py-2 bg-[#2b2d31] hover:bg-[#35373c] text-white text-xs font-bold rounded flex items-center justify-center gap-1 border border-white/10 transition-colors">
+                                      <button onClick={createRole} className="w-full py-3 bg-black/40 hover:bg-white/5 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-white/10 transition-all active:scale-95 shadow-lg">
                                           <span>+</span> Create Role
                                       </button>
                                   </div>
+
                                   {activeRole ? (
-                                      <div className="flex-1 space-y-6 animate-in fade-in slide-in-from-right-4">
-                                          <div className="flex justify-between items-center pb-4 border-b border-white/10">
-                                              <h3 className="text-lg font-bold text-white">Edit Role - {activeRole.name}</h3>
-                                              <button onClick={deleteRole} className="text-red-400 text-xs font-bold hover:underline">Delete Role</button>
+                                      <div className="flex-1 space-y-8 bg-black/20 rounded-3xl p-6 border border-white/5">
+                                          <div className="flex justify-between items-center pb-4 border-b border-white/5">
+                                              <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                                  <span className="w-4 h-4 rounded-full" style={{backgroundColor: activeRole.color}}></span>
+                                                  {activeRole.name}
+                                              </h3>
+                                              <button onClick={deleteRole} className="text-red-400 text-xs font-bold px-3 py-1.5 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors">Delete Role</button>
                                           </div>
-                                          <div className="space-y-4">
-                                              <div className="space-y-1.5">
-                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Name</label>
-                                                  <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
-                                              </div>
-                                              <div className="space-y-1.5">
-                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Color</label>
-                                                  <div className="flex gap-3">
-                                                      <input type="color" className="w-10 h-10 rounded cursor-pointer bg-transparent border-none" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
-                                                      <input className="flex-1 bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs uppercase" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
+                                          <div className="space-y-6">
+                                              <div className="grid grid-cols-2 gap-4">
+                                                  <div className="space-y-2">
+                                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Name</label>
+                                                      <input className="w-full bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold" value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
+                                                  </div>
+                                                  <div className="space-y-2">
+                                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Color</label>
+                                                      <div className="flex gap-2">
+                                                          <div className="relative w-12 h-full rounded-xl overflow-hidden border border-white/10 shadow-inner">
+                                                              <input type="color" className="absolute -top-2 -left-2 w-20 h-20 cursor-pointer" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
+                                                          </div>
+                                                          <input className="flex-1 bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 transition-all font-mono text-xs uppercase" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
+                                                      </div>
                                                   </div>
                                               </div>
-                                              <div className="h-px bg-white/10 w-full my-4" />
-                                              <div className="space-y-3">
-                                                  <label className="text-xs font-bold text-[#b5bac1] uppercase">Permissions</label>
-                                                  <div className="space-y-2">
+
+                                              <div className="space-y-4">
+                                                  <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Permissions</label>
+                                                  <div className="space-y-3">
                                                       {[{ key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' }, { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' }, { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' }, { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' }].map((perm) => (
-                                                          <div key={perm.key} className="flex items-center justify-between p-3 bg-[#2b2d31] rounded border border-white/5">
+                                                          <div key={perm.key} className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
                                                               <div>
-                                                                  <div className="text-sm font-bold text-white">{perm.label}</div>
-                                                                  <div className="text-xs text-[#b5bac1]">{perm.desc}</div>
+                                                                  <div className={`text-sm font-bold ${perm.key === 'administrator' ? 'text-red-300' : 'text-white'}`}>{perm.label}</div>
+                                                                  <div className="text-[10px] text-white/40 mt-1">{perm.desc}</div>
                                                               </div>
-                                                              <div onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })} className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${activeRole.permissions?.[perm.key] ? 'bg-green-500' : 'bg-gray-500'}`}>
-                                                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${activeRole.permissions?.[perm.key] ? 'right-1' : 'left-1'}`} />
+                                                              <div onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })} className={`w-12 h-6 rounded-full cursor-pointer relative transition-all shadow-inner ${activeRole.permissions?.[perm.key] ? 'bg-green-500 shadow-green-900/50' : 'bg-black/50 border border-white/10'}`}>
+                                                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md ${activeRole.permissions?.[perm.key] ? 'right-1' : 'left-1'}`} />
                                                               </div>
                                                           </div>
                                                       ))}
@@ -1515,35 +1532,39 @@ const saveNotifSettings = async (newSettings: any) => {
                                               </div>
                                           </div>
                                           <div className="pt-4 flex justify-end">
-                                              <button onClick={updateRole} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] shadow-lg transition-transform active:scale-95">Save Role Changes</button>
+                                              <button onClick={updateRole} className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.3)] transition-transform active:scale-95">Save Role Changes</button>
                                           </div>
                                       </div>
                                   ) : (
-                                      <div className="flex-1 flex flex-col items-center justify-center text-[#b5bac1] opacity-50">
-                                          <span className="text-4xl mb-2">🎭</span>
-                                          <span className="text-sm font-bold">Select a Role to Edit</span>
+                                      <div className="flex-1 flex flex-col items-center justify-center text-white/20 border border-white/5 rounded-3xl bg-black/20">
+                                          <span className="text-5xl mb-4 grayscale opacity-50">🎭</span>
+                                          <span className="text-sm font-bold uppercase tracking-widest">Select a Role to Edit</span>
                                       </div>
                                   )}
                               </div>
                           )}
+
                           {serverSettingsTab === 'moderation' && (
-                              <div className="space-y-6 max-w-2xl">
-                                  <div className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-md border border-white/5">
+                              <div className="space-y-6 max-w-2xl animate-in slide-in-from-bottom-4 duration-500">
+                                  <div className="flex items-center justify-between p-6 bg-black/40 rounded-2xl border border-white/5 shadow-lg">
                                       <div>
-                                          <div className="text-white font-bold text-sm">Private Server</div>
-                                          <div className="text-white/50 text-xs">Only allow users with an invite link to join.</div>
+                                          <div className="text-white font-bold text-lg mb-1">Private Server</div>
+                                          <div className="text-white/50 text-xs">Only allow users with an invite link to join this server.</div>
                                       </div>
-                                      <div onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)} className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${(serverEditForm as any).isPrivate ? 'bg-green-500' : 'bg-gray-500'}`}>
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(serverEditForm as any).isPrivate ? 'right-1' : 'left-1'}`} />
+                                      <div onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)} className={`w-14 h-8 rounded-full cursor-pointer relative transition-all shadow-inner ${(serverEditForm as any).isPrivate ? 'bg-green-500 shadow-green-900/50' : 'bg-black/50 border border-white/10'}`}>
+                                          <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md ${(serverEditForm as any).isPrivate ? 'right-1' : 'left-1'}`} />
                                       </div>
                                   </div>
-                                  <div className="space-y-3">
-                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">Verification Level</label>
-                                      <div className="flex flex-col gap-2">
+                                  
+                                  <div className="space-y-4">
+                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Verification Level</label>
+                                      <div className="flex flex-col gap-3">
                                           {['None', 'Low (Verified Email)', 'High (10 min member)'].map((level, i) => (
-                                              <div key={i} className="flex items-center gap-3 p-3 bg-[#1e1f22] rounded cursor-pointer hover:bg-[#25272c]">
-                                                  <div className={`w-4 h-4 rounded-full border border-white/50 ${i === 0 ? 'bg-green-500 border-none' : ''}`} />
-                                                  <span className="text-sm text-white/80">{level}</span>
+                                              <div key={i} className="flex items-center gap-4 p-4 bg-black/40 rounded-xl cursor-pointer hover:bg-white/5 border border-white/5 transition-all group">
+                                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${i === 0 ? 'border-green-500 bg-green-500/20' : 'border-white/20 group-hover:border-white/50'}`}>
+                                                      {i === 0 && <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />}
+                                                  </div>
+                                                  <span className="text-sm font-bold text-white/80 group-hover:text-white transition-colors">{level}</span>
                                               </div>
                                           ))}
                                       </div>
@@ -1551,12 +1572,14 @@ const saveNotifSettings = async (newSettings: any) => {
                               </div>
                           )}
                       </div>
-                      <div className="p-4 bg-[#111214] flex justify-end gap-3 animate-in slide-in-from-bottom-2">
-                          <button onClick={() => setShowServerSettings(false)} className="px-4 py-2 text-sm text-white hover:underline">Cancel</button>
-                          <button onClick={saveServerSettings} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] transition-colors shadow-lg">Save Changes</button>
+
+                      {/* Glass Footer Actions */}
+                      <div className="p-6 bg-black/20 backdrop-blur-xl border-t border-white/5 flex justify-end gap-4 animate-in slide-in-from-bottom-2 z-10">
+                          <button onClick={() => setShowServerSettings(false)} className="px-6 py-2 text-sm text-white/50 hover:text-white font-bold transition-colors">Cancel</button>
+                          <button onClick={saveServerSettings} className="px-8 py-2 bg-white text-black text-sm font-bold rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">Save Changes</button>
                       </div>
                   </div>
-              </div>
+              </GlassPanel>
           </div>
       )}
 
