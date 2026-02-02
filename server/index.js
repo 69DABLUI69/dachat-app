@@ -262,11 +262,23 @@ app.post("/create-server", safeRoute(async (req, res) => {
 }));
 
 app.post("/servers/update", safeRoute(async (req, res) => {
-  const { serverId, userId, name, imageUrl } = req.body;
+  const { serverId, userId, name, imageUrl, description, bannerUrl, isPrivate, systemChannelId } = req.body;
+  
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member || !member.is_admin) return res.json({ success: false, message: "No permission" });
 
-  const { data } = await supabase.from("servers").update({ name, image_url: imageUrl }).eq("id", serverId).select().single();
+  // Update with new fields (Ensure these columns exist in your Supabase 'servers' table)
+  const { data, error } = await supabase.from("servers").update({ 
+      name, 
+      image_url: imageUrl,
+      description: description || null,
+      banner_url: bannerUrl || null,
+      is_private: isPrivate || false,
+      system_channel_id: systemChannelId || null
+  }).eq("id", serverId).select().single();
+
+  if (error) return res.json({ success: false, message: error.message });
+
   io.emit("server_updated", { serverId });
   res.json({ success: true, server: data });
 }));

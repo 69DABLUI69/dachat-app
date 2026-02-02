@@ -135,7 +135,14 @@ export default function DaChat() {
   const [showSettingsGifPicker, setShowSettingsGifPicker] = useState(false);
   const [showServerSettings, setShowServerSettings] = useState(false);
   const [editForm, setEditForm] = useState({ username: "", bio: "", avatarUrl: "" });
-  const [serverEditForm, setServerEditForm] = useState({ name: "", imageUrl: "" });
+  const [serverEditForm, setServerEditForm] = useState({ 
+    name: "", 
+    imageUrl: "", 
+    description: "", 
+    bannerUrl: "", 
+    isPrivate: false, 
+    systemChannelId: "" 
+  });
   const [newAvatarFile, setNewAvatarFile] = useState<File | null>(null);
   const [newServerFile, setNewServerFile] = useState<File | null>(null);
 
@@ -153,6 +160,8 @@ export default function DaChat() {
   const [bugDesc, setBugDesc] = useState("");
   const [bugFile, setBugFile] = useState<File | null>(null);
   const [isSubmittingBug, setIsSubmittingBug] = useState(false);
+
+  const [serverSettingsTab, setServerSettingsTab] = useState("overview"); // 'overview', 'roles', 'moderation'
 
   // 📝 HELPER: Send Message (Defined FIRST to be in scope)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
@@ -614,8 +623,45 @@ const saveNotifSettings = async (newSettings: any) => {
   const deleteChannel = async (channelId: number) => { if(!confirm("Delete channel?")) return; await fetch(`${BACKEND_URL}/delete-channel`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, channelId }) }); selectServer(active.server); };
   const inviteUser = async () => { const userString = prompt("Username to invite:"); if(!userString) return; const res = await fetch(`${BACKEND_URL}/servers/invite`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userString }) }); alert((await res.json()).message || "Invited!"); };
   const leaveServer = async () => { if(!confirm("Leave server?")) return; await fetch(`${BACKEND_URL}/servers/leave`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id }) }); setView("dms"); setActive({server:null}); fetchServers(user.id); };
-  const openServerSettings = () => { setServerEditForm({ name: active.server.name, imageUrl: active.server.image_url || "" }); setShowServerSettings(true); };
-  const saveServerSettings = async () => { let finalImg = serverEditForm.imageUrl; if (newServerFile) { const formData = new FormData(); formData.append("file", newServerFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); finalImg = (await res.json()).fileUrl; } await fetch(`${BACKEND_URL}/servers/update`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, userId: user.id, name: serverEditForm.name, imageUrl: finalImg }) }); setShowServerSettings(false); };
+  const openServerSettings = () => { 
+      setServerEditForm({ 
+          name: active.server.name, 
+          imageUrl: active.server.image_url || "", 
+          // New fields (safely handle if they don't exist yet)
+          description: active.server.description || "",
+          bannerUrl: active.server.banner_url || "",
+          isPrivate: active.server.is_private || false,
+          systemChannelId: active.server.system_channel_id || (channels[0]?.id || null)
+      }); 
+      setServerSettingsTab("overview"); // Reset tab
+      setShowServerSettings(true); 
+  };
+  const saveServerSettings = async () => { 
+      let finalImg = serverEditForm.imageUrl; 
+      if (newServerFile) { 
+          const formData = new FormData(); 
+          formData.append("file", newServerFile); 
+          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
+          finalImg = (await res.json()).fileUrl; 
+      } 
+      
+      await fetch(`${BACKEND_URL}/servers/update`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ 
+              serverId: active.server.id, 
+              userId: user.id, 
+              name: serverEditForm.name, 
+              imageUrl: finalImg,
+              // Send new fields
+              description: (serverEditForm as any).description,
+              bannerUrl: (serverEditForm as any).bannerUrl,
+              isPrivate: (serverEditForm as any).isPrivate,
+              systemChannelId: (serverEditForm as any).systemChannelId
+          }) 
+      }); 
+      setShowServerSettings(false); 
+  };
   const promoteMember = async (targetId: number) => { if(!confirm("Toggle Moderator Status?")) return; await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) }); };
   const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
   const isMod = getRole()?.is_admin;
@@ -1268,6 +1314,188 @@ const saveNotifSettings = async (newSettings: any) => {
                       </div> 
                   </div>
               </GlassPanel>
+          </div>
+      )}
+
+      {/* 🛠️ SERVER SETTINGS MODAL */}
+      {showServerSettings && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
+              <div className="w-full max-w-4xl h-[85vh] bg-[#313338] rounded-md flex overflow-hidden shadow-2xl relative animate-in zoom-in-95">
+                  
+                  {/* LEFT SIDEBAR */}
+                  <div className="w-60 bg-[#2b2d31] flex flex-col pt-12 pb-4 px-2 items-end border-r border-[#1e1f22]">
+                      <div className="w-full px-3 mb-2 text-xs font-bold text-white/50 uppercase truncate text-right">
+                          {active.server.name}
+                      </div>
+                      
+                      <div className="w-full space-y-0.5">
+                          {['Overview', 'Roles', 'Moderation'].map((tab) => (
+                              <button
+                                  key={tab}
+                                  onClick={() => setServerSettingsTab(tab.toLowerCase())}
+                                  className={`w-full text-left px-4 py-1.5 rounded-[4px] text-sm font-medium transition-all ${serverSettingsTab === tab.toLowerCase() ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}
+                              >
+                                  {tab}
+                              </button>
+                          ))}
+                          
+                          <div className="my-2 h-px bg-white/10 w-[90%] mx-auto" />
+                          
+                          <button onClick={() => { setShowServerSettings(false); leaveServer(); }} className="w-full text-left px-4 py-1.5 rounded-[4px] text-sm font-medium text-red-400 hover:bg-red-500/10 flex justify-between group">
+                              Delete Server <span className="opacity-0 group-hover:opacity-100 transition-opacity">🗑️</span>
+                          </button>
+                      </div>
+                  </div>
+
+                  {/* RIGHT CONTENT */}
+                  <div className="flex-1 flex flex-col bg-[#313338] relative min-w-0">
+                      
+                      {/* Close Button (Esc) */}
+                      <div className="absolute top-4 right-8 flex flex-col items-center gap-1 cursor-pointer group" onClick={() => setShowServerSettings(false)}>
+                          <div className="w-9 h-9 rounded-full border-2 border-[#b5bac1] flex items-center justify-center text-[#b5bac1] font-bold group-hover:border-white group-hover:text-white transition-all">✕</div>
+                          <span className="text-[10px] text-[#b5bac1] font-bold uppercase group-hover:text-white">ESC</span>
+                      </div>
+
+                      <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
+                          <h2 className="text-xl font-bold text-white mb-6 capitalize">{serverSettingsTab}</h2>
+
+                          {/* --- OVERVIEW TAB --- */}
+                          {serverSettingsTab === 'overview' && (
+                              <div className="space-y-8 max-w-2xl">
+                                  <div className="flex gap-8">
+                                      {/* Image Uploader */}
+                                      <div className="flex flex-col gap-2 items-center">
+                                          <div className="relative group cursor-pointer" onClick={() => (document.getElementById('sUpload') as any).click()}>
+                                              <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-24 h-24 rounded-full border-4 border-[#2b2d31]" />
+                                              <div className="absolute top-0 right-0 bg-white text-black text-[10px] font-bold px-1.5 rounded-full shadow-md">EDIT</div>
+                                              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-bold uppercase">Change</div>
+                                          </div>
+                                          <span className="text-xs text-white/40">Minimum 512x512</span>
+                                          <input id="sUpload" type="file" className="hidden" onChange={e => e.target.files && setNewServerFile(e.target.files[0])} />
+                                      </div>
+
+                                      {/* Name & Desc */}
+                                      <div className="flex-1 space-y-4">
+                                          <div className="space-y-1.5">
+                                              <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Name</label>
+                                              <input 
+                                                  className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" 
+                                                  value={serverEditForm.name} 
+                                                  onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} 
+                                              />
+                                          </div>
+                                          <div className="space-y-1.5">
+                                              <label className="text-xs font-bold text-[#b5bac1] uppercase">Description</label>
+                                              <textarea 
+                                                  className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all h-20 resize-none text-sm"
+                                                  placeholder="What is this server about?"
+                                                  value={(serverEditForm as any).description} 
+                                                  onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}
+                                              />
+                                          </div>
+                                      </div>
+                                  </div>
+
+                                  <div className="h-px bg-white/10 w-full" />
+
+                                  {/* System Channel */}
+                                  <div className="space-y-1.5">
+                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">System Messages Channel</label>
+                                      <select 
+                                          className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500"
+                                          value={(serverEditForm as any).systemChannelId || ""}
+                                          onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}
+                                      >
+                                          {channels.filter(c => c.type === 'text').map(c => (
+                                              <option key={c.id} value={c.id}># {c.name}</option>
+                                          ))}
+                                      </select>
+                                      <span className="text-xs text-[#949ba4]">We'll send welcome messages here.</span>
+                                  </div>
+
+                                  {/* Banner URL */}
+                                  <div className="space-y-1.5">
+                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Banner Image (URL)</label>
+                                      <input 
+                                          className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs" 
+                                          placeholder="https://..."
+                                          value={(serverEditForm as any).bannerUrl} 
+                                          onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} 
+                                      />
+                                      {(serverEditForm as any).bannerUrl && (
+                                          <div className="mt-2 h-32 w-full rounded-lg bg-cover bg-center border border-white/10" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
+                                      )}
+                                  </div>
+                              </div>
+                          )}
+
+                          {/* --- ROLES TAB (Mock) --- */}
+                          {serverSettingsTab === 'roles' && (
+                              <div className="space-y-4">
+                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-4 h-4 rounded-full bg-yellow-500" />
+                                          <span className="font-bold text-white">Admin</span>
+                                      </div>
+                                      <span className="text-xs text-green-400">∞ Permissions</span>
+                                  </div>
+                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-4 h-4 rounded-full bg-blue-500" />
+                                          <span className="font-bold text-white">Moderator</span>
+                                      </div>
+                                      <span className="text-xs text-white/50">4 Members</span>
+                                  </div>
+                                  <div className="bg-[#2b2d31] p-4 rounded-md flex items-center justify-between border border-white/5 opacity-50">
+                                      <div className="flex items-center gap-3">
+                                          <div className="w-4 h-4 rounded-full bg-gray-500" />
+                                          <span className="font-bold text-white">@everyone</span>
+                                      </div>
+                                      <span className="text-xs text-white/50">Default</span>
+                                  </div>
+                                  <div className="text-center text-xs text-white/30 mt-4 italic">Role management coming soon...</div>
+                              </div>
+                          )}
+
+                          {/* --- MODERATION TAB --- */}
+                          {serverSettingsTab === 'moderation' && (
+                              <div className="space-y-6 max-w-2xl">
+                                  <div className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-md border border-white/5">
+                                      <div>
+                                          <div className="text-white font-bold text-sm">Private Server</div>
+                                          <div className="text-white/50 text-xs">Only allow users with an invite link to join.</div>
+                                      </div>
+                                      <div 
+                                          onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)}
+                                          className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${(serverEditForm as any).isPrivate ? 'bg-green-500' : 'bg-gray-500'}`}
+                                      >
+                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(serverEditForm as any).isPrivate ? 'right-1' : 'left-1'}`} />
+                                      </div>
+                                  </div>
+
+                                  <div className="space-y-3">
+                                      <label className="text-xs font-bold text-[#b5bac1] uppercase">Verification Level</label>
+                                      <div className="flex flex-col gap-2">
+                                          {['None', 'Low (Verified Email)', 'High (10 min member)'].map((level, i) => (
+                                              <div key={i} className="flex items-center gap-3 p-3 bg-[#1e1f22] rounded cursor-pointer hover:bg-[#25272c]">
+                                                  <div className={`w-4 h-4 rounded-full border border-white/50 ${i === 0 ? 'bg-green-500 border-none' : ''}`} />
+                                                  <span className="text-sm text-white/80">{level}</span>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  </div>
+                              </div>
+                          )}
+
+                      </div>
+
+                      {/* SAVE BAR */}
+                      <div className="p-4 bg-[#111214] flex justify-end gap-3 animate-in slide-in-from-bottom-2">
+                          <button onClick={() => setShowServerSettings(false)} className="px-4 py-2 text-sm text-white hover:underline">Cancel</button>
+                          <button onClick={saveServerSettings} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] transition-colors shadow-lg">Save Changes</button>
+                      </div>
+                  </div>
+              </div>
           </div>
       )}
 
