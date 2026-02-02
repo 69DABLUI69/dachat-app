@@ -372,14 +372,12 @@ app.get("/servers/:id/roles", safeRoute(async (req, res) => {
   res.json(data || []);
 }));
 
-// ✅ FIXED: Added Error Handling
 app.post("/servers/roles/create", safeRoute(async (req, res) => {
   const { serverId, userId } = req.body;
   
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
-  // Explicitly selecting fields and handling errors
   const { data, error } = await supabase.from("roles").insert([{ 
     server_id: serverId, 
     name: "New Role", 
@@ -388,18 +386,19 @@ app.post("/servers/roles/create", safeRoute(async (req, res) => {
   }]).select().single();
   
   if (error) return res.json({ success: false, message: error.message });
+  
+  // ✅ FIX: Notify clients so the list updates immediately
+  io.emit("server_updated", { serverId });
+  
   res.json({ success: true, role: data });
 }));
 
-// ✅ NEW: Update Role Route
 app.post("/servers/roles/update", safeRoute(async (req, res) => {
   const { serverId, userId, roleId, updates } = req.body;
   
-  // 1. Check Permissions
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
-  // 2. Perform Update
   const { data, error } = await supabase.from("roles")
     .update({ 
         name: updates.name, 
@@ -412,21 +411,41 @@ app.post("/servers/roles/update", safeRoute(async (req, res) => {
 
   if (error) return res.json({ success: false, message: error.message });
   
+  // ✅ FIX: Notify clients (updates member colors in sidebar)
+  io.emit("server_updated", { serverId });
+
   res.json({ success: true, role: data });
 }));
 
-// ✅ NEW: Delete Role Route
 app.post("/servers/roles/delete", safeRoute(async (req, res) => {
   const { serverId, userId, roleId } = req.body;
 
-  // 1. Check Permissions
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
-  // 2. Perform Delete
   const { error } = await supabase.from("roles").delete().eq("id", roleId);
   if (error) return res.json({ success: false, message: error.message });
 
+  // ✅ FIX: Notify clients
+  io.emit("server_updated", { serverId });
+
+  res.json({ success: true });
+}));
+
+app.post("/servers/roles/assign", safeRoute(async (req, res) => {
+  const { serverId, ownerId, targetUserId, roleId } = req.body;
+
+  const { data: requester } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", ownerId).single();
+  if (!requester?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  const { error } = await supabase.from("members")
+    .update({ role_id: roleId }) 
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId);
+
+  if (error) return res.json({ success: false, message: error.message });
+  
+  io.emit("server_updated", { serverId });
   res.json({ success: true });
 }));
 
