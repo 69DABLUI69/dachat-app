@@ -688,27 +688,27 @@ io.on("connection", (socket) => {
       }
   });
 
-// ⚡️ FEATURE: Toggle Reaction (Fix: Prevent duplicates per user)
+// ⚡️ FEATURE: Toggle Reaction (Robust Fix)
   socket.on("toggle_reaction", async ({ messageId, userId, emoji, roomId, messageOwnerId }) => {
-      // 1. Check if this exact reaction (user + message + emoji) already exists
+      // 1. Fetch ALL matching reactions (in case duplicates already exist)
       const { data: existing } = await supabase
           .from("message_reactions")
           .select("id")
           .eq("message_id", messageId)
           .eq("user_id", userId)
-          .eq("emoji", emoji)
-          .maybeSingle();
+          .eq("emoji", emoji);
 
-      if (existing) {
-          // 2. If it exists -> REMOVE IT (Toggle Off)
-          await supabase.from("message_reactions").delete().eq("id", existing.id);
+      if (existing && existing.length > 0) {
+          // 2. If ANY exist -> DELETE THEM ALL (Toggle Off & Cleanup)
+          const idsToDelete = existing.map(r => r.id);
+          await supabase.from("message_reactions").delete().in("id", idsToDelete);
           io.to(roomId).emit("reaction_updated", { messageId, userId, emoji, action: "remove" });
       } else {
-          // 3. If it does NOT exist -> ADD IT (Toggle On)
+          // 3. If NONE exist -> ADD ONE (Toggle On)
           await supabase.from("message_reactions").insert([{ message_id: messageId, user_id: userId, emoji }]);
           io.to(roomId).emit("reaction_updated", { messageId, userId, emoji, action: "add" });
 
-          // 🔔 Notification Logic (Only notify on ADD)
+          // 🔔 Notification Logic
           if (messageOwnerId && messageOwnerId !== userId) {
              const { data: owner } = await supabase.from("users").select("notification_settings").eq("id", messageOwnerId).single();
              const settings = owner?.notification_settings || {};

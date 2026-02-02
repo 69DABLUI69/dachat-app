@@ -267,11 +267,14 @@ useEffect(() => {
     return () => document.removeEventListener("contextmenu", handleGlobalContextMenu);
 }, []);
 
-  useEffect(() => {
-      const handleClick = () => setContextMenu({ ...contextMenu, visible: false });
-      window.addEventListener("click", handleClick);
-      return () => window.removeEventListener("click", handleClick);
-  }, [contextMenu]);
+useEffect(() => {
+    const handleClick = () => {
+        setContextMenu({ ...contextMenu, visible: false });
+        setActiveReactionMessageId(null); // ✅ Close emoji picker when clicking anywhere else
+    };
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+}, [contextMenu]); // (You can add activeReactionMessageId to dependency if linter complains, but strictly not needed for closure here)
 
   useEffect(() => {
       const fetchSteam = async () => {
@@ -862,7 +865,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                 <div key={msg.id || i} 
                                      className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} 
                                      onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
-                                     onMouseLeave={() => setActiveReactionMessageId(null)}
                                 > 
                                     <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
                                     
