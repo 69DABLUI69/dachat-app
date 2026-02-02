@@ -432,7 +432,7 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-      // ✅ FIXED SERVER UPDATE LISTENER (ROBUST)
+      // ✅ FIXED SERVER UPDATE LISTENER (ROBUST & SAFE)
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
@@ -666,45 +666,29 @@ const saveNotifSettings = async (newSettings: any) => {
       setShowServerSettings(true); 
   };
   const saveServerSettings = async () => { 
-      try {
-          let finalImg = serverEditForm.imageUrl; 
-          
-          // Handle Image Upload
-          if (newServerFile) { 
-              const formData = new FormData(); 
-              formData.append("file", newServerFile); 
-              const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
-              const data = await res.json();
-              if (!data.success) throw new Error("Image upload failed");
-              finalImg = data.fileUrl; 
-          } 
-          
-          // Send Update Request
-          const res = await fetch(`${BACKEND_URL}/servers/update`, { 
-              method: "POST", 
-              headers: { "Content-Type": "application/json" }, 
-              body: JSON.stringify({ 
-                  serverId: active.server.id, 
-                  userId: user.id, 
-                  name: serverEditForm.name, 
-                  imageUrl: finalImg,
-                  description: (serverEditForm as any).description,
-                  bannerUrl: (serverEditForm as any).bannerUrl,
-                  isPrivate: (serverEditForm as any).isPrivate,
-                  systemChannelId: (serverEditForm as any).systemChannelId
-              }) 
-          }); 
-          
-          const data = await res.json();
-          if (data.success) {
-              setShowServerSettings(false); 
-              setNewServerFile(null);
-          } else {
-              alert("Failed to save: " + data.message);
-          }
-      } catch (err: any) {
-          alert("Error: " + err.message);
-      }
+      let finalImg = serverEditForm.imageUrl; 
+      if (newServerFile) { 
+          const formData = new FormData(); 
+          formData.append("file", newServerFile); 
+          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); 
+          finalImg = (await res.json()).fileUrl; 
+      } 
+      
+      await fetch(`${BACKEND_URL}/servers/update`, { 
+          method: "POST", 
+          headers: { "Content-Type": "application/json" }, 
+          body: JSON.stringify({ 
+              serverId: active.server.id, 
+              userId: user.id, 
+              name: serverEditForm.name, 
+              imageUrl: finalImg,
+              description: (serverEditForm as any).description,
+              bannerUrl: (serverEditForm as any).bannerUrl,
+              isPrivate: (serverEditForm as any).isPrivate,
+              systemChannelId: (serverEditForm as any).systemChannelId
+          }) 
+      }); 
+      setShowServerSettings(false); 
   };
 
 // --- ROLE MANAGEMENT FUNCTIONS ---
@@ -716,7 +700,8 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          setServerRoles([...serverRoles, data.role]);
+          // ✅ FIX: Use functional update to prevent overwriting list with stale data
+          setServerRoles(prev => [...prev, data.role]);
           setActiveRole(data.role);
       } else {
           alert(data.message);
@@ -732,7 +717,8 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          setServerRoles(serverRoles.map(r => r.id === activeRole.id ? data.role : r));
+          // ✅ FIX: Use functional update here as well
+          setServerRoles(prev => prev.map(r => r.id === activeRole.id ? data.role : r));
           alert("Role Saved!");
       }
   };
@@ -745,7 +731,8 @@ const saveNotifSettings = async (newSettings: any) => {
           body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id })
       });
       if ((await res.json()).success) {
-          setServerRoles(serverRoles.filter(r => r.id !== activeRole.id));
+          // ✅ FIX: Use functional update
+          setServerRoles(prev => prev.filter(r => r.id !== activeRole.id));
           setActiveRole(null);
       }
   };
@@ -1242,195 +1229,6 @@ const saveNotifSettings = async (newSettings: any) => {
                       </div> 
                   ))}
               </div>
-          </div>
-      )}
-
-      {incomingCall && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
-              <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
-                  <div className="relative"> <div className="absolute inset-0 bg-blue-500/30 blur-[60px] rounded-full animate-pulse-slow"></div> <UserAvatar src={incomingCall.avatarUrl} className="w-40 h-40 rounded-full border-4 border-white/20 shadow-2xl relative z-10 animate-bounce-slow" /> </div>
-                  <div className="text-center z-10"> <h2 className="text-3xl font-bold text-white mb-2">{incomingCall.senderName}</h2> <p className="text-white/50 text-lg animate-pulse">{t('call_incoming')}</p> </div>
-                  <div className="flex gap-8 z-10"> <button onClick={rejectCall} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-95"> <span className="text-2xl">📞</span> </button> <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(22,163,74,0.4)] active:scale-95 animate-wiggle"> <span className="text-2xl">📞</span> </button> </div>
-              </div>
-          </div>
-      )}
-
-      {viewingProfile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}>
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}>
-                  <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" />
-                  <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
-                  <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p>
-                  {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={() => handleRemoveFriend(viewingProfile.id)} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">{t('ctx_remove')}</button>}
-                  {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && ( <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10"> <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div> <button onClick={() => promoteMember(viewingProfile.id)} className="w-full py-2 bg-blue-500/20 text-blue-300 rounded-lg font-bold text-sm hover:bg-blue-500/30 transition-all hover:scale-105">Toggle Moderator</button> </div> )}
-              </GlassPanel>
-          </div>
-      )}
-
-      {showChangelog && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-500">
-              <GlassPanel className="w-full max-w-sm p-8 flex flex-col items-center text-center border-2 border-indigo-500/50 shadow-[0_0_50px_rgba(99,102,241,0.3)]">
-                  <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-lg animate-bounce"> 🚀 </div>
-                  <h2 className="text-2xl font-bold text-white mb-1">Update Available!</h2>
-                  <p className="text-indigo-300 text-sm font-mono mb-6">v{APP_VERSION}</p>
-                  <div className="w-full bg-white/5 rounded-xl p-4 text-left space-y-3 mb-6 border border-white/5"> {WHATS_NEW.map((item, i) => ( <div key={i} className="flex gap-3 text-sm text-white/80"> <span className="text-indigo-400">➤</span> {item} </div> ))} </div>
-                  <button onClick={closeChangelog} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg"> Awesome, Let's Go! </button>
-              </GlassPanel>
-          </div>
-      )}
-
-      {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-                  {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
-                  <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
-                  
-                  <div> 
-                    <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> 
-                    <div className="flex flex-col md:flex-row gap-6 items-start"> 
-                      <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> 
-                        <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> 
-                        <div className="flex flex-col gap-2 w-full">
-                          <button onClick={() => setShowReportBug(true)} className="text-xs w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4">
-                            Report a Bug
-                          </button> 
-                          <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> 
-                          <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> 
-                          <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> 
-                        </div> 
-                        <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> 
-                      </div> 
-                      <div className="flex-1 w-full flex flex-col gap-4"> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
-                      </div> 
-                    </div> 
-                  </div>
-
-                  <div className="h-px bg-white/10 w-full" />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-8"> 
-                          <div className="space-y-4">
-                            <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> 
-                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
-                                <div className="space-y-1"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> 
-                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > 
-                                        <option value="en">English (Default)</option> 
-                                        <option value="ro">Română (Romanian)</option> 
-                                        <option value="de">Deutsch (German)</option> 
-                                        <option value="pl">Polski (Polish)</option> 
-                                        <option value="it">Italiano (Italian)</option> 
-                                        <option value="es">Español (Spanish)</option> 
-                                        <option value="pt">Português (Portuguese)</option> 
-                                        <option value="sv">Svenska (Swedish)</option> 
-                                        <option value="bg">Български (Bulgarian)</option> 
-                                        <option value="jp">日本語 (Japanese)</option> 
-                                        <option value="zh">中文 (Chinese)</option> 
-                                    </select> 
-                                </div> 
-                                <div className="space-y-1"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
-                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> 
-                                        {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} 
-                                    </select> 
-                                </div> 
-                            </div>
-                          </div>
-
-                          <div className="space-y-4">
-                              <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
-                              <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
-                                  <div className="flex justify-between items-center">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold">Enable Desktop Notifications</span>
-                                          <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
-                                      </div>
-                                      <button 
-                                          onClick={() => {
-                                              if ("Notification" in window && Notification.permission !== "granted") {
-                                                  Notification.requestPermission();
-                                              }
-                                              saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
-                                          }}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                      >
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-                                      </button>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-sm">People I know start streaming</span>
-                                      <button 
-                                          onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                      >
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
-                                      </button>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                      <label className="text-sm">Someone reacts to my messages</label>
-                                      <select 
-                                          className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10 text-white outline-none"
-                                          value={notifSettings.reaction_notifications}
-                                          onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
-                                      >
-                                          <option value="all">All Messages</option>
-                                          <option value="mentions">Only Mentions</option>
-                                          <option value="none">Nothing</option>
-                                      </select>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="space-y-4"> 
-                        <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3> 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
-                            <div className="flex justify-between items-center"> 
-                                <span className="font-bold text-sm">{t('set_2fa')}</span> 
-                                <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> 
-                            </div> 
-                            {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg hover:bg-blue-600/30 transition-colors">{t('set_setup_2fa')}</button>} 
-                            {setupStep === 1 && ( 
-                                <div className="flex flex-col items-center gap-3 animate-in fade-in"> 
-                                    <img src={qrCodeUrl} className="w-24 h-24 rounded-lg border-2 border-white" /> 
-                                    <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> 
-                                    <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> 
-                                </div> 
-                            )} 
-                            {user.is_2fa_enabled && ( 
-                                <div className="pt-2 border-t border-white/10"> 
-                                    <div className="flex justify-between items-center cursor-pointer hover:opacity-80" onClick={() => setShowPassChange(!showPassChange)}> 
-                                        <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> 
-                                        <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> 
-                                    </div> 
-                                    {showPassChange && ( 
-                                        <div className="flex flex-col gap-3 animate-in fade-in pt-3"> 
-                                            <div className="relative"> 
-                                                <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> 
-                                                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> 
-                                            </div> 
-                                            <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> 
-                                            <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> 
-                                        </div> 
-                                    )} 
-                                </div> 
-                            )} 
-                        </div> 
-                      </div>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
-                      <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> 
-                      <div className="flex gap-3"> 
-                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> 
-                        <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
-                      </div> 
-                  </div>
-              </GlassPanel>
           </div>
       )}
 
