@@ -431,6 +431,8 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("friend_removed", () => { if (user) { fetchFriends(user.id); } });
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
+      
+      // ✅ FIXED SERVER UPDATE LISTENER (ROBUST)
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
@@ -440,8 +442,9 @@ const saveNotifSettings = async (newSettings: any) => {
           setServers(serversList);
 
           // 2. If the updated server is the one we are currently looking at, refresh its details
-          if (active.server?.id === serverId) {
-              const updatedServer = serversList.find((s: any) => s.id === serverId);
+          // Using String() conversion to prevent Type Mismatch (number vs string)
+          if (active.server && String(active.server.id) === String(serverId)) {
+              const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
               
               if (updatedServer) {
                   // Update the active server metadata (Name/Image) without resetting view
@@ -460,6 +463,7 @@ const saveNotifSettings = async (newSettings: any) => {
               }
           }
       });
+
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
       
