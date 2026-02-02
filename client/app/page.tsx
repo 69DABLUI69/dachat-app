@@ -86,7 +86,6 @@ export default function DaChat() {
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [activeReactionMessageId, setActiveReactionMessageId] = useState<number | null>(null);
 
-  // ⚡️ FEATURE: Mentions State
   const [showMentions, setShowMentions] = useState(false);
   const [mentionQuery, setMentionQuery] = useState("");
 
@@ -120,7 +119,6 @@ export default function DaChat() {
   const [activeVoiceChannelId, setActiveVoiceChannelId] = useState<string | null>(null);
   const [voiceStates, setVoiceStates] = useState<Record<string, number[]>>({});
   
-  // ⚡️ FEATURE: Unread Messages Map
   const [unreadMap, setUnreadMap] = useState<Record<number, boolean>>({});
 
   const [selectedRingtone, setSelectedRingtone] = useState(RINGTONES[0].url);
@@ -161,14 +159,13 @@ export default function DaChat() {
   const [bugFile, setBugFile] = useState<File | null>(null);
   const [isSubmittingBug, setIsSubmittingBug] = useState(false);
 
-  const [serverSettingsTab, setServerSettingsTab] = useState("overview"); // 'overview', 'roles', 'moderation'
+  const [serverSettingsTab, setServerSettingsTab] = useState("overview"); 
 
+  // Role Management State
   const [serverRoles, setServerRoles] = useState<any[]>([]);
   const [activeRole, setActiveRole] = useState<any>(null);
 
-  // 📝 HELPER: Send Message (Defined FIRST to be in scope)
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
-      //  PREVENT EMPTY MESSAGES: Check if text is empty/whitespace AND no file is attached
       if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
 
       if (editingId) {
@@ -282,11 +279,11 @@ useEffect(() => {
 useEffect(() => {
     const handleClick = () => {
         setContextMenu({ ...contextMenu, visible: false });
-        setActiveReactionMessageId(null); // ✅ Close emoji picker when clicking anywhere else
+        setActiveReactionMessageId(null); 
     };
     window.addEventListener("click", handleClick);
     return () => window.removeEventListener("click", handleClick);
-}, [contextMenu]); // (You can add activeReactionMessageId to dependency if linter complains, but strictly not needed for closure here)
+}, [contextMenu]);
 
   useEffect(() => {
       const fetchSteam = async () => {
@@ -310,7 +307,6 @@ useEffect(() => {
 
   useEffect(() => {
     if ("Notification" in window && Notification.permission === "default") {
-        // We don't ask here anymore, user must click the button
     }
 }, []);
 
@@ -337,41 +333,29 @@ const saveNotifSettings = async (newSettings: any) => {
       if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
       socket.on("receive_message", (msg) => { 
-          // 1. Normalize data
           const normalized = { 
               ...msg, 
               sender_id: msg.sender_id || msg.senderId, 
               sender_name: msg.sender_name || msg.senderName, 
               file_url: msg.file_url || msg.fileUrl,
-              channel_id: msg.channel_id || msg.channelId // Ensure we catch channel ID
+              channel_id: msg.channel_id || msg.channelId 
           }; 
           
           if (user && normalized.sender_id === user.id) return; 
           
           setChatHistory(prev => [...prev, normalized]); 
 
-          // ⚡️ FEATURE: Reorder Friends & Show Unread Dot
-          // 🛑 FIX: Added check (!normalized.channel_id) so this ONLY runs for DMs
           if (!normalized.channel_id && normalized.sender_id && normalized.sender_id !== user.id) {
-              
               setFriends(prev => {
                   const index = prev.findIndex(f => f.id === normalized.sender_id);
-                  
-                  if (index === -1) return prev; // Not a friend
-                  if (index === 0) {
-                      // Already at top, but still verify unread status
-                      // We can return here if logic doesn't require state change, but unreadMap is separate
-                      return prev; 
-                  }
-                  
-                  // Move friend to top
+                  if (index === -1) return prev; 
+                  if (index === 0) return prev; 
                   const newArr = [...prev];
                   const [movedFriend] = newArr.splice(index, 1);
                   newArr.unshift(movedFriend);
                   return newArr;
               });
 
-              // Mark as unread if this isn't the currently active chat
               if (active.friend?.id !== normalized.sender_id) {
                   setUnreadMap(prev => ({ ...prev, [normalized.sender_id]: true }));
               }
@@ -380,7 +364,6 @@ const saveNotifSettings = async (newSettings: any) => {
 
       socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
       
-      // ✅ Reaction Handler
       socket.on("reaction_updated", ({ messageId, userId, emoji, action }) => {
         setChatHistory(prev => prev.map(msg => {
             if (msg.id !== messageId) return msg;
@@ -398,18 +381,10 @@ const saveNotifSettings = async (newSettings: any) => {
         }));
       });
 
-      // ✅ Notification Handler (Robust Visibility Check)
       socket.on("push_notification", (data) => {
-        
-        // 1. Determine if the app is visible to the user
         const isHidden = document.visibilityState === "hidden";
-        
-        // Fallback: use hasFocus if visibilityState is "visible" but user might be on another window
         const isNotFocused = !document.hasFocus();
 
-        console.log(`🔔 Notification Check -> Hidden: ${isHidden}, NotFocused: ${isNotFocused}`);
-
-        // 2. LOGIC: 
         if (isHidden || isNotFocused) {
             const showToast = () => {
                 new Notification(data.title, {
@@ -484,7 +459,7 @@ const saveNotifSettings = async (newSettings: any) => {
           socket.off("voice_states");
           socket.off("push_notification"); 
       }; 
-  }, [user, viewingProfile, active.server, inCall, active.friend]); // Added active.friend to dependencies
+  }, [user, viewingProfile, active.server, inCall, active.friend]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
   useEffect(() => { if (user) { fetchServers(user.id); fetchFriends(user.id); fetchRequests(user.id); } }, [user]);
@@ -510,17 +485,46 @@ const saveNotifSettings = async (newSettings: any) => {
   const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
+  
+  // ✅ NEW: Helper to fetch roles
+  const fetchRoles = async (serverId: number) => {
+    try {
+        const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`);
+        const data = await res.json();
+        setServerRoles(data);
+    } catch (e) {
+        console.error("Failed to fetch roles", e);
+    }
+  };
 
-  const selectServer = async (server: any) => { setView("servers"); setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); setIsCallExpanded(false); const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); const chData = await res.json(); setChannels(chData); if(!active.channel && chData.length > 0) { const firstText = chData.find((c:any) => c.type === 'text'); if (firstText) joinChannel(firstText); } const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); setServerMembers(await memRes.json()); };
+  const selectServer = async (server: any) => { 
+      setView("servers"); 
+      setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 
+      setIsCallExpanded(false); 
+      
+      const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); 
+      const chData = await res.json(); 
+      setChannels(chData); 
+      if(!active.channel && chData.length > 0) { 
+          const firstText = chData.find((c:any) => c.type === 'text'); 
+          if (firstText) joinChannel(firstText); 
+      } 
+      
+      const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); 
+      setServerMembers(await memRes.json());
+      
+      // ✅ Fetch Roles immediately on selection
+      fetchRoles(server.id);
+  };
+
   const joinChannel = (channel: any) => { if (channel.type === 'voice') { if (inCall && activeVoiceChannelId === channel.id.toString()) setIsCallExpanded(true); else if (channel.id) joinVoiceRoom(channel.id.toString()); } else { setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); } };
   
-  // ✅ UPDATED: Clear unread dot when selecting friend
   const selectFriend = (friend: any) => { 
       setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); 
       setChatHistory([]); 
       setIsCallExpanded(false); 
       setShowMobileChat(true); 
-      setUnreadMap(prev => ({ ...prev, [friend.id]: false })); // 👈 Clear Unread
+      setUnreadMap(prev => ({ ...prev, [friend.id]: false })); 
       const ids = [user.id, friend.id].sort((a, b) => a - b); 
       socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); 
   };
@@ -533,16 +537,10 @@ const saveNotifSettings = async (newSettings: any) => {
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
 
-  // ⚡️ FEATURE: Handle Message Input with Mentions
   const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = e.target.value;
       setMessage(val);
-
-      // Check if the last word is a mention trigger
       const match = val.match(/@(\w*)$/);
-      
-      // Show list ONLY if we are in a server (view === 'servers') or active.server is present
-      // If you want it for DMs too, add `|| active.friend`
       if (match && active.server) {
           setShowMentions(true);
           setMentionQuery(match[1].toLowerCase());
@@ -551,18 +549,15 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
-  // ⚡️ FEATURE: Insert Mention
   const insertMention = (username: string) => {
       const newVal = message.replace(/@(\w*)$/, `@${username} `);
       setMessage(newVal);
       setShowMentions(false);
-      // Focus back to input (handled by React state usually, but ref ensures it)
       if(fileInputRef.current?.nextSibling) {
           (fileInputRef.current.nextSibling as HTMLElement).focus();
       }
   };
 
-  // ✅ New Helper Function for Reactions
   const toggleReaction = (msg: any, emoji: string) => {
     const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
     socket.emit("toggle_reaction", { 
@@ -630,13 +625,12 @@ const saveNotifSettings = async (newSettings: any) => {
       setServerEditForm({ 
           name: active.server.name, 
           imageUrl: active.server.image_url || "", 
-          // New fields (safely handle if they don't exist yet)
           description: active.server.description || "",
           bannerUrl: active.server.banner_url || "",
           isPrivate: active.server.is_private || false,
           systemChannelId: active.server.system_channel_id || (channels[0]?.id || null)
       }); 
-      setServerSettingsTab("overview"); // Reset tab
+      setServerSettingsTab("overview"); 
       setShowServerSettings(true); 
   };
   const saveServerSettings = async () => { 
@@ -656,7 +650,6 @@ const saveNotifSettings = async (newSettings: any) => {
               userId: user.id, 
               name: serverEditForm.name, 
               imageUrl: finalImg,
-              // Send new fields
               description: (serverEditForm as any).description,
               bannerUrl: (serverEditForm as any).bannerUrl,
               isPrivate: (serverEditForm as any).isPrivate,
@@ -707,6 +700,33 @@ const saveNotifSettings = async (newSettings: any) => {
           setServerRoles(serverRoles.filter(r => r.id !== activeRole.id));
           setActiveRole(null);
       }
+  };
+
+  // ✅ NEW: Assign Role Function
+  const assignRole = async (targetUserId: number, roleId: number | null) => {
+    if (!active.server) return;
+    
+    const res = await fetch(`${BACKEND_URL}/servers/roles/assign`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+            serverId: active.server.id, 
+            ownerId: user.id, 
+            targetUserId: targetUserId, 
+            roleId: roleId 
+        })
+    });
+    
+    const data = await res.json();
+    if (data.success) {
+        alert("Role Updated");
+        setContextMenu({ ...contextMenu, visible: false });
+        // Refresh members to show new color
+        const memRes = await fetch(`${BACKEND_URL}/servers/${active.server.id}/members`);
+        setServerMembers(await memRes.json());
+    } else {
+        alert(data.message);
+    }
   };
   
   const promoteMember = async (targetId: number) => { if(!confirm("Toggle Moderator Status?")) return; await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) }); };
@@ -894,7 +914,7 @@ const saveNotifSettings = async (newSettings: any) => {
                                 <div className="flex-1 min-w-0" onClick={()=>selectFriend(f)}>
                                     <div className="flex justify-between items-center"> 
                                         <div className="text-xs font-bold truncate">{f.username}</div> 
-                                        {/* ✅ UNREAD DOT */}
+                                        {/* UNREAD DOT */}
                                         {unreadMap[f.id] && (
                                             <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6] animate-pulse ml-2"></div>
                                         )}
@@ -946,7 +966,6 @@ const saveNotifSettings = async (newSettings: any) => {
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                         {chatHistory.map((msg, i) => {
-                            // Group reactions by emoji
                             const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
                             (msg.reactions || []).forEach((r: any) => {
                                 if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
@@ -977,7 +996,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                         <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
                                             {formatMessage(msg.content)} 
                                             
-                                            {/* ➕ ADD REACTION BUTTON */}
                                             <button 
                                                 onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
                                                 className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
@@ -985,7 +1003,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                                 🙂
                                             </button>
                                             
-                                            {/* EMOJI PICKER POPUP */}
                                             {activeReactionMessageId === msg.id && (
                                                 <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
                                                      <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
@@ -1004,7 +1021,6 @@ const saveNotifSettings = async (newSettings: any) => {
 
                                         {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" alt="attachment" />} 
                                         
-                                        {/* 😊 REACTIONS DISPLAY ROW */}
                                         {Object.keys(reactionCounts).length > 0 && (
                                             <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
                                                 {Object.entries(reactionCounts).map(([emoji, data]) => (
@@ -1043,14 +1059,13 @@ const saveNotifSettings = async (newSettings: any) => {
                         {showEmojiPicker && <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"><EmojiPicker theme={Theme.DARK} onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)} lazyLoadEmojis={true}/></div>}
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
                         
-                        {/* ⚡️ FEATURE: Mention List UI */}
+                        {/* Mention List UI */}
                         {showMentions && (
                             <div className="absolute bottom-20 left-4 right-4 z-50 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 flex flex-col animate-in slide-in-from-bottom-2 custom-scrollbar">
                                 <div className="px-3 py-2 text-[10px] font-bold text-white/40 bg-white/5 border-b border-white/5 uppercase tracking-widest">
                                     Members matching "@ {mentionQuery}"
                                 </div>
                                 <div className="overflow-y-auto">
-                                    {/* Filters Server Members when in server, or friends when in DM (optional) */}
                                     {(active.server ? serverMembers : []).filter(m => m.username.toLowerCase().includes(mentionQuery)).map(m => (
                                         <div 
                                             key={m.id} 
@@ -1073,7 +1088,6 @@ const saveNotifSettings = async (newSettings: any) => {
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <button className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false);}} onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}>{emojiBtnIcon}</button>
                             <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileUpload} /> 
-                            {/* UPDATED INPUT with new handler */}
                             <input 
                                 className="flex-1 bg-transparent outline-none px-2 min-w-0" 
                                 placeholder={t('chat_placeholder')} 
@@ -1087,11 +1101,8 @@ const saveNotifSettings = async (newSettings: any) => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
-         {/* ⬇️ UPDATED GRID CALL LAYOUT ⬇️ */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-[#000000] animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
-                 
-                 {/* Top Bar Overlay */}
                  <div className="absolute top-4 left-4 right-4 z-[60] flex justify-between items-start pointer-events-none">
                      <div className="bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/5 pointer-events-auto">
                         <div className="flex items-center gap-2">
@@ -1112,7 +1123,6 @@ const saveNotifSettings = async (newSettings: any) => {
                      </div>
                  </div>
 
-                 {/* Soundboard Popup (Floating) */}
                  {showSoundboard && (
                     <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-2xl p-4 w-72 animate-in zoom-in-95 shadow-2xl">
                         <div className="flex justify-between items-center mb-3">
@@ -1129,7 +1139,6 @@ const saveNotifSettings = async (newSettings: any) => {
                     </div>
                  )}
 
-                 {/* MAIN CALL AREA - Unified Grid */}
                  <div className="flex-1 w-full h-full relative z-10">
                     <LiveKitVoiceRoom 
                        room={activeVoiceChannelId} 
@@ -1141,7 +1150,6 @@ const saveNotifSettings = async (newSettings: any) => {
                            socket.emit("leave_voice");
                        }} 
                     >
-                        {/* 🎵 PASSING THE MUSIC PLAYER AS A CHILD TILE */}
                         <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
                     </LiveKitVoiceRoom>
                  </div>
@@ -1163,7 +1171,28 @@ const saveNotifSettings = async (newSettings: any) => {
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
               <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
-                  {serverMembers.map(m => ( <div key={m.id} onContextMenu={(e) => handleContextMenu(e, 'user', m)} onClick={() => viewUserProfile(m.id)} className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"> <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> <div className="flex-1 min-w-0"> <div className={`text-sm font-bold truncate ${m.id === active.server.owner_id ? "text-yellow-500" : "text-white/80"}`}>{m.username}</div> </div> {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} {m.is_admin && m.id !== active.server.owner_id && <span>🛡️</span>} </div> ))}
+                  {serverMembers.map(m => ( 
+                      <div 
+                          key={m.id} 
+                          onContextMenu={(e) => handleContextMenu(e, 'user', m)} 
+                          onClick={() => viewUserProfile(m.id)} 
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"
+                      > 
+                          <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> 
+                          <div className="flex-1 min-w-0"> 
+                              {/* ✅ UPDATED MEMBER LIST VISUALS (Role Color) */}
+                              <div 
+                                  className="text-sm font-bold truncate"
+                                  style={{ color: m.role ? m.role.color : (m.id === active.server.owner_id ? "#eab308" : "rgba(255,255,255,0.8)") }}
+                              >
+                                  {m.username}
+                              </div> 
+                              {m.role && <div className="text-[10px] opacity-50 font-bold">{m.role.name}</div>}
+                          </div> 
+                          {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} 
+                          {m.is_admin && !m.role && <span>🛡️</span>} 
+                      </div> 
+                  ))}
               </div>
           </div>
       )}
@@ -1208,7 +1237,6 @@ const saveNotifSettings = async (newSettings: any) => {
                   {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
                   <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
                   
-                  {/* USER PROFILE SECTION */}
                   <div> 
                     <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> 
                     <div className="flex flex-col md:flex-row gap-6 items-start"> 
@@ -1234,7 +1262,6 @@ const saveNotifSettings = async (newSettings: any) => {
                   <div className="h-px bg-white/10 w-full" />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* PREFERENCES COLUMN */}
                       <div className="space-y-8"> 
                           <div className="space-y-4">
                             <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> 
@@ -1264,11 +1291,9 @@ const saveNotifSettings = async (newSettings: any) => {
                             </div>
                           </div>
 
-                          {/* 🔔 NOTIFICATION SETTINGS SECTION */}
                           <div className="space-y-4">
                               <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
                               <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
-                                  {/* Toggle 1: Desktop Notifications */}
                                   <div className="flex justify-between items-center">
                                       <div className="flex flex-col">
                                           <span className="text-sm font-bold">Enable Desktop Notifications</span>
@@ -1287,7 +1312,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                       </button>
                                   </div>
 
-                                  {/* Toggle 2: Streaming Notifications */}
                                   <div className="flex justify-between items-center">
                                       <span className="text-sm">People I know start streaming</span>
                                       <button 
@@ -1298,7 +1322,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                       </button>
                                   </div>
 
-                                  {/* Dropdown: Reaction settings */}
                                   <div className="space-y-2">
                                       <label className="text-sm">Someone reacts to my messages</label>
                                       <select 
@@ -1315,7 +1338,6 @@ const saveNotifSettings = async (newSettings: any) => {
                           </div>
                       </div>
 
-                      {/* SECURITY COLUMN */}
                       <div className="space-y-4"> 
                         <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3> 
                         <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
@@ -1364,17 +1386,14 @@ const saveNotifSettings = async (newSettings: any) => {
           </div>
       )}
 
-      {/* 🛠️ SERVER SETTINGS MODAL */}
+      {/* SERVER SETTINGS MODAL */}
       {showServerSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in fade-in duration-200">
               <div className="w-full max-w-4xl h-[85vh] bg-[#313338] rounded-md flex overflow-hidden shadow-2xl relative animate-in zoom-in-95">
-                  
-                  {/* LEFT SIDEBAR */}
                   <div className="w-60 bg-[#2b2d31] flex flex-col pt-12 pb-4 px-2 items-end border-r border-[#1e1f22]">
                       <div className="w-full px-3 mb-2 text-xs font-bold text-white/50 uppercase truncate text-right">
                           {active.server.name}
                       </div>
-                      
                       <div className="w-full space-y-0.5">
                           {['Overview', 'Roles', 'Moderation'].map((tab) => (
                               <button
@@ -1385,32 +1404,22 @@ const saveNotifSettings = async (newSettings: any) => {
                                   {tab}
                               </button>
                           ))}
-                          
                           <div className="my-2 h-px bg-white/10 w-[90%] mx-auto" />
-                          
                           <button onClick={() => { setShowServerSettings(false); leaveServer(); }} className="w-full text-left px-4 py-1.5 rounded-[4px] text-sm font-medium text-red-400 hover:bg-red-500/10 flex justify-between group">
                               Delete Server <span className="opacity-0 group-hover:opacity-100 transition-opacity">🗑️</span>
                           </button>
                       </div>
                   </div>
-
-                  {/* RIGHT CONTENT */}
                   <div className="flex-1 flex flex-col bg-[#313338] relative min-w-0">
-                      
-                      {/* Close Button (Esc) */}
                       <div className="absolute top-4 right-8 flex flex-col items-center gap-1 cursor-pointer group" onClick={() => setShowServerSettings(false)}>
                           <div className="w-9 h-9 rounded-full border-2 border-[#b5bac1] flex items-center justify-center text-[#b5bac1] font-bold group-hover:border-white group-hover:text-white transition-all">✕</div>
                           <span className="text-[10px] text-[#b5bac1] font-bold uppercase group-hover:text-white">ESC</span>
                       </div>
-
                       <div className="flex-1 overflow-y-auto p-10 custom-scrollbar">
                           <h2 className="text-xl font-bold text-white mb-6 capitalize">{serverSettingsTab}</h2>
-
-                          {/* --- OVERVIEW TAB --- */}
                           {serverSettingsTab === 'overview' && (
                               <div className="space-y-8 max-w-2xl">
                                   <div className="flex gap-8">
-                                      {/* Image Uploader */}
                                       <div className="flex flex-col gap-2 items-center">
                                           <div className="relative group cursor-pointer" onClick={() => (document.getElementById('sUpload') as any).click()}>
                                               <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-24 h-24 rounded-full border-4 border-[#2b2d31]" />
@@ -1420,75 +1429,43 @@ const saveNotifSettings = async (newSettings: any) => {
                                           <span className="text-xs text-white/40">Minimum 512x512</span>
                                           <input id="sUpload" type="file" className="hidden" onChange={e => e.target.files && setNewServerFile(e.target.files[0])} />
                                       </div>
-
-                                      {/* Name & Desc */}
                                       <div className="flex-1 space-y-4">
                                           <div className="space-y-1.5">
                                               <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Name</label>
-                                              <input 
-                                                  className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" 
-                                                  value={serverEditForm.name} 
-                                                  onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} 
-                                              />
+                                              <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
                                           </div>
                                           <div className="space-y-1.5">
                                               <label className="text-xs font-bold text-[#b5bac1] uppercase">Description</label>
-                                              <textarea 
-                                                  className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all h-20 resize-none text-sm"
-                                                  placeholder="What is this server about?"
-                                                  value={(serverEditForm as any).description} 
-                                                  onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}
-                                              />
+                                              <textarea className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all h-20 resize-none text-sm" placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
                                           </div>
                                       </div>
                                   </div>
-
                                   <div className="h-px bg-white/10 w-full" />
-
-                                  {/* System Channel */}
                                   <div className="space-y-1.5">
                                       <label className="text-xs font-bold text-[#b5bac1] uppercase">System Messages Channel</label>
-                                      <select 
-                                          className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500"
-                                          value={(serverEditForm as any).systemChannelId || ""}
-                                          onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}
-                                      >
+                                      <select className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500" value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
                                           {channels.filter(c => c.type === 'text').map(c => (
                                               <option key={c.id} value={c.id}># {c.name}</option>
                                           ))}
                                       </select>
                                       <span className="text-xs text-[#949ba4]">We'll send welcome messages here.</span>
                                   </div>
-
-                                  {/* Banner URL */}
                                   <div className="space-y-1.5">
                                       <label className="text-xs font-bold text-[#b5bac1] uppercase">Server Banner Image (URL)</label>
-                                      <input 
-                                          className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs" 
-                                          placeholder="https://..."
-                                          value={(serverEditForm as any).bannerUrl} 
-                                          onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} 
-                                      />
+                                      <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs" placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
                                       {(serverEditForm as any).bannerUrl && (
                                           <div className="mt-2 h-32 w-full rounded-lg bg-cover bg-center border border-white/10" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
                                       )}
                                   </div>
                               </div>
                           )}
-
-{/* --- ROLES TAB (Fully Functional) --- */}
                           {serverSettingsTab === 'roles' && (
                               <div className="flex h-full gap-6">
-                                  {/* Role List */}
                                   <div className="w-48 shrink-0 flex flex-col gap-2">
                                       <div className="text-xs font-bold text-[#b5bac1] uppercase mb-1">Roles</div>
                                       <div className="space-y-1 flex-1 overflow-y-auto pr-2 custom-scrollbar">
                                           {serverRoles.map((role) => (
-                                              <div 
-                                                  key={role.id}
-                                                  onClick={() => setActiveRole(role)}
-                                                  className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${activeRole?.id === role.id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}
-                                              >
+                                              <div key={role.id} onClick={() => setActiveRole(role)} className={`flex items-center justify-between p-2 rounded cursor-pointer transition-all ${activeRole?.id === role.id ? "bg-[#404249] text-white" : "text-[#b5bac1] hover:bg-[#35373c] hover:text-white"}`}>
                                                   <div className="flex items-center gap-2">
                                                       <div className="w-3 h-3 rounded-full" style={{ backgroundColor: role.color }} />
                                                       <span className="text-sm font-medium truncate max-w-[100px]">{role.name}</span>
@@ -1501,62 +1478,35 @@ const saveNotifSettings = async (newSettings: any) => {
                                           <span>+</span> Create Role
                                       </button>
                                   </div>
-
-                                  {/* Role Editor */}
                                   {activeRole ? (
                                       <div className="flex-1 space-y-6 animate-in fade-in slide-in-from-right-4">
                                           <div className="flex justify-between items-center pb-4 border-b border-white/10">
                                               <h3 className="text-lg font-bold text-white">Edit Role - {activeRole.name}</h3>
                                               <button onClick={deleteRole} className="text-red-400 text-xs font-bold hover:underline">Delete Role</button>
                                           </div>
-
                                           <div className="space-y-4">
                                               <div className="space-y-1.5">
                                                   <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Name</label>
-                                                  <input 
-                                                      className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium"
-                                                      value={activeRole.name}
-                                                      onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}
-                                                  />
+                                                  <input className="w-full bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-medium" value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
                                               </div>
-
                                               <div className="space-y-1.5">
                                                   <label className="text-xs font-bold text-[#b5bac1] uppercase">Role Color</label>
                                                   <div className="flex gap-3">
-                                                      <input 
-                                                          type="color" 
-                                                          className="w-10 h-10 rounded cursor-pointer bg-transparent border-none"
-                                                          value={activeRole.color}
-                                                          onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}
-                                                      />
-                                                      <input 
-                                                          className="flex-1 bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs uppercase"
-                                                          value={activeRole.color}
-                                                          onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}
-                                                      />
+                                                      <input type="color" className="w-10 h-10 rounded cursor-pointer bg-transparent border-none" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
+                                                      <input className="flex-1 bg-[#1e1f22] text-white p-2.5 rounded-[3px] outline-none focus:ring-2 ring-indigo-500 transition-all font-mono text-xs uppercase" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
                                                   </div>
                                               </div>
-
                                               <div className="h-px bg-white/10 w-full my-4" />
-
                                               <div className="space-y-3">
                                                   <label className="text-xs font-bold text-[#b5bac1] uppercase">Permissions</label>
                                                   <div className="space-y-2">
-                                                      {[
-                                                          { key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' },
-                                                          { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' },
-                                                          { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' },
-                                                          { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' },
-                                                      ].map((perm) => (
+                                                      {[{ key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' }, { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' }, { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' }, { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' }].map((perm) => (
                                                           <div key={perm.key} className="flex items-center justify-between p-3 bg-[#2b2d31] rounded border border-white/5">
                                                               <div>
                                                                   <div className="text-sm font-bold text-white">{perm.label}</div>
                                                                   <div className="text-xs text-[#b5bac1]">{perm.desc}</div>
                                                               </div>
-                                                              <div 
-                                                                  onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })}
-                                                                  className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${activeRole.permissions?.[perm.key] ? 'bg-green-500' : 'bg-gray-500'}`}
-                                                              >
+                                                              <div onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })} className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${activeRole.permissions?.[perm.key] ? 'bg-green-500' : 'bg-gray-500'}`}>
                                                                   <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${activeRole.permissions?.[perm.key] ? 'right-1' : 'left-1'}`} />
                                                               </div>
                                                           </div>
@@ -1564,7 +1514,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                                   </div>
                                               </div>
                                           </div>
-                                          
                                           <div className="pt-4 flex justify-end">
                                               <button onClick={updateRole} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] shadow-lg transition-transform active:scale-95">Save Role Changes</button>
                                           </div>
@@ -1577,8 +1526,6 @@ const saveNotifSettings = async (newSettings: any) => {
                                   )}
                               </div>
                           )}
-
-                          {/* --- MODERATION TAB --- */}
                           {serverSettingsTab === 'moderation' && (
                               <div className="space-y-6 max-w-2xl">
                                   <div className="flex items-center justify-between p-4 bg-[#2b2d31] rounded-md border border-white/5">
@@ -1586,14 +1533,10 @@ const saveNotifSettings = async (newSettings: any) => {
                                           <div className="text-white font-bold text-sm">Private Server</div>
                                           <div className="text-white/50 text-xs">Only allow users with an invite link to join.</div>
                                       </div>
-                                      <div 
-                                          onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)}
-                                          className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${(serverEditForm as any).isPrivate ? 'bg-green-500' : 'bg-gray-500'}`}
-                                      >
+                                      <div onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)} className={`w-10 h-6 rounded-full cursor-pointer relative transition-colors ${(serverEditForm as any).isPrivate ? 'bg-green-500' : 'bg-gray-500'}`}>
                                           <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${(serverEditForm as any).isPrivate ? 'right-1' : 'left-1'}`} />
                                       </div>
                                   </div>
-
                                   <div className="space-y-3">
                                       <label className="text-xs font-bold text-[#b5bac1] uppercase">Verification Level</label>
                                       <div className="flex flex-col gap-2">
@@ -1607,10 +1550,7 @@ const saveNotifSettings = async (newSettings: any) => {
                                   </div>
                               </div>
                           )}
-
                       </div>
-
-                      {/* SAVE BAR */}
                       <div className="p-4 bg-[#111214] flex justify-end gap-3 animate-in slide-in-from-bottom-2">
                           <button onClick={() => setShowServerSettings(false)} className="px-4 py-2 text-sm text-white hover:underline">Cancel</button>
                           <button onClick={saveServerSettings} className="px-6 py-2 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-[3px] transition-colors shadow-lg">Save Changes</button>
@@ -1623,7 +1563,43 @@ const saveNotifSettings = async (newSettings: any) => {
       {contextMenu.visible && (
           <div style={{ top: contextMenu.y, left: contextMenu.x }} className="fixed z-50 flex flex-col w-48 bg-gray-900/90 backdrop-blur-xl border border-white/10 rounded-xl shadow-2xl p-1 animate-in zoom-in-95 duration-150 origin-top-left overflow-hidden" onClick={(e) => e.stopPropagation()} >
               {contextMenu.type === 'message' && ( <> <button onClick={() => copyText(contextMenu.data?.content || "")} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>📋</span> {t('ctx_copy')} </button> {contextMenu.data?.sender_id === user.id && ( <button onClick={() => { deleteMessage(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🗑️</span> {t('ctx_delete')} </button> )} </> )}
-              {contextMenu.type === 'user' && ( <> <button onClick={() => { viewUserProfile(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>👤</span> {t('ctx_profile')} </button> <button onClick={() => { startDMCall(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-green-400 hover:bg-green-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>📞</span> {t('ctx_call')} </button> <div className="h-px bg-white/10 my-1 mx-2"></div> <button onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>🆔</span> {t('ctx_id')} </button> <div className="h-px bg-white/10 my-1 mx-2"></div> <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> </> )}
+              {contextMenu.type === 'user' && ( 
+                  <> 
+                    <button onClick={() => { viewUserProfile(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/80 hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>👤</span> {t('ctx_profile')} </button> 
+                    <button onClick={() => { startDMCall(contextMenu.data); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-green-400 hover:bg-green-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>📞</span> {t('ctx_call')} </button> 
+                    <div className="h-px bg-white/10 my-1 mx-2"></div> 
+                    <button onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>🆔</span> {t('ctx_id')} </button> 
+                    
+                    {/* ✅ UPDATED CONTEXT MENU: Role Assignment */}
+                    {active.server && isMod && (
+                        <>
+                            <div className="h-px bg-white/10 my-1 mx-2"></div>
+                            <div className="px-3 py-1 text-[10px] font-bold text-white/30 uppercase">Assign Role</div>
+                            
+                            {/* Option to remove role */}
+                            <button onClick={() => assignRole(contextMenu.data.id, null)} className="text-left px-3 py-2 text-xs text-white/50 hover:bg-white/10 rounded-lg w-full">
+                                No Role
+                            </button>
+
+                            {/* List available roles */}
+                            {serverRoles.map(role => (
+                                <button 
+                                    key={role.id} 
+                                    onClick={() => assignRole(contextMenu.data.id, role.id)} 
+                                    className="text-left px-3 py-2 text-xs hover:bg-white/10 rounded-lg w-full flex items-center gap-2"
+                                    style={{ color: role.color }}
+                                >
+                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: role.color }}></div>
+                                    {role.name}
+                                </button>
+                            ))}
+                        </>
+                    )}
+
+                    <div className="h-px bg-white/10 my-1 mx-2"></div> 
+                    <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> 
+                  </> 
+              )}
           </div>
       )}
     </div>
@@ -1640,14 +1616,12 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
 
     const handleControl = (action: string) => { onSearch({ action }); };
 
-    // Format seconds into MM:SS
     const formatTime = (seconds: number) => {
         const m = Math.floor(seconds / 60);
         const s = Math.floor(seconds % 60);
         return `${m}:${s < 10 ? '0' : ''}${s}`;
     };
 
-    // Calculate progress loop
     useEffect(() => {
        if(!track?.current || track.isPaused) return;
        const interval = setInterval(() => {
@@ -1659,14 +1633,12 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
        return () => clearInterval(interval);
     }, [track]);
 
-    // Reset progress on pause/seek
     useEffect(() => {
         if(track?.isPaused) {
             setProgress((track.elapsed || 0) / 1000);
         }
     }, [track?.isPaused, track?.elapsed]);
 
-    // 🔊 Volume Command Sender (YouTube API)
     useEffect(() => {
         if(iframeRef.current && iframeRef.current.contentWindow) {
             iframeRef.current.contentWindow.postMessage(JSON.stringify({
@@ -1684,7 +1656,6 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
         return `https://www.youtube.com/embed/${track.current.videoId}?autoplay=1&controls=0&start=${startSeconds}&rel=0&origin=${window.location.origin}&enablejsapi=1`;
     }, [track?.current?.videoId, track?.startTime, track?.isPaused]);
 
-    // 🎨 Elegant SVG Icons
     const PlayIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>;
     const PauseIcon = () => <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>;
     const SkipIcon = () => <svg className="w-6 h-6 fill-current" viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>;
@@ -1699,12 +1670,9 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
             onMouseLeave={() => setShowControls(false)}
             onClick={() => setShowControls(!showControls)}
         >
-            {/* Background Blur */}
             {track?.current?.image && ( <div className="absolute inset-0 z-0 opacity-30 blur-3xl scale-110"> <img src={track.current.image} className="w-full h-full object-cover" alt="bg" /> </div> )}
             
-            {/* Main Content */}
             <div className="flex-1 relative z-10 flex flex-col p-4 min-h-0 justify-center items-center">
-                {/* Search Bar (Floating) - FIXED: Pushed down on mobile (top-20) to clear buttons */}
                 <div 
                     className={`absolute top-20 md:top-4 left-4 right-4 flex gap-2 bg-black/60 p-2 rounded-xl border border-white/5 backdrop-blur-md z-30 transition-all duration-300 ${showControls ? "translate-y-0 opacity-100" : "-translate-y-10 opacity-0 pointer-events-none"}`}
                     onClick={(e) => e.stopPropagation()}
@@ -1715,13 +1683,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
 
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
-                        
-                        {/* 🖼️ IMAGE CONTAINER - FIXED: Added mt-32 for mobile so search bar doesn't cover it */}
                         <div className="mt-32 md:mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
-
                         <h3 className="text-white font-bold text-center line-clamp-1 px-4 text-lg w-full mb-1 drop-shadow-md">{track.current.title}</h3>
                     </div>
                 ) : ( 
@@ -1732,12 +1697,10 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 )}
             </div>
 
-            {/* 🎛️ ELEGANT TOOLBAR (Slides Up) */}
             <div 
                 className={`relative z-20 bg-[#1e1f22]/90 backdrop-blur-2xl border-t border-white/5 p-4 transition-all duration-300 ease-out transform ${showControls ? "translate-y-0 opacity-100" : "translate-y-full opacity-0 pointer-events-none"}`}
                 onClick={(e) => e.stopPropagation()} 
             >
-                {/* Progress Bar */}
                 {track?.current && (
                     <div className="flex items-center gap-3 text-[10px] font-mono font-bold text-white/40 mb-3 px-1">
                         <span className="min-w-[30px] text-right">{formatTime(progress)}</span>
@@ -1748,10 +1711,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     </div>
                 )}
 
-                {/* 🎚️ CONTROLS ROW */}
                 <div className="flex items-center justify-between gap-4">
-                    
-                    {/* LEFT: Volume */}
                     <div className="flex-1 flex items-center gap-2 min-w-0 justify-start group/vol">
                         <button className="hover:text-white transition-colors" onClick={() => setLocalVolume(localVolume === 0 ? 50 : 0)}><VolumeIcon /></button>
                         <input 
@@ -1761,11 +1721,8 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                         />
                     </div>
 
-                    {/* CENTER: Play/Skip */}
                     <div className="flex items-center gap-4 shrink-0">
-                         {/* 🛑 INVISIBLE SPACER: Balances the Skip button so Play stays center */}
                          <div className="w-8 h-8 opacity-0 pointer-events-none"></div>
-
                          <button 
                             onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
                             className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-white/10"
@@ -1780,7 +1737,6 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                          </button>
                     </div>
 
-                    {/* RIGHT: Queue Toggle */}
                     <div className="flex-1 flex justify-end min-w-0">
                          <button 
                             onClick={() => setShowQueue(!showQueue)} 
@@ -1792,7 +1748,6 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                 </div>
             </div>
 
-            {/* 📜 QUEUE OVERLAY */}
             {showQueue && track?.queue && ( 
                 <div 
                     className="absolute inset-0 z-30 bg-[#111214]/95 backdrop-blur-xl flex flex-col animate-in slide-in-from-bottom-full duration-300"

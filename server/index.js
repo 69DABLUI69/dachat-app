@@ -347,14 +347,24 @@ app.get("/servers/:id/channels", safeRoute(async (req, res) => {
   res.json(data || []);
 }));
 
+// Find this existing route and update the .select() string
 app.get("/servers/:id/members", safeRoute(async (req, res) => {
-  const { data: members } = await supabase.from("members").select("is_admin, users(*)").eq("server_id", req.params.id);
-  const formatted = members.map(m => ({ ...m.users, is_admin: m.is_admin }));
+  // We add ", role:roles(*)" to fetch the role details joined on the role_id
+  const { data: members } = await supabase
+    .from("members")
+    .select("is_admin, role_id, role:roles(*), users(*)") 
+    .eq("server_id", req.params.id);
+
+  const formatted = members.map(m => ({ 
+      ...m.users, 
+      is_admin: m.is_admin, 
+      role: m.role // Pass the role object to frontend
+  }));
   res.json(formatted || []);
 }));
 
 // ==============================================================================
-// 🛡️ ROLE MANAGEMENT ROUTES
+// 🛡️ ROLE MANAGEMENT ROUTES (UPDATED)
 // ==============================================================================
 
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
@@ -362,40 +372,45 @@ app.get("/servers/:id/roles", safeRoute(async (req, res) => {
   res.json(data || []);
 }));
 
+// ✅ FIXED: Added Error Handling
 app.post("/servers/roles/create", safeRoute(async (req, res) => {
   const { serverId, userId } = req.body;
   
-  // Check if admin
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
-  const { data } = await supabase.from("roles").insert([{ 
+  // Explicitly selecting fields and handling errors
+  const { data, error } = await supabase.from("roles").insert([{ 
     server_id: serverId, 
     name: "New Role", 
     color: "#99aab5", 
-    permissions: { administrator: false, manage_channels: false, kick_members: false, ban_members: false } 
+    permissions: { administrator: false } 
   }]).select().single();
   
+  if (error) return res.json({ success: false, message: error.message });
   res.json({ success: true, role: data });
 }));
 
-app.post("/servers/roles/update", safeRoute(async (req, res) => {
-  const { serverId, userId, roleId, updates } = req.body;
+// ... (keep update and delete routes) ...
+
+// ✅ NEW: Route to Assign Role
+app.post("/servers/roles/assign", safeRoute(async (req, res) => {
+  const { serverId, ownerId, targetUserId, roleId } = req.body;
+
+  // 1. Check if requester is Admin
+  const { data: requester } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", ownerId).single();
+  if (!requester?.is_admin) return res.json({ success: false, message: "No permission" });
+
+  // 2. Assign the role (Update member)
+  const { error } = await supabase.from("members")
+    .update({ role_id: roleId }) // Setting to null removes the role
+    .eq("server_id", serverId)
+    .eq("user_id", targetUserId);
+
+  if (error) return res.json({ success: false, message: error.message });
   
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
-
-  const { data } = await supabase.from("roles").update(updates).eq("id", roleId).select().single();
-  res.json({ success: true, role: data });
-}));
-
-app.post("/servers/roles/delete", safeRoute(async (req, res) => {
-  const { serverId, userId, roleId } = req.body;
-  
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
-
-  await supabase.from("roles").delete().eq("id", roleId);
+  // 3. Notify clients to refresh member list
+  io.emit("server_updated", { serverId });
   res.json({ success: true });
 }));
 
