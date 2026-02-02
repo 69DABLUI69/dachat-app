@@ -432,33 +432,30 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-      // ✅ FIXED SERVER UPDATE LISTENER (ROBUST)
+// ✅ UPDATED: Socket Listener with String conversion to fix type mismatch
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
-          // 1. Always refresh the server list in the sidebar
+          // 1. Refresh server list
           const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
           const serversList = await res.json();
           setServers(serversList);
 
-          // 2. If the updated server is the one we are currently looking at, refresh its details
-          // Using String() conversion to prevent Type Mismatch (number vs string)
+          // 2. Refresh active server details if it matches the update
+          // We cast both IDs to String to ensure strict equality works (e.g. "123" === 123)
           if (active.server && String(active.server.id) === String(serverId)) {
               const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
               
               if (updatedServer) {
-                  // Update the active server metadata (Name/Image) without resetting view
                   setActive((prev: any) => ({ ...prev, server: updatedServer }));
-
-                  // Refresh Channels
+                  
                   const chRes = await fetch(`${BACKEND_URL}/servers/${serverId}/channels`);
                   setChannels(await chRes.json());
-
-                  // Refresh Members
+                  
                   const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
                   setServerMembers(await memRes.json());
-
-                  // Refresh Roles
+                  
+                  // This will refresh the roles list from the DB
                   fetchRoles(serverId);
               }
           }
