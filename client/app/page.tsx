@@ -432,7 +432,7 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-// ✅ UPDATED: Socket Listener with String conversion to fix type mismatch
+// ✅ FIX: Convert IDs to Strings to ensure updates are caught
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
@@ -441,22 +441,24 @@ const saveNotifSettings = async (newSettings: any) => {
           const serversList = await res.json();
           setServers(serversList);
 
-          // 2. Refresh active server details if it matches the update
-          // We cast both IDs to String to ensure strict equality works (e.g. "123" === 123)
+          // 2. Refresh active server details
+          // Comparing as Strings ("123" === "123") fixes the bug where updates were ignored
           if (active.server && String(active.server.id) === String(serverId)) {
               const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
               
               if (updatedServer) {
+                  // Update metadata safely
                   setActive((prev: any) => ({ ...prev, server: updatedServer }));
                   
+                  // Refresh content
                   const chRes = await fetch(`${BACKEND_URL}/servers/${serverId}/channels`);
                   setChannels(await chRes.json());
                   
                   const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
                   setServerMembers(await memRes.json());
                   
-                  // This will refresh the roles list from the DB
-                  fetchRoles(serverId);
+                  // Refresh Roles from DB
+                  fetchRoles(active.server.id);
               }
           }
       });
@@ -515,16 +517,14 @@ const saveNotifSettings = async (newSettings: any) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-  // ✅ UPDATED: Robust fetch with array validation
+// ✅ FIX: Robust fetch that prevents list crashing
   const fetchRoles = async (serverId: number) => {
     try {
         const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`);
         const data = await res.json();
-        // Only update state if we actually got a list back
+        // Ensure we only update if we got a valid array
         if (Array.isArray(data)) {
             setServerRoles(data);
-        } else {
-            console.error("Fetch roles failed, received:", data);
         }
     } catch (e) {
         console.error("Failed to fetch roles", e);
@@ -709,7 +709,7 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
-// ✅ UPDATED: Role Management with Safer State Updates
+// ✅ FIX: Use 'prev' to prevent the list from resetting/wiping out
   const createRole = async () => {
       if (!active.server) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
@@ -719,7 +719,7 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          // Optimistically add to list, ensuring prev is an array
+          // Safe update: Add to existing list instead of overwriting
           setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
           setActiveRole(data.role);
       } else {
@@ -736,6 +736,7 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
+          // Safe update: Find and replace the specific role
           setServerRoles(prev => prev.map(r => r.id === activeRole.id ? data.role : r));
           alert("Role Saved!");
       }
@@ -749,6 +750,7 @@ const saveNotifSettings = async (newSettings: any) => {
           body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id })
       });
       if ((await res.json()).success) {
+          // Safe update: Filter out the deleted role
           setServerRoles(prev => prev.filter(r => r.id !== activeRole.id));
           setActiveRole(null);
       }
@@ -772,7 +774,7 @@ const saveNotifSettings = async (newSettings: any) => {
     if (data.success) {
         alert("Role Updated");
         setContextMenu({ ...contextMenu, visible: false });
-        // Force refresh members to show new color immediately
+        // Manually refresh members to ensure colors update immediately
         const memRes = await fetch(`${BACKEND_URL}/servers/${active.server.id}/members`);
         setServerMembers(await memRes.json());
     } else {
