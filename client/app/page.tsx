@@ -432,33 +432,30 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-// ✅ FIX: Convert IDs to Strings to ensure updates are caught
+// ✅ FIX: Robust Server Update Listener
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
-          // 1. Refresh server list
+          // 1. Always refresh the server list in the sidebar to show new names/icons
           const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
           const serversList = await res.json();
           setServers(serversList);
 
-          // 2. Refresh active server details
-          // Comparing as Strings ("123" === "123") fixes the bug where updates were ignored
+          // 2. If the updated server is the one we are currently looking at, refresh its details GENTLY
+          // We convert to String to avoid "123" vs 123 mismatches
           if (active.server && String(active.server.id) === String(serverId)) {
               const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
               
               if (updatedServer) {
-                  // Update metadata safely
+                  // Update the server metadata (name/icon) without resetting the whole view
                   setActive((prev: any) => ({ ...prev, server: updatedServer }));
-                  
-                  // Refresh content
-                  const chRes = await fetch(`${BACKEND_URL}/servers/${serverId}/channels`);
-                  setChannels(await chRes.json());
-                  
+
+                  // Silently refresh members (to update colors)
                   const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
                   setServerMembers(await memRes.json());
-                  
-                  // Refresh Roles from DB
-                  fetchRoles(active.server.id);
+
+                  // Silently refresh roles (to update the list)
+                  fetchRoles(serverId);
               }
           }
       });
@@ -709,7 +706,7 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
-// ✅ FIX: Use 'prev' to prevent the list from resetting/wiping out
+// ✅ FIX: Safer Create Role
   const createRole = async () => {
       if (!active.server) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
@@ -719,7 +716,7 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          // Safe update: Add to existing list instead of overwriting
+          // Use 'prev' to ensure we append to the latest list state
           setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
           setActiveRole(data.role);
       } else {
@@ -727,6 +724,7 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
+  // ✅ FIX: Safer Update Role
   const updateRole = async () => {
       if (!activeRole) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/update`, {
@@ -736,12 +734,13 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          // Safe update: Find and replace the specific role
+          // Update the specific item in the list
           setServerRoles(prev => prev.map(r => r.id === activeRole.id ? data.role : r));
           alert("Role Saved!");
       }
   };
 
+  // ✅ FIX: Safer Delete Role
   const deleteRole = async () => {
       if (!activeRole || !confirm("Delete this role?")) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/delete`, {
@@ -750,7 +749,7 @@ const saveNotifSettings = async (newSettings: any) => {
           body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id })
       });
       if ((await res.json()).success) {
-          // Safe update: Filter out the deleted role
+          // Filter out the deleted item
           setServerRoles(prev => prev.filter(r => r.id !== activeRole.id));
           setActiveRole(null);
       }
@@ -769,6 +768,18 @@ const saveNotifSettings = async (newSettings: any) => {
             roleId: roleId 
         })
     });
+    
+    const data = await res.json();
+    if (data.success) {
+        alert("Role Updated");
+        setContextMenu({ ...contextMenu, visible: false });
+        // Refresh members to show new color
+        const memRes = await fetch(`${BACKEND_URL}/servers/${active.server.id}/members`);
+        setServerMembers(await memRes.json());
+    } else {
+        alert(data.message);
+    }
+  };
     
     const data = await res.json();
     if (data.success) {
