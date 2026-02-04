@@ -432,32 +432,26 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-      // ✅ SERVER UPDATE FIX (Prevents Reset Loop)
-      socket.on("server_updated", async ({ serverId }) => { 
-          if (!user) return;
+      // Inside useEffect containing socket logic
+socket.on("server_updated", async ({ serverId }) => { 
+    if (!user) return;
 
-          const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
-          const serversList = await res.json();
-          setServers(serversList);
+    // 1. Refresh Server List
+    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
+    const serversList = await res.json();
+    setServers(serversList);
 
-          // Use string comparison for safety
-          if (active.server && String(active.server.id) === String(serverId)) {
-              const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
-              
-              if (updatedServer) {
-                  setActive((prev: any) => ({ ...prev, server: updatedServer }));
-                  
-                  const chRes = await fetch(`${BACKEND_URL}/servers/${serverId}/channels`);
-                  setChannels(await chRes.json());
-                  
-                  const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
-                  setServerMembers(await memRes.json());
-                  
-                  // Refresh roles safely
-                  fetchRoles(serverId);
-              }
-          }
-      });
+    // 2. If we are looking at this server, refresh everything
+    if (active.server && String(active.server.id) === String(serverId)) {
+        
+        // Refresh Members (This gets the new colors/roles)
+        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
+        setServerMembers(await memRes.json());
+        
+        // Refresh Roles (In case a role was edited/deleted)
+        fetchRoles(serverId);
+    }
+});
 
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
@@ -528,11 +522,12 @@ const saveNotifSettings = async (newSettings: any) => {
     }
   };
 
-  const selectServer = async (server: any) => { 
+const selectServer = async (server: any) => { 
       setView("servers"); 
       setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 
       setIsCallExpanded(false); 
       
+      // --- KEEP THIS CHANNEL LOADING CODE ---
       const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); 
       const chData = await res.json(); 
       setChannels(chData); 
@@ -540,10 +535,13 @@ const saveNotifSettings = async (newSettings: any) => {
           const firstText = chData.find((c:any) => c.type === 'text'); 
           if (firstText) joinChannel(firstText); 
       } 
-      
+      // --------------------------------------
+
+      // Fetch Members
       const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); 
       setServerMembers(await memRes.json());
       
+      // ✅ ADD THIS LINE AT THE END:
       fetchRoles(server.id);
   };
 
@@ -1215,28 +1213,31 @@ const saveNotifSettings = async (newSettings: any) => {
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
               <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
-                  {serverMembers.map(m => ( 
-                      <div 
-                          key={m.id} 
-                          onContextMenu={(e) => handleContextMenu(e, 'user', m)} 
-                          onClick={() => viewUserProfile(m.id)} 
-                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"
-                      > 
-                          <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> 
-                          <div className="flex-1 min-w-0"> 
-                              {/* ✅ UPDATED MEMBER LIST VISUALS (Role Color) */}
-                              <div 
-                                  className="text-sm font-bold truncate"
-                                  style={{ color: m.role ? m.role.color : (m.id === active.server.owner_id ? "#eab308" : "rgba(255,255,255,0.8)") }}
-                              >
-                                  {m.username}
-                              </div> 
-                              {m.role && <div className="text-[10px] opacity-50 font-bold">{m.role.name}</div>}
-                          </div> 
-                          {m.id === active.server.owner_id && <span className="animate-pulse">👑</span>} 
-                          {m.is_admin && !m.role && <span>🛡️</span>} 
-                      </div> 
-                  ))}
+{/* Find the Member List mapping section in your JSX */}
+{serverMembers.map(m => ( 
+    <div 
+        key={m.id} 
+        onContextMenu={(e) => handleContextMenu(e, 'user', m)} 
+        onClick={() => viewUserProfile(m.id)} 
+        className="flex items-center gap-3 p-2 rounded-lg hover:bg-white/5 cursor-pointer group transition-all duration-200 hover:translate-x-1"
+    > 
+        <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> 
+        <div className="flex-1 min-w-0"> 
+            {/* COLOR LOGIC APPLIED HERE */}
+            <div 
+                className="text-sm font-bold truncate transition-colors duration-300"
+                style={{ 
+                    color: m.role ? m.role.color : (m.is_admin ? "#eab308" : "rgba(255,255,255,0.7)") 
+                }}
+            >
+                {m.username}
+            </div> 
+            {/* Show Role Name if exists */}
+            {m.role && <div className="text-[10px] opacity-50 font-bold" style={{ color: m.role.color }}>{m.role.name}</div>}
+        </div> 
+        {m.id === active.server.owner_id && <span title="Owner">👑</span>} 
+    </div> 
+))}
               </div>
           </div>
       )}

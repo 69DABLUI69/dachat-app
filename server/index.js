@@ -349,17 +349,26 @@ app.get("/servers/:id/channels", safeRoute(async (req, res) => {
 
 // Find this existing route and update the .select() string
 app.get("/servers/:id/members", safeRoute(async (req, res) => {
-  // We add ", role:roles(*)" to fetch the role details joined on the role_id
-  const { data: members } = await supabase
+  // We strictly join the 'roles' table to get color and name
+  const { data: members, error } = await supabase
     .from("members")
-    .select("is_admin, role_id, role:roles(*), users(*)") 
+    .select(`
+      *,
+      users:users(*),
+      role:roles(*) 
+    `)
     .eq("server_id", req.params.id);
 
-  const formatted = members.map(m => ({ 
-      ...m.users, 
-      is_admin: m.is_admin, 
-      role: m.role // Pass the role object to frontend
+  if (error) return res.json({ success: false, message: error.message });
+
+  // Flatten the structure for the frontend
+  const formatted = members.map(m => ({
+      ...m.users,        // User details (username, avatar)
+      is_admin: m.is_admin,
+      role_id: m.role_id,
+      role: m.role       // The full role object (color, name)
   }));
+  
   res.json(formatted || []);
 }));
 
@@ -435,17 +444,21 @@ app.post("/servers/roles/delete", safeRoute(async (req, res) => {
 app.post("/servers/roles/assign", safeRoute(async (req, res) => {
   const { serverId, ownerId, targetUserId, roleId } = req.body;
 
+  // 1. Check if requester is Admin
   const { data: requester } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", ownerId).single();
   if (!requester?.is_admin) return res.json({ success: false, message: "No permission" });
 
+  // 2. Assign the role (Update member)
   const { error } = await supabase.from("members")
-    .update({ role_id: roleId }) 
+    .update({ role_id: roleId }) // Setting roleId to null removes the role
     .eq("server_id", serverId)
     .eq("user_id", targetUserId);
 
   if (error) return res.json({ success: false, message: error.message });
   
+  // 3. IMPORTANT: Notify all clients to refresh member list (colors)
   io.emit("server_updated", { serverId });
+  
   res.json({ success: true });
 }));
 
