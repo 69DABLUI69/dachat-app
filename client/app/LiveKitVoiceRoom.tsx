@@ -9,75 +9,12 @@ import {
   LayoutContextProvider,
   useTracks,
   VideoTrack,
-  useLocalParticipant,
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Participant, Track, RoomEvent } from "livekit-client";
 
 // ✅ 1. DEFINE BACKEND URL
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || "https://dachat-app.onrender.com";
-
-// --- CUSTOM SCREEN SHARE BUTTON (Forces Audio) ---
-function CustomScreenShareButton() {
-    const { localParticipant } = useLocalParticipant();
-    const [enabled, setEnabled] = useState(false);
-
-    useEffect(() => {
-        if (!localParticipant) return;
-        const updateState = () => setEnabled(localParticipant.isScreenShareEnabled);
-        
-        localParticipant.on('trackPublished', updateState);
-        localParticipant.on('trackUnpublished', updateState);
-        localParticipant.on('localTrackUnpublished', updateState);
-        updateState();
-
-        return () => {
-            localParticipant.off('trackPublished', updateState);
-            localParticipant.off('trackUnpublished', updateState);
-            localParticipant.off('localTrackUnpublished', updateState);
-        };
-    }, [localParticipant]);
-
-    const toggleShare = async () => {
-        if (!localParticipant) return;
-        const newState = !enabled;
-        try {
-            if (newState) {
-                // ⚠️ CRITICAL: Browser Requirement Alert
-                alert("🔊 TO SHARE AUDIO:\n\n1. Select 'Entire Screen' or 'Browser Tab'.\n2. Check the 'Share system audio' box in the bottom-left corner.\n\n(Audio does NOT work with 'Window' selection)");
-                
-                // Simple audio: true is most compatible
-                await localParticipant.setScreenShareEnabled(true, { 
-                    audio: true,
-                    selfBrowserSurface: "include" 
-                });
-            } else {
-                await localParticipant.setScreenShareEnabled(false);
-            }
-            setEnabled(newState);
-        } catch (e) {
-            console.error("Screen Share Error:", e);
-            alert("Failed to share screen. Check permissions.");
-            setEnabled(false);
-        }
-    };
-
-    return (
-        <button 
-            onClick={toggleShare}
-            className={`lk-button-group ${enabled ? 'text-green-500 bg-white/10' : 'text-white hover:bg-white/5'} p-3 rounded-full transition-all flex items-center justify-center`}
-            title="Share Screen (Remember to check 'Share System Audio')"
-        >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M13 3H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-3" />
-                <path d="M8 21h8" />
-                <path d="M12 17v4" />
-                <path d="M17 8l5-5" />
-                <path d="M17 3h5v5" />
-            </svg>
-        </button>
-    );
-}
 
 // 2. Individual User Tile
 function VoiceUserTile({ 
@@ -290,6 +227,8 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
       <LiveKitRoom
         video={true} 
         audio={true}
+        // ✅ ENABLE DEFAULT SCREEN SHARE AUDIO
+        screenShare={{ audio: true, selfBrowserSurface: "include" }}
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
         data-lk-theme="default"
@@ -300,14 +239,12 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
            <MyParticipantGrid>{children}</MyParticipantGrid>
         </div>
 
-        {/* CUSTOM CONTROL BAR */}
+        {/* DEFAULT CONTROL BAR (with screenShare: true) */}
         <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center items-center gap-2">
             <ControlBar 
               variation="minimal" 
-              controls={{ microphone: true, camera: false, screenShare: false, chat: false, settings: true, leave: true }}
+              controls={{ microphone: true, camera: false, screenShare: true, chat: false, settings: true, leave: true }}
             />
-            {/* Custom Audio-Enabled Screen Share Button */}
-            <CustomScreenShareButton />
         </div>
         
         <RoomAudioRenderer />
