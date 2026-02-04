@@ -9,6 +9,7 @@ import {
   LayoutContextProvider,
   useTracks,
   VideoTrack,
+  TrackToggle,  // ✅ Import TrackToggle
 } from "@livekit/components-react";
 import "@livekit/components-styles";
 import { Participant, Track, RoomEvent } from "livekit-client";
@@ -227,8 +228,7 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
       <LiveKitRoom
         video={true} 
         audio={true}
-        // ✅ ENABLE DEFAULT SCREEN SHARE AUDIO
-        screenShare={{ audio: true, selfBrowserSurface: "include" }}
+        // ❌ REMOVED INVALID PROP: screenShare={{...}} 
         token={token}
         serverUrl={process.env.NEXT_PUBLIC_LIVEKIT_URL}
         data-lk-theme="default"
@@ -239,12 +239,29 @@ export default function LiveKitVoiceRoom({ room, user, onLeave, children }: any)
            <MyParticipantGrid>{children}</MyParticipantGrid>
         </div>
 
-        {/* DEFAULT CONTROL BAR (with screenShare: true) */}
+        {/* ✅ CUSTOMIZED CONTROL BAR */}
         <div className="bg-[#1e1f22] p-3 border-t border-black/20 flex justify-center items-center gap-2">
-            <ControlBar 
-              variation="minimal" 
-              controls={{ microphone: true, camera: false, screenShare: true, chat: false, settings: true, leave: true }}
-            />
+            <div className="flex items-center gap-2">
+                {/* 1. Standard Control Bar (Hiding Default Screen Share) */}
+                <ControlBar 
+                  variation="minimal" 
+                  controls={{ 
+                      microphone: true, 
+                      camera: false, 
+                      screenShare: false, // 🚫 HIDE DEFAULT (No Audio Support)
+                      chat: false, 
+                      settings: true, 
+                      leave: true 
+                  }}
+                />
+                
+                {/* 2. OUR CUSTOM CONFIGURED DEFAULT BUTTON (With Audio!) */}
+                <TrackToggle 
+                    source={Track.Source.ScreenShare}
+                    captureOptions={{ audio: true, selfBrowserSurface: "include" }}
+                    showIcon={true}
+                />
+            </div>
         </div>
         
         <RoomAudioRenderer />
