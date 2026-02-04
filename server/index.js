@@ -462,27 +462,6 @@ app.post("/servers/roles/assign", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-// ✅ NEW: Route to Assign Role
-app.post("/servers/roles/assign", safeRoute(async (req, res) => {
-  const { serverId, ownerId, targetUserId, roleId } = req.body;
-
-  // 1. Check if requester is Admin
-  const { data: requester } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", ownerId).single();
-  if (!requester?.is_admin) return res.json({ success: false, message: "No permission" });
-
-  // 2. Assign the role (Update member)
-  const { error } = await supabase.from("members")
-    .update({ role_id: roleId }) // Setting to null removes the role
-    .eq("server_id", serverId)
-    .eq("user_id", targetUserId);
-
-  if (error) return res.json({ success: false, message: error.message });
-  
-  // 3. Notify clients to refresh member list
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
-}));
-
 // ==============================================================================
 // 🎵 AUDIO & INTEGRATIONS
 // ==============================================================================
