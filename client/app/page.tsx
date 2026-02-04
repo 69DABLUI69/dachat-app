@@ -432,29 +432,28 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-// ✅ FIX: Robust Server Update Listener
+      // ✅ SERVER UPDATE FIX (Prevents Reset Loop)
       socket.on("server_updated", async ({ serverId }) => { 
           if (!user) return;
 
-          // 1. Always refresh the server list in the sidebar to show new names/icons
           const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
           const serversList = await res.json();
           setServers(serversList);
 
-          // 2. If the updated server is the one we are currently looking at, refresh its details GENTLY
-          // We convert to String to avoid "123" vs 123 mismatches
+          // Use string comparison for safety
           if (active.server && String(active.server.id) === String(serverId)) {
               const updatedServer = serversList.find((s: any) => String(s.id) === String(serverId));
               
               if (updatedServer) {
-                  // Update the server metadata (name/icon) without resetting the whole view
                   setActive((prev: any) => ({ ...prev, server: updatedServer }));
-
-                  // Silently refresh members (to update colors)
+                  
+                  const chRes = await fetch(`${BACKEND_URL}/servers/${serverId}/channels`);
+                  setChannels(await chRes.json());
+                  
                   const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
                   setServerMembers(await memRes.json());
-
-                  // Silently refresh roles (to update the list)
+                  
+                  // Refresh roles safely
                   fetchRoles(serverId);
               }
           }
@@ -514,14 +513,15 @@ const saveNotifSettings = async (newSettings: any) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-// ✅ FIX: Robust fetch that prevents list crashing
+  // ✅ FIX: Robust Role Fetcher
   const fetchRoles = async (serverId: number) => {
     try {
         const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`);
         const data = await res.json();
-        // Ensure we only update if we got a valid array
         if (Array.isArray(data)) {
             setServerRoles(data);
+        } else {
+            console.error("Fetch roles invalid response:", data);
         }
     } catch (e) {
         console.error("Failed to fetch roles", e);
@@ -544,7 +544,6 @@ const saveNotifSettings = async (newSettings: any) => {
       const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); 
       setServerMembers(await memRes.json());
       
-      // ✅ Fetch Roles immediately on selection
       fetchRoles(server.id);
   };
 
@@ -668,7 +667,6 @@ const saveNotifSettings = async (newSettings: any) => {
       try {
           let finalImg = serverEditForm.imageUrl; 
           
-          // Handle Image Upload
           if (newServerFile) { 
               const formData = new FormData(); 
               formData.append("file", newServerFile); 
@@ -678,7 +676,6 @@ const saveNotifSettings = async (newSettings: any) => {
               finalImg = data.fileUrl; 
           } 
           
-          // Send Update Request
           const res = await fetch(`${BACKEND_URL}/servers/update`, { 
               method: "POST", 
               headers: { "Content-Type": "application/json" }, 
@@ -706,7 +703,7 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
-// ✅ FIX: Safer Create Role
+  // ✅ FIX: Use 'prev' to prevent the list from resetting/wiping out
   const createRole = async () => {
       if (!active.server) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
@@ -716,7 +713,6 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          // Use 'prev' to ensure we append to the latest list state
           setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
           setActiveRole(data.role);
       } else {
@@ -724,7 +720,6 @@ const saveNotifSettings = async (newSettings: any) => {
       }
   };
 
-  // ✅ FIX: Safer Update Role
   const updateRole = async () => {
       if (!activeRole) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/update`, {
@@ -734,13 +729,11 @@ const saveNotifSettings = async (newSettings: any) => {
       });
       const data = await res.json();
       if (data.success) {
-          // Update the specific item in the list
           setServerRoles(prev => prev.map(r => r.id === activeRole.id ? data.role : r));
           alert("Role Saved!");
       }
   };
 
-  // ✅ FIX: Safer Delete Role
   const deleteRole = async () => {
       if (!activeRole || !confirm("Delete this role?")) return;
       const res = await fetch(`${BACKEND_URL}/servers/roles/delete`, {
@@ -749,7 +742,6 @@ const saveNotifSettings = async (newSettings: any) => {
           body: JSON.stringify({ serverId: active.server.id, userId: user.id, roleId: activeRole.id })
       });
       if ((await res.json()).success) {
-          // Filter out the deleted item
           setServerRoles(prev => prev.filter(r => r.id !== activeRole.id));
           setActiveRole(null);
       }
@@ -768,18 +760,6 @@ const saveNotifSettings = async (newSettings: any) => {
             roleId: roleId 
         })
     });
-    
-    const data = await res.json();
-    if (data.success) {
-        alert("Role Updated");
-        setContextMenu({ ...contextMenu, visible: false });
-        // Refresh members to show new color
-        const memRes = await fetch(`${BACKEND_URL}/servers/${active.server.id}/members`);
-        setServerMembers(await memRes.json());
-    } else {
-        alert(data.message);
-    }
-  };
     
     const data = await res.json();
     if (data.success) {
