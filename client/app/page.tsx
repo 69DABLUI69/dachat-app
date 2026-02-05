@@ -460,19 +460,20 @@ const saveNotifSettings = async (newSettings: any) => {
 socket.on("server_updated", async ({ serverId }) => { 
     if (!user) return;
 
-    // 1. Refresh Server List
-    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
+    // 1. Refresh Server List (Sidebar)
+    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`, { cache: 'no-store' });
     const serversList = await res.json();
     setServers(serversList);
 
-    // 2. If we are looking at this server, refresh everything
+    // 2. If we are looking at this server, refresh Members and Roles
     if (active.server && String(active.server.id) === String(serverId)) {
         
-        // Refresh Members (This gets the new colors/roles)
-        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
+        // Refresh Members (To update colors)
+        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`, { cache: 'no-store' });
         setServerMembers(await memRes.json());
         
-        // Refresh Roles (In case a role was edited/deleted)
+        // Refresh Roles (To update settings list)
+        // This will now hit the network instead of cache
         fetchRoles(serverId);
     }
 });
@@ -567,22 +568,28 @@ socket.on("server_updated", async ({ serverId }) => {
   
 // ✅ FIX 1: Robust Role Fetcher with Cache Busting
   const fetchRoles = async (serverId: number) => {
-    try {
-        // We add { cache: 'no-store' } to ensure we always get the fresh list from the DB
-        const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`, { 
-            cache: 'no-store',
-            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
-        });
-        const data = await res.json();
-        if (Array.isArray(data)) {
-            setServerRoles(data);
-        } else {
-            console.error("Fetch roles invalid response:", data);
-        }
-    } catch (e) {
-        console.error("Failed to fetch roles", e);
-    }
-  };
+  try {
+      // We add { cache: 'no-store' } to ensure we always get the fresh list from the DB
+      // We also add unique query params to force the browser to bypass cache
+      const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?t=${Date.now()}`, { 
+          cache: 'no-store',
+          headers: { 
+              'Pragma': 'no-cache', 
+              'Cache-Control': 'no-cache, no-store, must-revalidate' 
+          }
+      });
+      const data = await res.json();
+      
+      if (Array.isArray(data)) {
+          setServerRoles(data);
+      } else {
+          console.error("Fetch roles invalid response:", data);
+          setServerRoles([]); // Safety fallback
+      }
+  } catch (e) {
+      console.error("Failed to fetch roles", e);
+  }
+};
 
 const selectServer = async (server: any) => { 
       setView("servers"); 
@@ -888,31 +895,34 @@ const selectServer = async (server: any) => {
       }
   };
 
-  // ✅ FIX: Use 'prev' to prevent the list from resetting/wiping out
 const createRole = async () => {
-      if (!active.server) return;
-      try {
-          const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ serverId: active.server.id, userId: user.id })
-          });
-          const data = await res.json();
-          
-          if (data.success) {
-              // Optimistically add the role immediately
-              setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
-              setActiveRole(data.role);
-              
-              // Note: The socket event will fire shortly after and call fetchRoles.
-              // Since we fixed fetchRoles to ignore cache, it will confirm this data.
-          } else {
-              alert(data.message);
-          }
-      } catch (err) {
-          console.error("Error creating role:", err);
-      }
-  };
+    if (!active.server) return;
+    try {
+        const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ serverId: active.server.id, userId: user.id })
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            // Optimistically add the role immediately so it feels instant
+            setServerRoles(prev => {
+                const current = Array.isArray(prev) ? prev : [];
+                return [...current, data.role];
+            });
+            setActiveRole(data.role);
+            
+            // Explicitly fetch fresh data to confirm consistency
+            // (The socket event will also trigger this, but double-checking is safer here)
+            fetchRoles(active.server.id);
+        } else {
+            alert(data.message || "Failed to create role");
+        }
+    } catch (err) {
+        console.error("Error creating role:", err);
+    }
+};
 
   const updateRole = async () => {
       if (!activeRole) return;
