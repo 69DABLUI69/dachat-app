@@ -160,6 +160,7 @@ export default function DaChat() {
   const [isSubmittingBug, setIsSubmittingBug] = useState(false);
 
   const [serverSettingsTab, setServerSettingsTab] = useState("overview"); 
+  const ringtoneInputRef = useRef<HTMLInputElement>(null);
 
   // Role Management State
   const [serverRoles, setServerRoles] = useState<any[]>([]);
@@ -636,6 +637,51 @@ const selectServer = async (server: any) => {
   const handleContextMenu = (e: React.MouseEvent, type: 'message' | 'user', data: any) => { e.preventDefault(); setContextMenu({ visible: true, x: e.pageX, y: e.pageY, type, data }); };
   const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
+  
+  // 🎵 NEW: Handle Ringtone Upload
+  const handleRingtoneUpload = async (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('audio/')) {
+        alert("Please upload an audio file (MP3, WAV, etc.)");
+        return;
+    }
+
+    try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+        const data = await res.json();
+
+        if (data.success) {
+            const newRingtoneUrl = data.fileUrl;
+            setSelectedRingtone(newRingtoneUrl);
+            localStorage.setItem("dachat_ringtone", newRingtoneUrl);
+            const audio = new Audio(newRingtoneUrl);
+            audio.volume = 0.5;
+            audio.play().catch(() => {});
+            alert("Custom ringtone set!");
+        } else {
+            alert("Upload failed: " + (data.message || "Unknown error"));
+        }
+    } catch (err) {
+        alert("Error uploading ringtone.");
+        console.error(err);
+    }
+  };
+
+  // 🎵 NEW: Reset to Default
+  const resetRingtone = () => {
+    const defaultTone = RINGTONES[0].url; 
+    setSelectedRingtone(defaultTone);
+    localStorage.setItem("dachat_ringtone", defaultTone);
+    const audio = new Audio(defaultTone);
+    audio.volume = 0.5;
+    audio.play().catch(() => {});
+  };
+
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
@@ -1327,12 +1373,71 @@ const selectServer = async (server: any) => {
                                         <option value="zh">中文 (Chinese)</option> 
                                     </select> 
                                 </div> 
-                                <div className="space-y-1"> 
+                                
+                                {/* 🎵 UPDATED RINGTONE UI */}
+                                <div className="space-y-2"> 
                                     <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
-                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={selectedRingtone} onChange={(e) => { const newTone = e.target.value; setSelectedRingtone(newTone); localStorage.setItem("dachat_ringtone", newTone); const audio = new Audio(newTone); audio.volume = 0.5; audio.play(); }}> 
-                                        {RINGTONES.map(r => ( <option key={r.url} value={r.url}>{r.name}</option> ))} 
-                                    </select> 
-                                </div> 
+                                    
+                                    <div className="flex flex-col gap-2">
+                                        {/* Hidden File Input */}
+                                        <input 
+                                            type="file" 
+                                            ref={ringtoneInputRef} 
+                                            className="hidden" 
+                                            accept="audio/*" 
+                                            onChange={handleRingtoneUpload} 
+                                        />
+
+                                        {/* Current Ringtone Display */}
+                                        <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10">
+                                            <div className="flex items-center gap-3 overflow-hidden">
+                                                <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                    🎵
+                                                </div>
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-sm font-bold truncate text-white">
+                                                        {RINGTONES.find(r => r.url === selectedRingtone)?.name || "Custom Audio File"}
+                                                    </span>
+                                                    <span className="text-[10px] text-white/40 truncate">
+                                                        {RINGTONES.some(r => r.url === selectedRingtone) ? "System Default" : "Uploaded by you"}
+                                                    </span>
+                                                </div>
+                                            </div>
+
+                                            {/* Play/Preview Button (Small) */}
+                                            <button 
+                                                onClick={() => {
+                                                    const audio = new Audio(selectedRingtone);
+                                                    audio.volume = 0.5;
+                                                    audio.play().catch(console.error);
+                                                }}
+                                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
+                                                title="Preview"
+                                            >
+                                                ▶
+                                            </button>
+                                        </div>
+
+                                        {/* Action Buttons */}
+                                        <div className="flex gap-2 mt-1">
+                                            <button 
+                                                onClick={() => ringtoneInputRef.current?.click()} 
+                                                className="flex-1 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-xs font-bold rounded-lg border border-indigo-500/30 transition-all active:scale-95"
+                                            >
+                                                Upload New
+                                            </button>
+                                            
+                                            {selectedRingtone !== RINGTONES[0].url && (
+                                                <button 
+                                                    onClick={resetRingtone} 
+                                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg border border-red-500/20 transition-all active:scale-95"
+                                                >
+                                                    Reset
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
                           </div>
 
