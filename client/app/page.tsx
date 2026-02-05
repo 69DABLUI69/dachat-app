@@ -34,6 +34,7 @@ const TRANSLATIONS: any = {
   }
 };
 
+// 🎵 DEFAULT SOUNDS (Immutable Fallback)
 const SOUNDS = [
     { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
     { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
@@ -44,7 +45,7 @@ const SOUNDS = [
 const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 20(si ceva) ?"];
 const APP_VERSION = "1.4.0"; 
 const WHATS_NEW = ["📝 Message Editing & Replies", "🎭 Voice Soundboard", "📂 Server Categories", "✨ Markdown Support"];
-const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3"}];
+const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
 
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
@@ -166,6 +167,10 @@ export default function DaChat() {
   const [serverRoles, setServerRoles] = useState<any[]>([]);
   const [activeRole, setActiveRole] = useState<any>(null);
 
+  // 🎵 NEW: Soundboard State & Ref
+  const [soundboard, setSoundboard] = useState(SOUNDS);
+  const soundInputRef = useRef<HTMLInputElement>(null);
+
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
 
@@ -220,6 +225,12 @@ export default function DaChat() {
 
           const storedVersion = localStorage.getItem("dachat_version");
           if (storedVersion !== APP_VERSION) setShowChangelog(true);
+
+          // 🎵 LOAD CUSTOM SOUNDS
+          const savedSounds = localStorage.getItem("dachat_custom_sounds");
+          if (savedSounds) {
+              setSoundboard(prev => [...prev, ...JSON.parse(savedSounds)]);
+          }
       } 
   }, []);
 
@@ -412,10 +423,19 @@ const saveNotifSettings = async (newSettings: any) => {
           setChatHistory(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, content: updatedMsg.content, is_edited: true } : m));
       });
 
+      // 🎵 UPDATED: Trigger Sound Listener (Handles Custom Sounds)
       socket.on("trigger_sound", ({ soundId }) => {
-          const sound = SOUNDS.find(s => s.id === soundId);
-          if (sound) {
-              const audio = new Audio(sound.file);
+          // 1. Check Default Sounds
+          let foundSound = SOUNDS.find(s => s.id === soundId);
+          
+          // 2. If not found, check Custom Sounds from LocalStorage
+          if (!foundSound) {
+              const custom = JSON.parse(localStorage.getItem("dachat_custom_sounds") || "[]");
+              foundSound = custom.find((s:any) => s.id === soundId);
+          }
+
+          if (foundSound) {
+              const audio = new Audio(foundSound.file);
               audio.volume = 0.5;
               audio.play().catch(e => console.log("Audio play blocked", e));
           }
@@ -699,6 +719,66 @@ const selectServer = async (server: any) => {
     setSelectedRingtone(defaultTone);
     localStorage.setItem("dachat_ringtone", defaultTone);
     playPreview(defaultTone);
+  };
+
+  // 🎵 NEW: Soundboard Upload Logic
+  const handleSoundUpload = async (e: any) => {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      if (!file.type.startsWith('audio/')) {
+          alert("Please upload an audio file (MP3, WAV, etc.)");
+          return;
+      }
+
+      // Ask for an emoji/name
+      const name = prompt("Name this sound (or emoji):", "🔊");
+      if (!name) return;
+
+      try {
+          const formData = new FormData();
+          formData.append("file", file);
+
+          const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData });
+          const data = await res.json();
+
+          if (data.success) {
+              const newSound = { 
+                  id: `custom_${Date.now()}`, 
+                  emoji: name, 
+                  file: data.fileUrl,
+                  isCustom: true // Flag to allow deletion
+              };
+
+              // Update State
+              setSoundboard(prev => {
+                  const updated = [...prev, newSound];
+                  // Save ONLY custom sounds to local storage
+                  const customOnly = updated.filter((s:any) => s.isCustom);
+                  localStorage.setItem("dachat_custom_sounds", JSON.stringify(customOnly));
+                  return updated;
+              });
+              
+              alert("Sound added to soundboard!");
+          } else {
+              alert("Upload failed.");
+          }
+      } catch (err) {
+          console.error(err);
+          alert("Error uploading sound.");
+      }
+  };
+
+  // 🎵 NEW: Delete Custom Sound Logic
+  const deleteCustomSound = (soundId: string) => {
+      if(!confirm("Remove this custom sound?")) return;
+      
+      setSoundboard(prev => {
+          const updated = prev.filter(s => s.id !== soundId);
+          const customOnly = updated.filter((s:any) => s.isCustom);
+          localStorage.setItem("dachat_custom_sounds", JSON.stringify(customOnly));
+          return updated;
+      });
   };
 
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
@@ -1230,18 +1310,52 @@ const selectServer = async (server: any) => {
                      </div>
                  </div>
 
+                 {/* 🎵 UPDATED: Soundboard UI with Upload & Delete */}
                  {showSoundboard && (
-                    <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-2xl p-4 w-72 animate-in zoom-in-95 shadow-2xl">
+                    <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-2xl p-4 w-72 animate-in zoom-in-95 shadow-2xl max-h-[60vh] flex flex-col">
                         <div className="flex justify-between items-center mb-3">
                             <span className="text-xs font-bold text-white/50 uppercase tracking-widest">Soundboard</span>
                             <button onClick={() => setShowSoundboard(false)} className="text-white/50 hover:text-white">✕</button>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
-                            {SOUNDS.map(s => (
-                                <button key={s.id} onClick={() => playSoundEffect(s.id)} className="aspect-square bg-black/40 hover:bg-white/10 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-white/5 hover:border-indigo-500/50">
-                                    {s.emoji}
+                        
+                        {/* Hidden Input for Upload */}
+                        <input 
+                            type="file" 
+                            ref={soundInputRef} 
+                            className="hidden" 
+                            accept="audio/*" 
+                            onChange={handleSoundUpload} 
+                        />
+
+                        <div className="grid grid-cols-3 gap-2 overflow-y-auto custom-scrollbar pr-1">
+                            {/* Render All Sounds */}
+                            {soundboard.map(s => (
+                                <button 
+                                    key={s.id} 
+                                    onClick={() => playSoundEffect(s.id)}
+                                    onContextMenu={(e) => {
+                                        // Right-click to delete custom sounds
+                                        if((s as any).isCustom) {
+                                            e.preventDefault();
+                                            deleteCustomSound(s.id);
+                                        }
+                                    }} 
+                                    className="aspect-square bg-black/40 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 border border-white/5 hover:border-indigo-500/50 group relative"
+                                    title={s.emoji + ((s as any).isCustom ? " (Right-click to delete)" : "")}
+                                >
+                                    <span className="text-2xl">{s.emoji.substring(0, 2)}</span>
+                                    {(s as any).isCustom && <span className="text-[8px] text-white/30 absolute bottom-1">★</span>}
                                 </button>
                             ))}
+
+                            {/* Add New Button */}
+                            <button 
+                                onClick={() => soundInputRef.current?.click()}
+                                className="aspect-square bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-200 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-indigo-500/30 border-dashed"
+                                title="Add Custom Sound"
+                            >
+                                +
+                            </button>
                         </div>
                     </div>
                  )}
@@ -1304,451 +1418,6 @@ const selectServer = async (server: any) => {
     </div> 
 ))}
               </div>
-          </div>
-      )}
-
-      {incomingCall && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
-              <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
-                  <div className="relative"> <div className="absolute inset-0 bg-blue-500/30 blur-[60px] rounded-full animate-pulse-slow"></div> <UserAvatar src={incomingCall.avatarUrl} className="w-40 h-40 rounded-full border-4 border-white/20 shadow-2xl relative z-10 animate-bounce-slow" /> </div>
-                  <div className="text-center z-10"> <h2 className="text-3xl font-bold text-white mb-2">{incomingCall.senderName}</h2> <p className="text-white/50 text-lg animate-pulse">{t('call_incoming')}</p> </div>
-                  <div className="flex gap-8 z-10"> <button onClick={rejectCall} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(220,38,38,0.4)] active:scale-95"> <span className="text-2xl">📞</span> </button> <button onClick={answerCall} className="w-16 h-16 rounded-full bg-green-600 hover:bg-green-500 flex items-center justify-center transition-transform hover:scale-110 shadow-[0_0_30px_rgba(22,163,74,0.4)] active:scale-95 animate-wiggle"> <span className="text-2xl">📞</span> </button> </div>
-              </div>
-          </div>
-      )}
-
-      {viewingProfile && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300" onClick={() => setViewingProfile(null)}>
-              <GlassPanel className="w-full max-w-md p-8 flex flex-col items-center relative animate-in zoom-in-95 slide-in-from-bottom-8 duration-300" onClick={(e:any)=>e.stopPropagation()}>
-                  <UserAvatar src={viewingProfile.avatar_url} className="w-24 h-24 rounded-full mb-4 border-4 border-white/10 hover:scale-105 transition-transform" />
-                  <h2 className="text-2xl font-bold">{viewingProfile.username}</h2>
-                  <p className="text-white/50 text-sm mt-2 text-center">{viewingProfile.bio || "No bio set."}</p>
-                  {friends.some((f: any) => f.id === viewingProfile.id) && <button onClick={() => handleRemoveFriend(viewingProfile.id)} className="mt-6 w-full py-2 bg-red-500/20 text-red-400 rounded-lg font-bold hover:bg-red-500/30 transition-all hover:scale-105">{t('ctx_remove')}</button>}
-                  {active.server && isOwner && viewingProfile.id !== user.id && serverMembers.some((m:any) => m.id === viewingProfile.id) && ( <div className="mt-4 w-full space-y-2 pt-4 border-t border-white/10"> <div className="text-[10px] uppercase text-white/30 font-bold text-center mb-2">Owner Actions</div> <button onClick={() => promoteMember(viewingProfile.id)} className="w-full py-2 bg-blue-500/20 text-blue-300 rounded-lg font-bold text-sm hover:bg-blue-500/30 transition-all hover:scale-105">Toggle Moderator</button> </div> )}
-              </GlassPanel>
-          </div>
-      )}
-
-      {showChangelog && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/90 backdrop-blur-xl p-4 animate-in fade-in duration-500">
-              <GlassPanel className="w-full max-w-sm p-8 flex flex-col items-center text-center border-2 border-indigo-500/50 shadow-[0_0_50px_rgba(99,102,241,0.3)]">
-                  <div className="w-20 h-20 bg-indigo-500 rounded-full flex items-center justify-center text-4xl mb-6 shadow-lg animate-bounce"> 🚀 </div>
-                  <h2 className="text-2xl font-bold text-white mb-1">Update Available!</h2>
-                  <p className="text-indigo-300 text-sm font-mono mb-6">v{APP_VERSION}</p>
-                  <div className="w-full bg-white/5 rounded-xl p-4 text-left space-y-3 mb-6 border border-white/5"> {WHATS_NEW.map((item, i) => ( <div key={i} className="flex gap-3 text-sm text-white/80"> <span className="text-indigo-400">➤</span> {item} </div> ))} </div>
-                  <button onClick={closeChangelog} className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl font-bold transition-all hover:scale-105 active:scale-95 shadow-lg"> Awesome, Let's Go! </button>
-              </GlassPanel>
-          </div>
-      )}
-
-      {showSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-3xl p-8 flex flex-col gap-6 animate-in zoom-in-95 slide-in-from-bottom-8 duration-300 relative max-h-[90vh] overflow-y-auto custom-scrollbar">
-                  {showSettingsGifPicker && ( <div className="absolute inset-0 z-60 bg-[#050505] flex flex-col rounded-4xl overflow-hidden animate-in fade-in duration-200"> <GifPicker className="w-full h-full bg-transparent shadow-none border-none flex flex-col" onClose={() => setShowSettingsGifPicker(false)} onSelect={(url: string) => { setEditForm({ ...editForm, avatarUrl: url }); setNewAvatarFile(null); setShowSettingsGifPicker(false);}}/> </div> )}
-                  <h2 className="text-2xl font-bold mb-2">{t('set_header')}</h2>
-                  
-                  <div> 
-                    <h3 className="text-xs font-bold text-white/40 uppercase mb-4 tracking-wider">User Profile</h3> 
-                    <div className="flex flex-col md:flex-row gap-6 items-start"> 
-                      <div className="flex flex-col items-center gap-3 shrink-0 mx-auto md:mx-0"> 
-                        <UserAvatar src={newAvatarFile ? URL.createObjectURL(newAvatarFile) : editForm.avatarUrl} className="w-24 h-24 rounded-full border-4 border-white/5 hover:border-white/20 transition-all hover:scale-105 cursor-pointer" onClick={()=>(document.getElementById('pUpload') as any).click()} /> 
-                        <div className="flex flex-col gap-2 w-full">
-                          <button onClick={() => setShowReportBug(true)} className="text-xs w-full py-3 bg-red-500/10 text-red-400 rounded-xl font-bold border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center justify-center gap-2 mt-4">
-                            Report a Bug
-                          </button> 
-                          <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> 
-                          <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> 
-                          <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> 
-                        </div> 
-                        <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> 
-                      </div> 
-                      <div className="flex-1 w-full flex flex-col gap-4"> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
-                      </div> 
-                    </div> 
-                  </div>
-
-                  <div className="h-px bg-white/10 w-full" />
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <div className="space-y-8"> 
-                          <div className="space-y-4">
-                            <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> 
-                            <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
-                                <div className="space-y-1"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> 
-                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > 
-                                        <option value="en">English (Default)</option> 
-                                        <option value="ro">Română (Romanian)</option> 
-                                        <option value="de">Deutsch (German)</option> 
-                                        <option value="pl">Polski (Polish)</option> 
-                                        <option value="it">Italiano (Italian)</option> 
-                                        <option value="es">Español (Spanish)</option> 
-                                        <option value="pt">Português (Portuguese)</option> 
-                                        <option value="sv">Svenska (Swedish)</option> 
-                                        <option value="bg">Български (Bulgarian)</option> 
-                                        <option value="jp">日本語 (Japanese)</option> 
-                                        <option value="zh">中文 (Chinese)</option> 
-                                    </select> 
-                                </div> 
-                                
-                                {/* 🎵 UPDATED RINGTONE UI */}
-                                <div className="space-y-2"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
-                                    
-                                    <div className="flex flex-col gap-2">
-                                        {/* Hidden File Input */}
-                                        <input 
-                                            type="file" 
-                                            ref={ringtoneInputRef} 
-                                            className="hidden" 
-                                            accept="audio/*" 
-                                            onChange={handleRingtoneUpload} 
-                                        />
-
-                                        {/* Current Ringtone Display */}
-                                        <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
-                                                    🎵
-                                                </div>
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-sm font-bold truncate text-white">
-                                                        {RINGTONES.find(r => r.url === selectedRingtone)?.name || "Custom Audio File"}
-                                                    </span>
-                                                    <span className="text-[10px] text-white/40 truncate">
-                                                        {RINGTONES.some(r => r.url === selectedRingtone) ? "System Default" : "Uploaded by you"}
-                                                    </span>
-                                                </div>
-                                            </div>
-
-                                            {/* ✨ UPDATED: Play/Stop Toggle Button */}
-                                            <button 
-                                                onClick={() => isPreviewing ? stopPreview() : playPreview(selectedRingtone)}
-                                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${
-                                                    isPreviewing 
-                                                    ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-110" 
-                                                    : "hover:bg-white/10 text-white/60 hover:text-white"
-                                                }`}
-                                                title={isPreviewing ? "Stop Preview" : "Play Preview"}
-                                            >
-                                                {isPreviewing ? "■" : "▶"}
-                                            </button>
-                                        </div>
-
-                                        {/* Action Buttons */}
-                                        <div className="flex gap-2 mt-1">
-                                            <button 
-                                                onClick={() => ringtoneInputRef.current?.click()} 
-                                                className="flex-1 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-xs font-bold rounded-lg border border-indigo-500/30 transition-all active:scale-95"
-                                            >
-                                                Upload New
-                                            </button>
-                                            
-                                            {selectedRingtone !== RINGTONES[0].url && (
-                                                <button 
-                                                    onClick={resetRingtone} 
-                                                    className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg border border-red-500/20 transition-all active:scale-95"
-                                                >
-                                                    Reset
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                          </div>
-
-                          <div className="space-y-4">
-                              <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Notification Settings</h3>
-                              <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-6">
-                                  <div className="flex justify-between items-center">
-                                      <div className="flex flex-col">
-                                          <span className="text-sm font-bold">Enable Desktop Notifications</span>
-                                          <span className="text-[10px] text-white/40 max-w-[250px]">Get system alerts for new messages even when the app is in the background.</span>
-                                      </div>
-                                      <button 
-                                          onClick={() => {
-                                              if ("Notification" in window && Notification.permission !== "granted") {
-                                                  Notification.requestPermission();
-                                              }
-                                              saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
-                                          }}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                      >
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
-                                      </button>
-                                  </div>
-
-                                  <div className="flex justify-between items-center">
-                                      <span className="text-sm">People I know start streaming</span>
-                                      <button 
-                                          onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
-                                      >
-                                          <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
-                                      </button>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                      <label className="text-sm">Someone reacts to my messages</label>
-                                      <select 
-                                          className="w-full bg-black/40 p-2 rounded-lg text-sm border border-white/10 text-white outline-none"
-                                          value={notifSettings.reaction_notifications}
-                                          onChange={(e) => saveNotifSettings({...notifSettings, reaction_notifications: e.target.value})}
-                                      >
-                                          <option value="all">All Messages</option>
-                                          <option value="mentions">Only Mentions</option>
-                                          <option value="none">Nothing</option>
-                                      </select>
-                                  </div>
-                              </div>
-                          </div>
-                      </div>
-
-                      <div className="space-y-4"> 
-                        <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Security</h3> 
-                        <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
-                            <div className="flex justify-between items-center"> 
-                                <span className="font-bold text-sm">{t('set_2fa')}</span> 
-                                <span className={`text-[10px] px-2 py-1 rounded border ${user.is_2fa_enabled ? "border-green-500 text-green-400" : "border-red-500 text-red-400"}`}> {user.is_2fa_enabled ? "ENABLED" : "DISABLED"} </span> 
-                            </div> 
-                            {!user.is_2fa_enabled && setupStep === 0 && <button onClick={start2FASetup} className="w-full py-2 bg-blue-600/20 text-blue-400 text-xs font-bold rounded-lg hover:bg-blue-600/30 transition-colors">{t('set_setup_2fa')}</button>} 
-                            {setupStep === 1 && ( 
-                                <div className="flex flex-col items-center gap-3 animate-in fade-in"> 
-                                    <img src={qrCodeUrl} className="w-24 h-24 rounded-lg border-2 border-white" /> 
-                                    <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm" placeholder="123456" maxLength={6} onChange={(e) => setTwoFACode(e.target.value)}/> 
-                                    <button onClick={verify2FASetup} className="w-full py-2 bg-green-600 text-white text-xs font-bold rounded">{t('set_verify')}</button> 
-                                </div> 
-                            )} 
-                            {user.is_2fa_enabled && ( 
-                                <div className="pt-2 border-t border-white/10"> 
-                                    <div className="flex justify-between items-center cursor-pointer hover:opacity-80" onClick={() => setShowPassChange(!showPassChange)}> 
-                                        <span className="font-bold text-sm text-yellow-500">{t('set_pass_change')}</span> 
-                                        <span className="text-white/50 text-xs">{showPassChange ? "▼" : "▶"}</span> 
-                                    </div> 
-                                    {showPassChange && ( 
-                                        <div className="flex flex-col gap-3 animate-in fade-in pt-3"> 
-                                            <div className="relative"> 
-                                                <input type={showNewPassword ? "text" : "password"} className="w-full bg-black/40 p-2 rounded text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none pr-10" placeholder={t('set_new_pass')} value={passChangeForm.newPassword} onChange={(e) => setPassChangeForm({...passChangeForm, newPassword: e.target.value})} /> 
-                                                <button type="button" onClick={() => setShowNewPassword(!showNewPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xs">{showNewPassword ? "🙈" : "👁️"}</button> 
-                                            </div> 
-                                            <input className="w-full bg-black/40 p-2 text-center rounded font-mono text-sm text-white placeholder-white/30 border border-white/5 focus:border-yellow-500/50 outline-none" placeholder="Auth Code" maxLength={6} value={passChangeForm.code} onChange={(e) => setPassChangeForm({...passChangeForm, code: e.target.value})}/> 
-                                            <button onClick={handleChangePassword} className="w-full py-2 bg-yellow-600/20 text-yellow-500 text-xs font-bold rounded hover:bg-yellow-600/30 transition-colors">{t('set_confirm')}</button> 
-                                        </div> 
-                                    )} 
-                                </div> 
-                            )} 
-                        </div> 
-                      </div>
-                  </div>
-
-                  <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
-                      <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> 
-                      <div className="flex gap-3"> 
-                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> 
-                        <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
-                      </div> 
-                  </div>
-              </GlassPanel>
-          </div>
-      )}
-
-      {/* ✅ SERVER SETTINGS MODAL (Updated to match Glass Theme) */}
-      {showServerSettings && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-              <GlassPanel className="w-full max-w-5xl h-[85vh] flex overflow-hidden relative p-0 rounded-3xl animate-in zoom-in-95 shadow-2xl">
-                  {/* Glass Sidebar */}
-                  <div className="w-64 bg-black/20 flex flex-col pt-12 pb-4 px-3 border-r border-white/5 backdrop-blur-md">
-                      <div className="w-full px-3 mb-4 text-xs font-bold text-white/50 uppercase truncate text-right tracking-widest">
-                          {active.server.name}
-                      </div>
-                      <div className="w-full space-y-1">
-                          {['Overview', 'Roles', 'Moderation'].map((tab) => (
-                              <button
-                                  key={tab}
-                                  onClick={() => setServerSettingsTab(tab.toLowerCase())}
-                                  className={`w-full text-left px-4 py-3 rounded-xl text-sm font-bold transition-all ${serverSettingsTab === tab.toLowerCase() ? "bg-white/10 text-white shadow-lg border border-white/5" : "text-white/40 hover:bg-white/5 hover:text-white"}`}
-                              >
-                                  {tab}
-                              </button>
-                          ))}
-                          <div className="my-4 h-px bg-white/10 w-[90%] mx-auto" />
-                          <button onClick={() => { setShowServerSettings(false); leaveServer(); }} className="w-full text-left px-4 py-3 rounded-xl text-sm font-bold text-red-400 hover:bg-red-500/10 hover:text-red-300 flex justify-between group transition-all">
-                              Delete Server <span className="opacity-0 group-hover:opacity-100 transition-opacity">🗑️</span>
-                          </button>
-                      </div>
-                  </div>
-
-                  {/* Glass Content Area */}
-                  <div className="flex-1 flex flex-col bg-transparent relative min-w-0">
-                      <div className="absolute top-6 right-8 flex flex-col items-center gap-1 cursor-pointer group z-20" onClick={() => setShowServerSettings(false)}>
-                          <div className="w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/50 font-bold group-hover:bg-white/10 group-hover:text-white transition-all shadow-lg backdrop-blur-md">✕</div>
-                          <span className="text-[9px] text-white/30 font-bold uppercase group-hover:text-white/60 tracking-wider">ESC</span>
-                      </div>
-                      
-                      <div className="flex-1 overflow-y-auto p-12 custom-scrollbar">
-                          <h2 className="text-3xl font-bold text-white mb-8 capitalize tracking-tight bg-clip-text text-transparent bg-linear-to-r from-white to-white/60 w-fit">{serverSettingsTab}</h2>
-                          
-                          {serverSettingsTab === 'overview' && (
-                              <div className="space-y-8 max-w-2xl animate-in slide-in-from-bottom-4 duration-500">
-                                  <div className="flex gap-8 items-start">
-                                      <div className="flex flex-col gap-3 items-center">
-                                          <div className="relative group cursor-pointer" onClick={() => (document.getElementById('sUpload') as any).click()}>
-                                              <UserAvatar src={newServerFile ? URL.createObjectURL(newServerFile) : serverEditForm.imageUrl} className="w-32 h-32 rounded-full border-4 border-white/5 shadow-2xl group-hover:scale-105 transition-transform" />
-                                              <div className="absolute top-0 right-0 bg-white text-black text-[10px] font-bold px-2 py-1 rounded-full shadow-lg">EDIT</div>
-                                              <div className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center text-xs font-bold uppercase backdrop-blur-sm transition-all">Change</div>
-                                          </div>
-                                          <span className="text-[10px] text-white/30 uppercase tracking-widest font-bold">Icon</span>
-                                          <input id="sUpload" type="file" className="hidden" onChange={e => e.target.files && setNewServerFile(e.target.files[0])} />
-                                      </div>
-                                      <div className="flex-1 space-y-6">
-                                          <div className="space-y-2">
-                                              <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Server Name</label>
-                                              <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold text-lg placeholder-white/20" value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
-                                          </div>
-                                          <div className="space-y-2">
-                                              <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Description</label>
-                                              <textarea className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all h-24 resize-none text-sm placeholder-white/20" placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
-                                          </div>
-                                      </div>
-                                  </div>
-                                  
-                                  <div className="h-px bg-linear-to-r from-white/10 to-transparent w-full" />
-                                  
-                                  <div className="space-y-2">
-                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">System Messages Channel</label>
-                                      <select className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 appearance-none cursor-pointer" value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
-                                          {channels.filter(c => c.type === 'text').map(c => (
-                                              <option key={c.id} value={c.id}># {c.name}</option>
-                                          ))}
-                                      </select>
-                                      <span className="text-[10px] text-white/30 px-1">We'll send welcome messages here.</span>
-                                  </div>
-
-                                  <div className="space-y-2">
-                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Server Banner Image (URL)</label>
-                                      <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-mono text-xs text-blue-300" placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
-                                      {(serverEditForm as any).bannerUrl && (
-                                          <div className="mt-4 h-40 w-full rounded-2xl bg-cover bg-center border border-white/10 shadow-2xl" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
-                                      )}
-                                  </div>
-                              </div>
-                          )}
-
-                          {serverSettingsTab === 'roles' && (
-                              <div className="flex h-full gap-8 animate-in slide-in-from-right-4 duration-500">
-                                  <div className="w-60 shrink-0 flex flex-col gap-3">
-                                      <div className="text-xs font-bold text-white/40 uppercase mb-1 tracking-wider">Roles List</div>
-                                      <div className="space-y-2 flex-1 overflow-y-auto pr-2 custom-scrollbar">
-                                          {serverRoles.map((role) => (
-                                              <div key={role.id} onClick={() => setActiveRole(role)} className={`flex items-center justify-between p-3 rounded-xl cursor-pointer transition-all border ${activeRole?.id === role.id ? "bg-white/10 border-white/10 shadow-lg scale-[1.02]" : "bg-black/20 border-transparent text-white/50 hover:bg-white/5 hover:text-white"}`}>
-                                                  <div className="flex items-center gap-3">
-                                                      <div className="w-3 h-3 rounded-full shadow-[0_0_10px_rgba(0,0,0,0.5)]" style={{ backgroundColor: role.color }} />
-                                                      <span className="text-sm font-bold truncate max-w-[120px]">{role.name}</span>
-                                                  </div>
-                                                  <span className="text-xs opacity-50">›</span>
-                                              </div>
-                                          ))}
-                                      </div>
-                                      <button onClick={createRole} className="w-full py-3 bg-black/40 hover:bg-white/5 text-white text-xs font-bold rounded-xl flex items-center justify-center gap-2 border border-white/10 transition-all active:scale-95 shadow-lg">
-                                          <span>+</span> Create Role
-                                      </button>
-                                  </div>
-
-                                  {activeRole ? (
-                                      <div className="flex-1 space-y-8 bg-black/20 rounded-3xl p-6 border border-white/5">
-                                          <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                                              <h3 className="text-xl font-bold text-white flex items-center gap-3">
-                                                  <span className="w-4 h-4 rounded-full" style={{backgroundColor: activeRole.color}}></span>
-                                                  {activeRole.name}
-                                              </h3>
-                                              <button onClick={deleteRole} className="text-red-400 text-xs font-bold px-3 py-1.5 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors">Delete Role</button>
-                                          </div>
-                                          <div className="space-y-6">
-                                              <div className="grid grid-cols-2 gap-4">
-                                                  <div className="space-y-2">
-                                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Name</label>
-                                                      <input className="w-full bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold" value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
-                                                  </div>
-                                                  <div className="space-y-2">
-                                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Color</label>
-                                                      <div className="flex gap-2">
-                                                          <div className="relative w-12 h-full rounded-xl overflow-hidden border border-white/10 shadow-inner">
-                                                              <input type="color" className="absolute -top-2 -left-2 w-20 h-20 cursor-pointer" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
-                                                          </div>
-                                                          <input className="flex-1 bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 transition-all font-mono text-xs uppercase" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
-                                                      </div>
-                                                  </div>
-                                              </div>
-
-                                              <div className="space-y-4">
-                                                  <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Permissions</label>
-                                                  <div className="space-y-3">
-                                                      {[{ key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' }, { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' }, { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' }, { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' }].map((perm) => (
-                                                          <div key={perm.key} className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
-                                                              <div>
-                                                                  <div className={`text-sm font-bold ${perm.key === 'administrator' ? 'text-red-300' : 'text-white'}`}>{perm.label}</div>
-                                                                  <div className="text-[10px] text-white/40 mt-1">{perm.desc}</div>
-                                                              </div>
-                                                              <div onClick={() => setActiveRole({ ...activeRole, permissions: { ...activeRole.permissions, [perm.key]: !activeRole.permissions?.[perm.key] } })} className={`w-12 h-6 rounded-full cursor-pointer relative transition-all shadow-inner ${activeRole.permissions?.[perm.key] ? 'bg-green-500 shadow-green-900/50' : 'bg-black/50 border border-white/10'}`}>
-                                                                  <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all shadow-md ${activeRole.permissions?.[perm.key] ? 'right-1' : 'left-1'}`} />
-                                                              </div>
-                                                          </div>
-                                                      ))}
-                                                  </div>
-                                              </div>
-                                          </div>
-                                          <div className="pt-4 flex justify-end">
-                                              <button onClick={updateRole} className="px-8 py-3 bg-green-600 hover:bg-green-500 text-white text-sm font-bold rounded-xl shadow-[0_0_20px_rgba(22,163,74,0.3)] transition-transform active:scale-95">Save Role Changes</button>
-                                          </div>
-                                      </div>
-                                  ) : (
-                                      <div className="flex-1 flex flex-col items-center justify-center text-white/20 border border-white/5 rounded-3xl bg-black/20">
-                                          <span className="text-5xl mb-4 grayscale opacity-50">🎭</span>
-                                          <span className="text-sm font-bold uppercase tracking-widest">Select a Role to Edit</span>
-                                      </div>
-                                  )}
-                              </div>
-                          )}
-
-                          {serverSettingsTab === 'moderation' && (
-                              <div className="space-y-6 max-w-2xl animate-in slide-in-from-bottom-4 duration-500">
-                                  <div className="flex items-center justify-between p-6 bg-black/40 rounded-2xl border border-white/5 shadow-lg">
-                                      <div>
-                                          <div className="text-white font-bold text-lg mb-1">Private Server</div>
-                                          <div className="text-white/50 text-xs">Only allow users with an invite link to join this server.</div>
-                                      </div>
-                                      <div onClick={() => setServerEditForm({ ...serverEditForm, isPrivate: !(serverEditForm as any).isPrivate } as any)} className={`w-14 h-8 rounded-full cursor-pointer relative transition-all shadow-inner ${(serverEditForm as any).isPrivate ? 'bg-green-500 shadow-green-900/50' : 'bg-black/50 border border-white/10'}`}>
-                                          <div className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all shadow-md ${(serverEditForm as any).isPrivate ? 'right-1' : 'left-1'}`} />
-                                      </div>
-                                  </div>
-                                  
-                                  <div className="space-y-4">
-                                      <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Verification Level</label>
-                                      <div className="flex flex-col gap-3">
-                                          {['None', 'Low (Verified Email)', 'High (10 min member)'].map((level, i) => (
-                                              <div key={i} className="flex items-center gap-4 p-4 bg-black/40 rounded-xl cursor-pointer hover:bg-white/5 border border-white/5 transition-all group">
-                                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all ${i === 0 ? 'border-green-500 bg-green-500/20' : 'border-white/20 group-hover:border-white/50'}`}>
-                                                      {i === 0 && <div className="w-2.5 h-2.5 bg-green-500 rounded-full" />}
-                                                  </div>
-                                                  <span className="text-sm font-bold text-white/80 group-hover:text-white transition-colors">{level}</span>
-                                              </div>
-                                          ))}
-                                      </div>
-                                  </div>
-                              </div>
-                          )}
-                      </div>
-
-                      {/* Glass Footer Actions */}
-                      <div className="p-6 bg-black/20 backdrop-blur-xl border-t border-white/5 flex justify-end gap-4 animate-in slide-in-from-bottom-2 z-10">
-                          <button onClick={() => setShowServerSettings(false)} className="px-6 py-2 text-sm text-white/50 hover:text-white font-bold transition-colors">Cancel</button>
-                          <button onClick={saveServerSettings} className="px-8 py-2 bg-white text-black text-sm font-bold rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">Save Changes</button>
-                      </div>
-                  </div>
-              </GlassPanel>
           </div>
       )}
 
