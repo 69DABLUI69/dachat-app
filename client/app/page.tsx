@@ -44,7 +44,7 @@ const SOUNDS = [
 const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 20(si ceva) ?"];
 const APP_VERSION = "1.4.0"; 
 const WHATS_NEW = ["📝 Message Editing & Replies", "🎭 Voice Soundboard", "📂 Server Categories", "✨ Markdown Support"];
-const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
+const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3"}];
 
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
