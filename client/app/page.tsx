@@ -130,10 +130,10 @@ const TRANSLATIONS: any = {
 
 // 🎵 DEFAULT SOUNDS (Immutable Fallback)
 const SOUNDS = [
-  { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
-  { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
+  { id: "fahh", emoji: "🗿", file: "/sounds/fahh.mp3" },
+  { id: "boom", emoji: "💥", file: "/sounds/boom.mp3" },
   { id: "airhorn", emoji: "📣", file: "/sounds/airhorn.mp3" },
-  { id: "cricket", emoji: "🦗", file: "/sounds/cricket.mp3" }
+  { id: "cricket", emoji: "🦗", file: "/sounds/crickets.mp3" }
 ];
 
 const TAGLINES = [
