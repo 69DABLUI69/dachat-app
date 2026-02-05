@@ -44,7 +44,7 @@ const SOUNDS = [
 const TAGLINES = ["Tel Aviv group trip 2026 ?", "Debis", "Endorsed by the Netanyahu cousins", "Also try DABROWSER", "Noua aplicatie suvenirista", "No Basinosu allowed", "Nu stati singuri cu bibi pe VC", "E buna Purcela", "I AM OBEZ DELUXE 2026 ?", "500 pe seara", "Sure buddy", "Mor vecinii", "Aplicatie de jocuri dusmanoasa", "Aplicatie de jocuri patriotica", "Aplicatie de jocuri prietenoasa", "Sanatate curata ma", "Garju 8-bit", "Five Nights at Valeriu (rip)", "Micu Vesel group trip 20(si ceva) ?"];
 const APP_VERSION = "1.4.0"; 
 const WHATS_NEW = ["📝 Message Editing & Replies", "🎭 Voice Soundboard", "📂 Server Categories", "✨ Markdown Support"];
-const RINGTONES = [{ name: "Default (Classic)", url: "/public/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
+const RINGTONES = [{ name: "Default (Classic)", url: "/ringtones/classic.mp3" }, { name: "Cosmic Flow", url: "/ringtones/cosmic.mp3" }, { name: "Retro Beep", url: "/ringtones/beep.mp3" }, { name: "Soft Chime", url: "/ringtones/chime.mp3" }];
 
 if (typeof window !== 'undefined') { (window as any).global = window; (window as any).process = { env: { DEBUG: undefined }, }; (window as any).Buffer = (window as any).Buffer || require("buffer").Buffer; }
 
@@ -638,7 +638,28 @@ const selectServer = async (server: any) => {
   const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
   
-  // 🎵 NEW: Handle Ringtone Upload
+  // 🎵 UPDATED: Ringtone Preview Logic
+  const [isPreviewing, setIsPreviewing] = useState(false);
+  const previewAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopPreview = () => {
+    if (previewAudioRef.current) {
+        previewAudioRef.current.pause();
+        previewAudioRef.current.currentTime = 0;
+    }
+    setIsPreviewing(false);
+  };
+
+  const playPreview = (url: string) => {
+    stopPreview();
+    const audio = new Audio(url);
+    audio.volume = 0.5;
+    audio.onended = () => setIsPreviewing(false);
+    previewAudioRef.current = audio;
+    audio.play().catch(console.error);
+    setIsPreviewing(true);
+  };
+
   const handleRingtoneUpload = async (e: any) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -659,9 +680,10 @@ const selectServer = async (server: any) => {
             const newRingtoneUrl = data.fileUrl;
             setSelectedRingtone(newRingtoneUrl);
             localStorage.setItem("dachat_ringtone", newRingtoneUrl);
-            const audio = new Audio(newRingtoneUrl);
-            audio.volume = 0.5;
-            audio.play().catch(() => {});
+            
+            // Auto-play the new ringtone for preview
+            playPreview(newRingtoneUrl);
+            
             alert("Custom ringtone set!");
         } else {
             alert("Upload failed: " + (data.message || "Unknown error"));
@@ -672,14 +694,11 @@ const selectServer = async (server: any) => {
     }
   };
 
-  // 🎵 NEW: Reset to Default
   const resetRingtone = () => {
     const defaultTone = RINGTONES[0].url; 
     setSelectedRingtone(defaultTone);
     localStorage.setItem("dachat_ringtone", defaultTone);
-    const audio = new Audio(defaultTone);
-    audio.volume = 0.5;
-    audio.play().catch(() => {});
+    playPreview(defaultTone);
   };
 
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
@@ -1404,17 +1423,17 @@ const selectServer = async (server: any) => {
                                                 </div>
                                             </div>
 
-                                            {/* Play/Preview Button (Small) */}
+                                            {/* ✨ UPDATED: Play/Stop Toggle Button */}
                                             <button 
-                                                onClick={() => {
-                                                    const audio = new Audio(selectedRingtone);
-                                                    audio.volume = 0.5;
-                                                    audio.play().catch(console.error);
-                                                }}
-                                                className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/10 text-white/60 hover:text-white transition-colors"
-                                                title="Preview"
+                                                onClick={() => isPreviewing ? stopPreview() : playPreview(selectedRingtone)}
+                                                className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${
+                                                    isPreviewing 
+                                                    ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-110" 
+                                                    : "hover:bg-white/10 text-white/60 hover:text-white"
+                                                }`}
+                                                title={isPreviewing ? "Stop Preview" : "Play Preview"}
                                             >
-                                                ▶
+                                                {isPreviewing ? "■" : "▶"}
                                             </button>
                                         </div>
 
