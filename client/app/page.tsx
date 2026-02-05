@@ -565,10 +565,14 @@ socket.on("server_updated", async ({ serverId }) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-  // ✅ FIX: Robust Role Fetcher
+// ✅ FIX 1: Robust Role Fetcher with Cache Busting
   const fetchRoles = async (serverId: number) => {
     try {
-        const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`);
+        // We add { cache: 'no-store' } to ensure we always get the fresh list from the DB
+        const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles`, { 
+            cache: 'no-store',
+            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+        });
         const data = await res.json();
         if (Array.isArray(data)) {
             setServerRoles(data);
@@ -885,19 +889,28 @@ const selectServer = async (server: any) => {
   };
 
   // ✅ FIX: Use 'prev' to prevent the list from resetting/wiping out
-  const createRole = async () => {
+const createRole = async () => {
       if (!active.server) return;
-      const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ serverId: active.server.id, userId: user.id })
-      });
-      const data = await res.json();
-      if (data.success) {
-          setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
-          setActiveRole(data.role);
-      } else {
-          alert(data.message);
+      try {
+          const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ serverId: active.server.id, userId: user.id })
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+              // Optimistically add the role immediately
+              setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
+              setActiveRole(data.role);
+              
+              // Note: The socket event will fire shortly after and call fetchRoles.
+              // Since we fixed fetchRoles to ignore cache, it will confirm this data.
+          } else {
+              alert(data.message);
+          }
+      } catch (err) {
+          console.error("Error creating role:", err);
       }
   };
 
