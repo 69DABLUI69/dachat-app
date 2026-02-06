@@ -321,15 +321,28 @@ app.post("/servers/leave", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-// --- CHANNEL ROUTES ---
 app.post("/create-channel", safeRoute(async (req, res) => {
   const { serverId, userId, name, type } = req.body;
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member || !member.is_admin) return res.json({ success: false, message: "No permission" });
+  
+  // ✅ USE CHECK: Requires 'manage_channels'
+  const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
+  if (!hasPerm) return res.json({ success: false, message: "Missing 'Manage Channels' permission" });
 
   const { data } = await supabase.from("channels").insert([{ server_id: serverId, name, type }]).select().single();
   io.emit("server_updated", { serverId });
   res.json({ success: true, channel: data });
+}));
+
+app.post("/delete-channel", safeRoute(async (req, res) => {
+  const { serverId, userId, channelId } = req.body;
+
+  // ✅ USE CHECK: Requires 'manage_channels'
+  const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
+  if (!hasPerm) return res.json({ success: false, message: "Missing permission" });
+
+  await supabase.from("channels").delete().eq("id", channelId);
+  io.emit("server_updated", { serverId });
+  res.json({ success: true });
 }));
 
 app.post("/delete-channel", safeRoute(async (req, res) => {
@@ -403,6 +416,8 @@ app.get("/servers/:id/roles", safeRoute(async (req, res) => {
 // ✅ DEBUG: Create Role (With Logs)
 app.post("/servers/roles/create", safeRoute(async (req, res) => {
   const { serverId, userId } = req.body;
+  const hasPerm = await checkPermission(serverId, userId, 'administrator');
+  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
   console.log(`🛠 [CREATE] Request received. ServerID: ${serverId}, UserID: ${userId}`);
 
   if (!serverId) {
@@ -433,11 +448,38 @@ app.post("/servers/roles/create", safeRoute(async (req, res) => {
   res.json({ success: true, role: data });
 }));
 
+// ✅ HELPER: Check Granular Permissions
+const checkPermission = async (serverId, userId, requiredPerm) => {
+    // 1. Fetch Member AND their Role
+    const { data: member } = await supabase
+        .from("members")
+        .select(`*, role:roles(*)`) // Join with roles table
+        .eq("server_id", serverId)
+        .eq("user_id", userId)
+        .single();
+
+    if (!member) return false;
+
+    // 2. MASTER OVERRIDES
+    // If user is the Server Owner or marked as "is_admin" (legacy toggle), allow everything
+    if (member.is_admin) return true;
+
+    // 3. Check Role Permissions
+    if (!member.role || !member.role.permissions) return false;
+    
+    // "Administrator" permission overrides all specific checks
+    if (member.role.permissions.administrator) return true;
+
+    // 4. Check Specific Permission
+    return !!member.role.permissions[requiredPerm];
+};
+
 app.post("/servers/roles/update", safeRoute(async (req, res) => {
   const { serverId, userId, roleId, updates } = req.body;
   
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+  // ✅ FIX: Use Granular Permission Check
+  const hasPerm = await checkPermission(serverId, userId, 'administrator');
+  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
   const { data, error } = await supabase.from("roles")
     .update({ 
@@ -451,9 +493,7 @@ app.post("/servers/roles/update", safeRoute(async (req, res) => {
 
   if (error) return res.json({ success: false, message: error.message });
   
-  // ✅ FIX: Notify clients (updates member colors in sidebar)
   io.emit("server_updated", { serverId });
-
   res.json({ success: true, role: data });
 }));
 
@@ -475,22 +515,55 @@ app.post("/servers/roles/delete", safeRoute(async (req, res) => {
 app.post("/servers/roles/assign", safeRoute(async (req, res) => {
   const { serverId, ownerId, targetUserId, roleId } = req.body;
 
-  // 1. Check if requester is Admin
-  const { data: requester } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", ownerId).single();
-  if (!requester?.is_admin) return res.json({ success: false, message: "No permission" });
+  // ✅ FIX: Use Granular Permission Check
+  // Note: 'ownerId' here refers to the user PERFORMING the action (the requester)
+  const hasPerm = await checkPermission(serverId, ownerId, 'administrator');
+  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
-  // 2. Assign the role (Update member)
+  // Assign the role
   const { error } = await supabase.from("members")
-    .update({ role_id: roleId }) // Setting roleId to null removes the role
+    .update({ role_id: roleId }) 
     .eq("server_id", serverId)
     .eq("user_id", targetUserId);
 
   if (error) return res.json({ success: false, message: error.message });
   
-  // 3. IMPORTANT: Notify all clients to refresh member list (colors)
   io.emit("server_updated", { serverId });
-  
   res.json({ success: true });
+}));
+
+app.post("/servers/kick", safeRoute(async (req, res) => {
+    const { serverId, userId, targetId } = req.body;
+    
+    // 1. Check Permission
+    const hasPerm = await checkPermission(serverId, userId, 'kick_members');
+    if (!hasPerm) return res.json({ success: false, message: "Missing 'Kick Members' permission" });
+
+    // 2. Prevent kicking Owners/Admins
+    const { data: target } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", targetId).single();
+    if (target?.is_admin) return res.json({ success: false, message: "Cannot kick an Admin" });
+
+    // 3. Execute Kick
+    await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", targetId);
+    
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
+}));
+
+app.post("/servers/ban", safeRoute(async (req, res) => {
+    const { serverId, userId, targetId } = req.body;
+
+    const hasPerm = await checkPermission(serverId, userId, 'ban_members');
+    if (!hasPerm) return res.json({ success: false, message: "Missing 'Ban Members' permission" });
+
+    const { data: target } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", targetId).single();
+    if (target?.is_admin) return res.json({ success: false, message: "Cannot ban an Admin" });
+
+    // Delete member AND add to banned table (You can create a 'bans' table in supabase if you want persistence)
+    await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", targetId);
+    
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 // ==============================================================================

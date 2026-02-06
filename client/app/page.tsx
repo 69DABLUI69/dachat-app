@@ -988,7 +988,27 @@ const createRole = async () => {
   
   const promoteMember = async (targetId: number) => { if(!confirm("Toggle Moderator Status?")) return; await fetch(`${BACKEND_URL}/servers/promote`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ serverId: active.server.id, ownerId: user.id, targetUserId: targetId }) }); };
   const getRole = () => user ? serverMembers.find(m => m.id === user.id) : null;
-  const isMod = getRole()?.is_admin;
+  const getMyMember = () => user && active.server ? serverMembers.find(m => m.id === user.id) : null;
+  
+  const can = (permission: string) => {
+      const member = getMyMember();
+      if (!member) return false;
+      
+      // 1. Owner & Legacy Admin always have power
+      if (active.server.owner_id === user.id || member.is_admin) return true;
+      
+      // 2. Check Role
+      if (!member.role || !member.role.permissions) return false;
+      
+      // 3. Admin Role overrides all
+      if (member.role.permissions.administrator) return true;
+      
+      // 4. Specific Permission
+      return !!member.role.permissions[permission];
+  };
+
+  // Replaces "isMod" for simple checks
+  const isMod = can('administrator');
   const isOwner = user && active.server?.owner_id === user.id;
 
   const startDMCall = (targetUser: any = active.friend) => { if (!targetUser) return; const ids = [user.id, targetUser.id].sort((a, b) => a - b); const roomId = `dm-call-${ids[0]}-${ids[1]}`; joinVoiceRoom(roomId); socket.emit("start_call", { senderId: user.id, recipientId: targetUser.id, senderName: user.username, avatarUrl: user.avatar_url, roomId: roomId }); };
@@ -1114,18 +1134,18 @@ const createRole = async () => {
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
-            {active.server && isMod && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
+            {active.server && can('administrator') && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
         </div>
         <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
             {view === "servers" && active.server ? (
                 <>
-                    <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {isMod && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
+                    <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {can('manage_channels') && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
                     {channels.filter(c => c.type === 'text').map(ch => (
                         <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                             <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                 <span className="opacity-50 shrink-0">#</span> <span className="truncate">{ch.name}</span>
                             </div>
-                            {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
+                            {can('manage_channels') && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
                         </div>
                     ))}
 
@@ -1976,6 +1996,36 @@ const createRole = async () => {
                             ))}
                         </>
                     )}
+
+                    {/* ✅ KICK BUTTON */}
+{active.server && can('kick_members') && contextMenu.data.id !== user.id && (
+    <button onClick={async () => {
+        if(!confirm(`Kick ${contextMenu.data.username}?`)) return;
+        await fetch(`${BACKEND_URL}/servers/kick`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ serverId: active.server.id, userId: user.id, targetId: contextMenu.data.id })
+        });
+        setContextMenu({ ...contextMenu, visible: false });
+    }} className="text-left px-3 py-2 text-sm text-yellow-400 hover:bg-yellow-500/20 rounded-lg transition-colors flex items-center gap-2">
+        <span>🥾</span> Kick Member
+    </button>
+)}
+
+{/* ✅ BAN BUTTON */}
+{active.server && can('ban_members') && contextMenu.data.id !== user.id && (
+    <button onClick={async () => {
+        if(!confirm(`Ban ${contextMenu.data.username}?`)) return;
+        await fetch(`${BACKEND_URL}/servers/ban`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({ serverId: active.server.id, userId: user.id, targetId: contextMenu.data.id })
+        });
+        setContextMenu({ ...contextMenu, visible: false });
+    }} className="text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2">
+        <span>🔨</span> Ban Member
+    </button>
+)}
 
                     <div className="h-px bg-white/10 my-1 mx-2"></div> 
                     <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> 
