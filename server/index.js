@@ -378,13 +378,19 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 
 // ✅ FIX: Force No-Cache Headers on the Backend
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
-  // These headers tell browsers and proxies to NEVER save this response
+  // These headers act like a shield, preventing any browser 
+  // from saving an "old version" of the list.
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
   res.setHeader('Pragma', 'no-cache');
   res.setHeader('Expires', '0');
   res.setHeader('Surrogate-Control', 'no-store');
 
-  const { data } = await supabase.from("roles").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
+  const { data } = await supabase
+    .from("roles")
+    .select("*")
+    .eq("server_id", req.params.id)
+    .order("created_at", { ascending: true });
+
   res.json(data || []);
 }));
 

@@ -458,24 +458,28 @@ const saveNotifSettings = async (newSettings: any) => {
       
       // Inside useEffect containing socket logic
 socket.on("server_updated", async ({ serverId }) => { 
-    if (!user) return;
+      if (!user) return;
 
-    // Refresh Server List
-    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
-    setServers(await res.json());
+      // 1. Refresh Server List
+      const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
+      const serversList = await res.json();
+      setServers(serversList);
 
-    // Refresh Members & Roles if active
-    if (active.server && String(active.server.id) === String(serverId)) {
-        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
-        setServerMembers(await memRes.json());
-        
-        // ✅ FIX: Add a small delay (150ms) to allow the DB 'INSERT' to finish 
-        // before we try to 'SELECT' the new list.
-        setTimeout(() => {
-            fetchRoles(serverId);
-        }, 150);
-    }
-});
+      // 2. If we are currently looking at this server
+      if (active.server && String(active.server.id) === String(serverId)) {
+          
+          // Refresh Members (Immediate is fine)
+          const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
+          setServerMembers(await memRes.json());
+          
+          // ✅ CRITICAL FIX: Wait 500ms before fetching roles.
+          // This gives the database time to finish saving the new role 
+          // before we ask for the list.
+          setTimeout(() => {
+              fetchRoles(serverId);
+          }, 500);
+      }
+  });
 
       socket.on("incoming_call", (data) => { if (user && data.senderId === user.id) return; setIncomingCall(data); });
       socket.on("call_rejected", () => { alert("Call declined by user"); leaveCall(); });
@@ -567,20 +571,21 @@ socket.on("server_updated", async ({ serverId }) => {
   
 // ✅ FIX: Fetch with unique timestamp to bypass browser cache
 const fetchRoles = async (serverId: number) => {
-  try {
-      // Adding ?_t=${Date.now()} makes every request unique
-      const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?_t=${Date.now()}`, { 
-          cache: 'no-store',
-          headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
-      });
-      const data = await res.json();
-      if (Array.isArray(data)) {
-          setServerRoles(data);
-      }
-  } catch (e) {
-      console.error("Failed to fetch roles", e);
-  }
-};
+    try {
+        // The '?_t=' part tricks the browser into thinking it's a new website every time,
+        // so it NEVER loads from cache.
+        const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?_t=${Date.now()}`, { 
+            cache: 'no-store',
+            headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
+        });
+        const data = await res.json();
+        if (Array.isArray(data)) {
+            setServerRoles(data);
+        }
+    } catch (e) {
+        console.error("Failed to fetch roles", e);
+    }
+  };
 
 const selectServer = async (server: any) => { 
       setView("servers"); 
