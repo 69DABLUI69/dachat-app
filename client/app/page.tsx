@@ -170,6 +170,8 @@ export default function DaChat() {
   // 🎵 NEW: Soundboard State & Ref
   const [soundboard, setSoundboard] = useState(SOUNDS);
   const soundInputRef = useRef<HTMLInputElement>(null);
+
+  const stickyRoleRef = useRef<any>(null);
   
   // 🎵 NEW: Track Previous Voice State (to detect changes)
   const prevVoiceStates = useRef<Record<string, number[]>>({});
@@ -572,14 +574,18 @@ socket.on("server_updated", async ({ serverId }) => {
 // ✅ FIX: Fetch with unique timestamp to bypass browser cache
 const fetchRoles = async (serverId: number) => {
     try {
-        // The '?_t=' part tricks the browser into thinking it's a new website every time,
-        // so it NEVER loads from cache.
         const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?_t=${Date.now()}`, { 
             cache: 'no-store',
             headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
         });
         const data = await res.json();
+        
         if (Array.isArray(data)) {
+            // ✅ THE FIX: Merge the sticky role if the server forgot it
+            if (stickyRoleRef.current && !data.find((r: any) => r.id === stickyRoleRef.current.id)) {
+                console.log("⚠️ Server list was stale. Injecting sticky role locally.");
+                data.push(stickyRoleRef.current);
+            }
             setServerRoles(data);
         }
     } catch (e) {
@@ -892,33 +898,33 @@ const selectServer = async (server: any) => {
   };
 
 const createRole = async () => {
-    if (!active.server) return;
-    try {
-        const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ serverId: active.server.id, userId: user.id })
-        });
-        const data = await res.json();
-        
-        if (data.success) {
-            // Optimistically add the role immediately so it feels instant
-            setServerRoles(prev => {
-                const current = Array.isArray(prev) ? prev : [];
-                return [...current, data.role];
-            });
-            setActiveRole(data.role);
-            
-            // Explicitly fetch fresh data to confirm consistency
-            // (The socket event will also trigger this, but double-checking is safer here)
-            fetchRoles(active.server.id);
-        } else {
-            alert(data.message || "Failed to create role");
-        }
-    } catch (err) {
-        console.error("Error creating role:", err);
-    }
-};
+      if (!active.server) return;
+      try {
+          const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ serverId: active.server.id, userId: user.id })
+          });
+          const data = await res.json();
+          
+          if (data.success) {
+              // 1. Optimistically update the UI
+              setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
+              setActiveRole(data.role);
+
+              // 2. ✅ SAVE TO REF: "This is a valid role, don't let the next fetch delete it"
+              stickyRoleRef.current = data.role;
+
+              // 3. Clear the sticky ref after 5 seconds (assuming DB catches up by then)
+              setTimeout(() => { stickyRoleRef.current = null; }, 5000);
+              
+          } else {
+              alert(data.message);
+          }
+      } catch (err) {
+          console.error("Error creating role:", err);
+      }
+  };
 
   const updateRole = async () => {
       if (!activeRole) return;
