@@ -898,7 +898,15 @@ const selectServer = async (server: any) => {
   };
 
 const createRole = async () => {
-      if (!active.server) return;
+      // Safety Check: Ensure we have a valid server ID
+      if (!active.server || !active.server.id) {
+          console.error("❌ Cannot create role: Active server ID is missing", active);
+          alert("Error: Server ID missing. Please refresh the page.");
+          return;
+      }
+
+      console.log("🚀 Creating role for Server ID:", active.server.id);
+
       try {
           const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
               method: "POST",
@@ -908,18 +916,17 @@ const createRole = async () => {
           const data = await res.json();
           
           if (data.success) {
-              // 1. Optimistically update the UI
+              console.log("✅ Role created successfully:", data.role);
+              
+              // 1. Optimistic Update
               setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
               setActiveRole(data.role);
 
-              // 2. ✅ SAVE TO REF: "This is a valid role, don't let the next fetch delete it"
+              // 2. Sticky Ref (Keep this from previous fix)
               stickyRoleRef.current = data.role;
-
-              // 3. Clear the sticky ref after 5 seconds (assuming DB catches up by then)
               setTimeout(() => { stickyRoleRef.current = null; }, 5000);
-              
           } else {
-              alert(data.message);
+              alert("Server Error: " + data.message);
           }
       } catch (err) {
           console.error("Error creating role:", err);

@@ -377,29 +377,44 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 // ==============================================================================
 
 // ✅ FIX: Force No-Cache Headers on the Backend
+// ✅ DEBUG: Get Roles (With Logs)
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
-  // These headers act like a shield, preventing any browser 
-  // from saving an "old version" of the list.
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
-  res.setHeader('Pragma', 'no-cache');
-  res.setHeader('Expires', '0');
-  res.setHeader('Surrogate-Control', 'no-store');
+  const serverId = req.params.id;
+  console.log(`🔍 [GET] Fetching roles for Server ID: '${serverId}' (Type: ${typeof serverId})`);
 
-  const { data } = await supabase
+  // Force No-Cache
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+
+  const { data, error } = await supabase
     .from("roles")
     .select("*")
-    .eq("server_id", req.params.id)
+    .eq("server_id", serverId)
     .order("created_at", { ascending: true });
 
+  if (error) {
+      console.error("❌ [GET] Supabase Error:", error.message);
+      return res.status(500).json({ success: false, message: error.message });
+  }
+
+  console.log(`✅ [GET] Found ${data.length} roles for Server ${serverId}`);
   res.json(data || []);
 }));
 
+// ✅ DEBUG: Create Role (With Logs)
 app.post("/servers/roles/create", safeRoute(async (req, res) => {
   const { serverId, userId } = req.body;
+  console.log(`🛠 [CREATE] Request received. ServerID: ${serverId}, UserID: ${userId}`);
+
+  if (!serverId) {
+      console.error("❌ [CREATE] Failed: Missing serverId in request body");
+      return res.status(400).json({ success: false, message: "Server ID is missing" });
+  }
   
+  // 1. Permission Check
   const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
   if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
+  // 2. Insert Role
   const { data, error } = await supabase.from("roles").insert([{ 
     server_id: serverId, 
     name: "New Role", 
@@ -407,11 +422,14 @@ app.post("/servers/roles/create", safeRoute(async (req, res) => {
     permissions: { administrator: false } 
   }]).select().single();
   
-  if (error) return res.json({ success: false, message: error.message });
+  if (error) {
+      console.error("❌ [CREATE] Supabase Insert Error:", error.message);
+      return res.json({ success: false, message: error.message });
+  }
   
-  // ✅ FIX: Notify clients so the list updates immediately
+  console.log(`✅ [CREATE] Role Created: ID ${data.id}, ServerID ${data.server_id}`);
+  
   io.emit("server_updated", { serverId });
-  
   res.json({ success: true, role: data });
 }));
 
