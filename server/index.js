@@ -377,7 +377,15 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 // ==============================================================================
 
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
-  const { data } = await supabase.from("roles").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
+  // ✅ FIX: Explicitly tell browsers not to cache this response
+  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  
+  const { data } = await supabase
+    .from("roles")
+    .select("*")
+    .eq("server_id", req.params.id)
+    .order("created_at", { ascending: true });
+
   res.json(data || []);
 }));
 
