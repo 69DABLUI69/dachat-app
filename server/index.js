@@ -19,12 +19,24 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 2. SUPABASE CONFIG
-if (!process.env.SUPABASE_URL || !process.env.SUPABASE_KEY) {
-  console.error("❌ MISSING .ENV VARIABLES: SUPABASE_URL or SUPABASE_KEY");
+// 2. SUPABASE CONFIG (UPDATED FOR ADMIN ACCESS)
+const supabaseUrl = process.env.SUPABASE_URL;
+// Use Service Key if available, otherwise fall back to Anon Key
+const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.error("❌ MISSING .ENV VARIABLES: SUPABASE_URL or SUPABASE_SERVICE_KEY");
   process.exit(1);
 }
-const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY);
+
+// Initialize with auth persistence disabled (faster/safer for backend)
+const supabase = createClient(supabaseUrl, supabaseKey, {
+  auth: {
+    persistSession: false,
+    autoRefreshToken: false,
+    detectSessionInUrl: false,
+  },
+});
 
 // 3. SOCKET SERVER SETUP
 const server = http.createServer(app);
@@ -474,6 +486,7 @@ const checkPermission = async (serverId, userId, requiredPerm) => {
     return !!member.role.permissions[requiredPerm];
 };
 
+// A. UPDATE ROLE
 app.post("/servers/roles/update", safeRoute(async (req, res) => {
   const { serverId, userId, roleId, updates } = req.body;
   
@@ -497,26 +510,26 @@ app.post("/servers/roles/update", safeRoute(async (req, res) => {
   res.json({ success: true, role: data });
 }));
 
+// B. DELETE ROLE
 app.post("/servers/roles/delete", safeRoute(async (req, res) => {
   const { serverId, userId, roleId } = req.body;
 
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+  // ✅ FIX: Use Granular Permission Check
+  const hasPerm = await checkPermission(serverId, userId, 'administrator');
+  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
   const { error } = await supabase.from("roles").delete().eq("id", roleId);
   if (error) return res.json({ success: false, message: error.message });
 
-  // ✅ FIX: Notify clients
   io.emit("server_updated", { serverId });
-
   res.json({ success: true });
 }));
 
+// C. ASSIGN ROLE
 app.post("/servers/roles/assign", safeRoute(async (req, res) => {
   const { serverId, ownerId, targetUserId, roleId } = req.body;
 
   // ✅ FIX: Use Granular Permission Check
-  // Note: 'ownerId' here refers to the user PERFORMING the action (the requester)
   const hasPerm = await checkPermission(serverId, ownerId, 'administrator');
   if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
