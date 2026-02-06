@@ -566,8 +566,8 @@ socket.on("server_updated", async ({ serverId }) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-// ✅ FIX 1: Robust Role Fetcher with Cache Busting
-  const fetchRoles = async (serverId: number) => {
+// ✅ FIX: Robust Role Fetcher with Cache Busting
+const fetchRoles = async (serverId: number) => {
   try {
       // We add { cache: 'no-store' } to ensure we always get the fresh list from the DB
       // We also add unique query params to force the browser to bypass cache
@@ -590,7 +590,6 @@ socket.on("server_updated", async ({ serverId }) => {
       console.error("Failed to fetch roles", e);
   }
 };
-
 const selectServer = async (server: any) => { 
       setView("servers"); 
       setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 
