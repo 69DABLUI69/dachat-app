@@ -460,21 +460,20 @@ const saveNotifSettings = async (newSettings: any) => {
 socket.on("server_updated", async ({ serverId }) => { 
     if (!user) return;
 
-    // 1. Refresh Server List (Sidebar)
-    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`, { cache: 'no-store' });
-    const serversList = await res.json();
-    setServers(serversList);
+    // Refresh Server List
+    const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
+    setServers(await res.json());
 
-    // 2. If we are looking at this server, refresh Members and Roles
+    // Refresh Members & Roles if active
     if (active.server && String(active.server.id) === String(serverId)) {
-        
-        // Refresh Members (To update colors)
-        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`, { cache: 'no-store' });
+        const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
         setServerMembers(await memRes.json());
         
-        // Refresh Roles (To update settings list)
-        // This will now hit the network instead of cache
-        fetchRoles(serverId);
+        // ✅ FIX: Add a small delay (150ms) to allow the DB 'INSERT' to finish 
+        // before we try to 'SELECT' the new list.
+        setTimeout(() => {
+            fetchRoles(serverId);
+        }, 150);
     }
 });
 
@@ -566,30 +565,23 @@ socket.on("server_updated", async ({ serverId }) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-// ✅ FIX: Robust Role Fetcher with Cache Busting
+// ✅ FIX: Fetch with unique timestamp to bypass browser cache
 const fetchRoles = async (serverId: number) => {
   try {
-      // We add { cache: 'no-store' } to ensure we always get the fresh list from the DB
-      // We also add unique query params to force the browser to bypass cache
-      const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?t=${Date.now()}`, { 
+      // Adding ?_t=${Date.now()} makes every request unique
+      const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?_t=${Date.now()}`, { 
           cache: 'no-store',
-          headers: { 
-              'Pragma': 'no-cache', 
-              'Cache-Control': 'no-cache, no-store, must-revalidate' 
-          }
+          headers: { 'Pragma': 'no-cache', 'Cache-Control': 'no-cache' }
       });
       const data = await res.json();
-      
       if (Array.isArray(data)) {
           setServerRoles(data);
-      } else {
-          console.error("Fetch roles invalid response:", data);
-          setServerRoles([]); // Safety fallback
       }
   } catch (e) {
       console.error("Failed to fetch roles", e);
   }
 };
+
 const selectServer = async (server: any) => { 
       setView("servers"); 
       setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 

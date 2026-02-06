@@ -376,16 +376,15 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 // 🛡️ ROLE MANAGEMENT ROUTES (UPDATED)
 // ==============================================================================
 
+// ✅ FIX: Force No-Cache Headers on the Backend
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
-  // ✅ FIX: Explicitly tell browsers not to cache this response
-  res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-  
-  const { data } = await supabase
-    .from("roles")
-    .select("*")
-    .eq("server_id", req.params.id)
-    .order("created_at", { ascending: true });
+  // These headers tell browsers and proxies to NEVER save this response
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
 
+  const { data } = await supabase.from("roles").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
   res.json(data || []);
 }));
 
