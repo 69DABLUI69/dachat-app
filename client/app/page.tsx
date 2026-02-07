@@ -243,6 +243,13 @@ export default function DaChat() {
 
   const [userStatus, setUserStatus] = useState("online");
 
+  // ✅ NEW: Collapsed Category State
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  const toggleCategory = (cat: string) => {
+      setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
+  };
+
   const getStatusColor = (st: string) => {
       switch(st) {
           case 'online': return 'bg-green-500 shadow-[0_0_10px_#22c55e]';
@@ -1178,8 +1185,26 @@ const createRole = async () => {
         <div className="flex-1 overflow-y-auto p-3 space-y-1 custom-scrollbar">
             {view === "servers" && active.server ? (
                 <>
-                    <div className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>{t('side_channels')}</span> {can('manage_channels') && <button onClick={createChannel} className="text-lg hover:text-white transition-transform hover:scale-110">+</button>} </div>
-                    {channels.filter(c => c.type === 'text').map(ch => (
+                    {/* Text Channels Category */}
+                    <div 
+                        className="flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors select-none"
+                        onClick={() => toggleCategory('text')}
+                    > 
+                        <div className="flex items-center gap-1">
+                            <span className={`transform transition-transform duration-200 ${collapsedCategories['text'] ? "-rotate-90" : ""}`}>▼</span>
+                            <span>{t('side_channels')}</span> 
+                        </div>
+                        {can('manage_channels') && (
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); createChannel(); }} 
+                                className="text-lg hover:text-white transition-transform hover:scale-110"
+                            >
+                                +
+                            </button>
+                        )} 
+                    </div>
+                    
+                    {!collapsedCategories['text'] && channels.filter(c => c.type === 'text').map(ch => (
                         <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                             <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                 <span className="opacity-50 shrink-0">#</span> <span className="truncate">{ch.name}</span>
@@ -1188,8 +1213,18 @@ const createRole = async () => {
                         </div>
                     ))}
 
-                    <div className="mt-4 flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase"> <span>VOICE CHANNELS</span> </div>
-                    {channels.filter(c => c.type === 'voice').map(ch => {
+                    {/* Voice Channels Category */}
+                    <div 
+                        className="mt-4 flex justify-between items-center px-2 py-2 text-[10px] font-bold text-white/40 uppercase cursor-pointer hover:text-white/60 transition-colors select-none"
+                        onClick={() => toggleCategory('voice')}
+                    > 
+                        <div className="flex items-center gap-1">
+                            <span className={`transform transition-transform duration-200 ${collapsedCategories['voice'] ? "-rotate-90" : ""}`}>▼</span>
+                            <span>VOICE CHANNELS</span> 
+                        </div>
+                    </div>
+
+                    {!collapsedCategories['voice'] && channels.filter(c => c.type === 'voice').map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
