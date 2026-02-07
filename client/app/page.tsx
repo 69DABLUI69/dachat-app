@@ -177,7 +177,7 @@ const GlobalCursorGlow = ({ color = "100, 100, 255" }: { color?: string }) => {
     <div
       className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-300"
       style={{
-        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(${color}, 0.15), transparent 40%)`,
+        background: `radial-gradient(2000px circle at ${pos.x}px ${pos.y}px, rgba(${color}, 0.15), transparent 40%)`,
       }}
     />
   );
