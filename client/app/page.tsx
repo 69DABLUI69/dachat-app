@@ -54,6 +54,11 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
+// ✅ NEW: Skeleton Loader Component
+const Skeleton = ({ className, style }: { className?: string, style?: any }) => (
+    <div className={`animate-pulse bg-white/5 rounded-lg ${className}`} style={style} />
+);
+
 const GlassPanel = ({ children, className, onClick, style }: any) => ( 
     <div onClick={onClick} style={style} className={`backdrop-blur-2xl bg-black/40 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}> 
         {children} 
@@ -135,6 +140,15 @@ export default function DaChat() {
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [lang, setLang] = useState("en");
+
+  // ✅ NEW: Loading State
+  const [loading, setLoading] = useState({
+      servers: true,
+      friends: true,
+      channels: false,
+      members: false,
+      chat: false
+  });
 
   const [servers, setServers] = useState<any[]>([]);
   const [channels, setChannels] = useState<any[]>([]);
@@ -471,7 +485,10 @@ const saveNotifSettings = async (newSettings: any) => {
           }
       });
 
-      socket.on("load_messages", (msgs) => setChatHistory(msgs)); 
+      socket.on("load_messages", (msgs) => {
+          setChatHistory(msgs);
+          setLoading(prev => ({ ...prev, chat: false }));
+      }); 
       
       socket.on("reaction_updated", ({ messageId, userId, emoji, action }) => {
         setChatHistory(prev => prev.map(msg => {
@@ -620,7 +637,15 @@ socket.on("server_updated", async ({ serverId }) => {
   }, [voiceStates, activeVoiceChannelId, user]);
 
   useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatHistory, active.channel, active.friend]);
-  useEffect(() => { if (user) { fetchServers(user.id); fetchFriends(user.id); fetchRequests(user.id); } }, [user]);
+  
+  useEffect(() => { 
+      if (user) { 
+          // Loaders are true by default for initial load
+          fetchServers(user.id); 
+          fetchFriends(user.id); 
+          fetchRequests(user.id); 
+      } 
+  }, [user]);
 
   const handleAuth = async () => {
     if (is2FALogin) {
@@ -640,8 +665,20 @@ socket.on("server_updated", async ({ serverId }) => {
   };
 
   const handleLogout = () => { if(confirm("Are you sure you want to log out?")) { localStorage.removeItem("dachat_user"); window.location.reload(); } };
-  const fetchServers = async (id: number) => { const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); setServers(await res.json()); };
-  const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
+  
+  const fetchServers = async (id: number) => { 
+      setLoading(prev => ({ ...prev, servers: true }));
+      const res = await fetch(`${BACKEND_URL}/my-servers/${id}`); 
+      setServers(await res.json()); 
+      setLoading(prev => ({ ...prev, servers: false }));
+  };
+  
+  const fetchFriends = async (id: number) => {
+      setLoading(prev => ({ ...prev, friends: true }));
+      setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
+      setLoading(prev => ({ ...prev, friends: false }));
+  };
+  
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
 const fetchRoles = async (serverId: number) => {
@@ -666,11 +703,14 @@ const fetchRoles = async (serverId: number) => {
 const selectServer = async (server: any) => { 
       setView("servers"); 
       setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 
-      setIsCallExpanded(false); 
+      setIsCallExpanded(false);
+      setLoading(prev => ({ ...prev, channels: true, members: true, chat: true }));
       
       const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); 
       const chData = await res.json(); 
       setChannels(chData); 
+      setLoading(prev => ({ ...prev, channels: false }));
+
       if(!active.channel && chData.length > 0) { 
           const firstText = chData.find((c:any) => c.type === 'text'); 
           if (firstText) joinChannel(firstText); 
@@ -678,11 +718,24 @@ const selectServer = async (server: any) => {
 
       const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); 
       setServerMembers(await memRes.json());
+      setLoading(prev => ({ ...prev, members: false }));
       
       fetchRoles(server.id);
   };
 
-  const joinChannel = (channel: any) => { if (channel.type === 'voice') { if (inCall && activeVoiceChannelId === channel.id.toString()) setIsCallExpanded(true); else if (channel.id) joinVoiceRoom(channel.id.toString()); } else { setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); setChatHistory([]); setIsCallExpanded(false); setShowMobileChat(true); if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); } };
+  const joinChannel = (channel: any) => { 
+      if (channel.type === 'voice') { 
+          if (inCall && activeVoiceChannelId === channel.id.toString()) setIsCallExpanded(true); 
+          else if (channel.id) joinVoiceRoom(channel.id.toString()); 
+      } else { 
+          setActive((prev: any) => ({ ...prev, channel, friend: null, pendingRequest: null })); 
+          setChatHistory([]); 
+          setIsCallExpanded(false); 
+          setShowMobileChat(true); 
+          setLoading(prev => ({ ...prev, chat: true }));
+          if (channel.id) socket.emit("join_room", { roomId: channel.id.toString() }); 
+      } 
+  };
   
   const selectFriend = (friend: any) => { 
       setActive((prev: any) => ({ ...prev, friend, channel: null, pendingRequest: null })); 
@@ -690,6 +743,7 @@ const selectServer = async (server: any) => {
       setIsCallExpanded(false); 
       setShowMobileChat(true); 
       setUnreadMap(prev => ({ ...prev, [friend.id]: false })); 
+      setLoading(prev => ({ ...prev, chat: true }));
       const ids = [user.id, friend.id].sort((a, b) => a - b); 
       socket.emit("join_room", { roomId: `dm-${ids[0]}-${ids[1]}` }); 
   };
@@ -1169,7 +1223,9 @@ const createRole = async () => {
         </div>
         <div className="w-8 h-px bg-white/10" />
         <div className="flex-1 flex flex-col items-center gap-3 overflow-y-auto custom-scrollbar pt-2">
-            {servers.map(s => ( 
+            {loading.servers ? [...Array(5)].map((_, i) => (
+                <Skeleton key={i} className="w-12 h-12 rounded-3xl" />
+            )) : servers.map(s => ( 
                 <div key={s.id} onClick={() => selectServer(s)} className="group relative w-12 h-12 cursor-pointer transition-transform duration-200 hover:scale-105 active:scale-95"> 
                     {active.server?.id === s.id && <div className="absolute -left-3 top-2 h-8 w-1 bg-white rounded-r-full animate-in fade-in slide-in-from-left-1" />} 
                     <UserAvatar src={s.image_url} alt={s.name} className={`w-12 h-12 object-cover transition-all duration-300 ${active.server?.id === s.id ? "rounded-2xl" : "rounded-3xl group-hover:rounded-2xl"}`} /> 
@@ -1207,14 +1263,18 @@ const createRole = async () => {
                         )} 
                     </div>
                     
-                    {!collapsedCategories['text'] && channels.filter(c => c.type === 'text').map(ch => (
+                    {!collapsedCategories['text'] && (loading.channels ? (
+                        <div className="space-y-2 mt-2">
+                            {[...Array(6)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                        </div>
+                    ) : channels.filter(c => c.type === 'text').map(ch => (
                         <div key={ch.id} className={`group px-3 py-2 rounded-lg cursor-pointer flex items-center justify-between transition-all duration-200 ${active.channel?.id === ch.id ? "bg-white/10 text-white scale-[1.02]" : "text-white/50 hover:bg-white/5 hover:text-white hover:translate-x-1"}`}>
                             <div className="flex items-center gap-2 truncate flex-1 min-w-0" onClick={() => joinChannel(ch)}> 
                                 <span className="opacity-50 shrink-0">#</span> <span className="truncate">{ch.name}</span>
                             </div>
                             {can('manage_channels') && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
                         </div>
-                    ))}
+                    )))}
 
                     {/* Voice Channels Category */}
                     <div 
@@ -1227,7 +1287,11 @@ const createRole = async () => {
                         </div>
                     </div>
 
-                    {!collapsedCategories['voice'] && channels.filter(c => c.type === 'voice').map(ch => {
+                    {!collapsedCategories['voice'] && (loading.channels ? (
+                        <div className="space-y-2 mt-2">
+                            {[...Array(3)].map((_, i) => <Skeleton key={i} className="h-8 w-full" />)}
+                        </div>
+                    ) : channels.filter(c => c.type === 'voice').map(ch => {
                         const currentUsers = voiceStates[ch.id.toString()] || [];
                         const activeMembers = serverMembers.filter(m => currentUsers.includes(m.id));
                         return ( 
@@ -1245,7 +1309,7 @@ const createRole = async () => {
                                 {isMod && <button onClick={(e) => { e.stopPropagation(); deleteChannel(ch.id); }} className="hidden group-hover:block text-xs text-red-400 shrink-0 hover:text-red-300 transition-colors">✕</button>}
                             </div>
                         );
-                    })}
+                    }))}
 
                     <div className="mt-6 px-2 space-y-2">
                         <button onClick={inviteUser} className="w-full py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-600/30 transition-all hover:scale-[1.02] active:scale-95">Invite People</button>
@@ -1262,7 +1326,19 @@ const createRole = async () => {
                         </div> 
                     ))}
                     <div className="mt-4 px-2 text-[10px] font-bold text-white/40 uppercase">{t('side_friends')}</div>
-                    {friends.map(f => {
+                    {loading.friends ? (
+                        <div className="space-y-3 mt-2">
+                            {[...Array(8)].map((_, i) => (
+                                <div key={i} className="flex items-center gap-3 p-2">
+                                    <Skeleton className="w-8 h-8 rounded-full" />
+                                    <div className="flex-1 space-y-1">
+                                        <Skeleton className="h-3 w-20" />
+                                        <Skeleton className="h-2 w-12" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : friends.map(f => {
                         const isOnline = onlineUsers.has(f.id) || (f as any).is_online;
                         const steamInfo = f.steam_id ? steamStatuses[f.steam_id] : null;
                         const isPlaying = steamInfo?.gameextrainfo;
@@ -1352,97 +1428,111 @@ const createRole = async () => {
                  </div>
              ) : (active.channel || active.friend) ? (
                  <>
-                    <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {chatHistory
-                            // 🔍 FILTER: Only show messages containing search query
-                            .filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase()))
-                            .map((msg, i) => {
-                                const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
-                                (msg.reactions || []).forEach((r: any) => {
-                                    if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
-                                    reactionCounts[r.emoji].count++;
-                                    if (r.user_id === user.id) reactionCounts[r.emoji].hasReacted = true;
-                                });
+                    {loading.chat ? (
+                        <div className="flex-1 p-6 space-y-6 overflow-hidden">
+                            {[...Array(6)].map((_, i) => (
+                                <div key={i} className={`flex gap-3 ${i % 2 === 0 ? 'flex-row-reverse' : ''}`}>
+                                    <Skeleton className="w-10 h-10 rounded-xl shrink-0" />
+                                    <div className={`flex flex-col gap-2 ${i % 2 === 0 ? 'items-end' : 'items-start'} w-full`}>
+                                        <Skeleton className="h-3 w-32" />
+                                        <Skeleton className="h-10 w-[40%] rounded-2xl" />
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+                            {chatHistory
+                                // 🔍 FILTER: Only show messages containing search query
+                                .filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase()))
+                                .map((msg, i) => {
+                                    const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
+                                    (msg.reactions || []).forEach((r: any) => {
+                                        if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
+                                        reactionCounts[r.emoji].count++;
+                                        if (r.user_id === user.id) reactionCounts[r.emoji].hasReacted = true;
+                                    });
 
-                                return (
-                                    <div key={msg.id || i} 
-                                         className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""} ${searchQuery && "ring-1 ring-yellow-500/30 bg-yellow-500/5 rounded-xl p-2 transition-all"}`} 
-                                         onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
-                                    > 
-                                        <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
-                                        
-                                        <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col relative`}> 
+                                    return (
+                                        <div key={msg.id || i} 
+                                             className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""} ${searchQuery && "ring-1 ring-yellow-500/30 bg-yellow-500/5 rounded-xl p-2 transition-all"}`} 
+                                             onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
+                                        > 
+                                            <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
                                             
-                                            <div className="flex items-center gap-2 mb-1"> 
-                                                <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
-                                                {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
-                                            </div> 
-
-                                            {msg.reply_to_id && (
-                                                <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
-                                                    <span>⤴️ {t('chat_replying')}</span>
-                                                </div>
-                                            )}
-
-                                            <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
-                                                ${msg.sender_id === user.id 
-    ? "bg-gradient-to-br from-indigo-600/80 to-blue-600/80 backdrop-blur-md border border-blue-400/30 text-white shadow-[0_4px_20px_rgba(79,70,229,0.4)] rounded-br-none" 
-    : "bg-zinc-800/60 backdrop-blur-md border border-white/5 text-gray-100 hover:bg-zinc-800/80 rounded-bl-none"
-}
-                                            `}> 
-                                                {formatMessage(msg.content)} 
+                                            <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col relative`}> 
                                                 
-                                                <button 
-                                                    onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
-                                                    className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
-                                                >
-                                                    🙂
-                                                </button>
+                                                <div className="flex items-center gap-2 mb-1"> 
+                                                    <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
+                                                    {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
+                                                </div> 
+
+                                                {msg.reply_to_id && (
+                                                    <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
+                                                        <span>⤴️ {t('chat_replying')}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
+                                                    ${msg.sender_id === user.id 
+        ? "bg-gradient-to-br from-indigo-600/80 to-blue-600/80 backdrop-blur-md border border-blue-400/30 text-white shadow-[0_4px_20px_rgba(79,70,229,0.4)] rounded-br-none" 
+        : "bg-zinc-800/60 backdrop-blur-md border border-white/5 text-gray-100 hover:bg-zinc-800/80 rounded-bl-none"
+    }
+                                                `}> 
+                                                    {formatMessage(msg.content)} 
+                                                    
+                                                    <button 
+                                                        onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
+                                                        className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
+                                                    >
+                                                        🙂
+                                                    </button>
+                                                    
+                                                    {activeReactionMessageId === msg.id && (
+                                                        <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
+                                                             <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                                                                 <EmojiPicker 
+                                                                     theme={Theme.DARK} 
+                                                                     emojiStyle={EmojiStyle.NATIVE}
+                                                                     lazyLoadEmojis={true}
+                                                                     width={300}
+                                                                     height={350}
+                                                                     onEmojiClick={(e) => toggleReaction(msg, e.emoji)}
+                                                                 />
+                                                             </div>
+                                                        </div>
+                                                    )}
+                                                </div> 
+
+                                                {msg.file_url && <img src={msg.file_url} onClick={() => setZoomedImage(msg.file_url)} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-zoom-in" alt="attachment" />} 
                                                 
-                                                {activeReactionMessageId === msg.id && (
-                                                    <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
-                                                         <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
-                                                             <EmojiPicker 
-                                                                 theme={Theme.DARK} 
-                                                                 emojiStyle={EmojiStyle.NATIVE}
-                                                                 lazyLoadEmojis={true}
-                                                                 width={300}
-                                                                 height={350}
-                                                                 onEmojiClick={(e) => toggleReaction(msg, e.emoji)}
-                                                             />
-                                                         </div>
+                                                {Object.keys(reactionCounts).length > 0 && (
+                                                    <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
+                                                        {Object.entries(reactionCounts).map(([emoji, data]) => (
+                                                            <button 
+                                                                key={emoji}
+                                                                onClick={() => toggleReaction(msg, emoji)}
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
+                                                            >
+                                                                <span>{emoji}</span>
+                                                                <span className="font-bold text-[10px]">{data.count}</span>
+                                                            </button>
+                                                        ))}
                                                     </div>
                                                 )}
                                             </div> 
-
-                                            {msg.file_url && <img src={msg.file_url} onClick={() => setZoomedImage(msg.file_url)} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-zoom-in" alt="attachment" />} 
-                                            
-                                            {Object.keys(reactionCounts).length > 0 && (
-                                                <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
-                                                    {Object.entries(reactionCounts).map(([emoji, data]) => (
-                                                        <button 
-                                                            key={emoji}
-                                                            onClick={() => toggleReaction(msg, emoji)}
-                                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
-                                                        >
-                                                            <span>{emoji}</span>
-                                                            <span className="font-bold text-[10px]">{data.count}</span>
-                                                        </button>
-                                                    ))}
-                                                </div>
-                                            )}
                                         </div> 
-                                    </div> 
-                                );
-                            })}
-                        {chatHistory.filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
-                            <div className="flex flex-col items-center justify-center h-full text-white/20">
-                                <span className="text-4xl mb-2">🕵️</span>
-                                <p className="text-xs font-bold uppercase tracking-widest">No messages found</p>
-                            </div>
-                        )}
-                        <div ref={messagesEndRef} />
-                    </div>
+                                    );
+                                })}
+                            {chatHistory.filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                                <div className="flex flex-col items-center justify-center h-full text-white/20">
+                                    <span className="text-4xl mb-2">🕵️</span>
+                                    <p className="text-xs font-bold uppercase tracking-widest">No messages found</p>
+                                </div>
+                            )}
+                            <div ref={messagesEndRef} />
+                        </div>
+                    )}
 
                     {replyTo && (
                         <div className="px-4 py-2 bg-black/40 border-t border-white/5 flex justify-between items-center animate-in slide-in-from-bottom-2">
@@ -1601,7 +1691,16 @@ const createRole = async () => {
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
               <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
-{serverMembers.map(m => ( 
+{loading.members ? (
+    <div className="space-y-3 p-4">
+         {[...Array(10)].map((_, i) => (
+            <div key={i} className="flex items-center gap-3">
+                <Skeleton className="w-8 h-8 rounded-full" />
+                <Skeleton className="h-3 w-24" />
+            </div>
+         ))}
+    </div>
+) : serverMembers.map(m => ( 
     <div 
         key={m.id} 
         onContextMenu={(e) => handleContextMenu(e, 'user', m)} 
