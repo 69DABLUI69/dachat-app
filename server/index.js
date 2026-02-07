@@ -845,6 +845,16 @@ io.on("connection", (socket) => {
       io.emit("user_status_update", { userId, status });
   });
 
+// --- TYPING INDICATORS ---
+  socket.on("typing", ({ roomId, username }) => {
+      // Broadcast to everyone in the room EXCEPT the sender
+      socket.to(roomId.toString()).emit("user_typing", { username });
+  });
+
+  socket.on("stop_typing", ({ roomId, username }) => {
+      socket.to(roomId.toString()).emit("user_stop_typing", { username });
+  });
+
   // --- 2. CHAT & ROOMS ---
   socket.on("join_room", async ({ roomId }) => {
     socket.join(roomId);

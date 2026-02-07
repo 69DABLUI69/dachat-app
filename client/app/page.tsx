@@ -144,7 +144,6 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
-// ✅ NEW: Skeleton Loader Component
 const Skeleton = ({ className, style }: { className?: string, style?: any }) => (
     <div className={`animate-pulse bg-white/5 rounded-lg ${className}`} style={style} />
 );
@@ -238,6 +237,10 @@ export default function DaChat() {
   // ✅ NEW: Hero Text State (With Fade Animation)
   const [heroIndex, setHeroIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
+
+  // ✅ NEW: Typing Indicator State
+  const [typingUsers, setTypingUsers] = useState<Set<string>>(new Set());
+  const typingTimeoutRef = useRef<any>(null);
 
   // ✅ NEW: Loading State
   const [loading, setLoading] = useState({
@@ -381,8 +384,47 @@ export default function DaChat() {
       socket.emit("set_status", { userId: user.id, status: newStatus });
   };
 
+  // Helper to get room ID
+  const getCurrentRoomId = () => {
+      if (active.channel) return active.channel.id.toString();
+      if (active.friend) {
+          const ids = [user.id, active.friend.id].sort((a:any, b:any) => a - b);
+          return `dm-${ids[0]}-${ids[1]}`;
+      }
+      return null;
+  };
+
+  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = e.target.value;
+      setMessage(val);
+      const match = val.match(/@(\w*)$/);
+      if (match && active.server) {
+          setShowMentions(true);
+          setMentionQuery(match[1].toLowerCase());
+      } else {
+          setShowMentions(false);
+      }
+
+      // Typing Indicator Logic
+      if (user) {
+          const roomId = getCurrentRoomId();
+          if (roomId) {
+              socket.emit("typing", { roomId, username: user.username });
+              if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+              typingTimeoutRef.current = setTimeout(() => {
+                  socket.emit("stop_typing", { roomId, username: user.username });
+              }, 2000);
+          }
+      }
+  };
+
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
+
+      // Stop typing immediately
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      const currentRoomId = getCurrentRoomId();
+      if(currentRoomId) socket.emit("stop_typing", { roomId: currentRoomId, username: user.username });
 
       if (editingId) {
           const roomId = active.channel ? active.channel.id.toString() : `dm-${[user.id, active.friend.id].sort((a:any,b:any)=>a-b).join('-')}`;
@@ -568,6 +610,22 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("connect", handleConnect);
       if (socket.connected && user) { socket.emit("setup", user.id); socket.emit("get_online_users"); socket.emit("get_voice_states");}
       
+      socket.on("user_typing", ({ username }) => {
+          setTypingUsers(prev => {
+              const next = new Set(prev);
+              next.add(username);
+              return next;
+          });
+      });
+
+      socket.on("user_stop_typing", ({ username }) => {
+          setTypingUsers(prev => {
+              const next = new Set(prev);
+              next.delete(username);
+              return next;
+          });
+      });
+
       socket.on("receive_message", (msg) => { 
           const normalized = { 
               ...msg, 
@@ -720,6 +778,8 @@ socket.on("server_updated", async ({ serverId }) => {
           socket.off("reaction_updated"); 
           socket.off("voice_states");
           socket.off("push_notification"); 
+          socket.off("user_typing");
+          socket.off("user_stop_typing");
       }; 
   }, [user, viewingProfile, active.server, inCall, active.friend]);
 
@@ -759,6 +819,11 @@ socket.on("server_updated", async ({ serverId }) => {
           fetchRequests(user.id); 
       } 
   }, [user]);
+
+  // ✅ Reset typing users when channel changes
+  useEffect(() => {
+      setTypingUsers(new Set());
+  }, [active.channel, active.friend]);
 
   const handleAuth = async () => {
     if (is2FALogin) {
@@ -868,18 +933,6 @@ const selectServer = async (server: any) => {
   const handleAcceptRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/accept-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchFriends(user.id); fetchRequests(user.id); selectFriend(active.pendingRequest); };
   const handleDeclineRequest = async () => { if(!active.pendingRequest) return; await fetch(`${BACKEND_URL}/decline-request`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, senderId: active.pendingRequest.id }) }); fetchRequests(user.id); setActive({...active, pendingRequest: null}); };
   const handleRemoveFriend = async (targetId: number | null = null) => { const idToRemove = targetId || viewingProfile?.id; if (!idToRemove) return; if (!confirm("Are you sure you want to remove this friend?")) return; await fetch(`${BACKEND_URL}/remove-friend`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ myId: user.id, friendId: idToRemove }) }); fetchFriends(user.id); if (viewingProfile?.id === idToRemove) setViewingProfile(null); if (active.friend?.id === idToRemove) setActive({ ...active, friend: null }); };
-
-  const handleMessageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = e.target.value;
-      setMessage(val);
-      const match = val.match(/@(\w*)$/);
-      if (match && active.server) {
-          setShowMentions(true);
-          setMentionQuery(match[1].toLowerCase());
-      } else {
-          setShowMentions(false);
-      }
-  };
 
   const insertMention = (username: string) => {
       const newVal = message.replace(/@(\w*)$/, `@${username} `);
@@ -1302,6 +1355,7 @@ const createRole = async () => {
       {/* RIGHT SIDE: HERO TEXT */}
       <div className="hidden md:flex w-[60%] h-full flex-col justify-center px-20 relative z-10">
           <div className="relative">
+              {/* ✅ FADE ANIMATION APPLIED HERE */}
               <h1 
                   className={`text-7xl font-extrabold text-transparent bg-clip-text bg-gradient-to-br ${theme.gradient} leading-tight drop-shadow-2xl transition-all duration-500 ease-in-out ${isVisible ? 'opacity-100 translate-y-0 blur-0' : 'opacity-0 translate-y-4 blur-sm'}`}
               >
@@ -1565,6 +1619,7 @@ const createRole = async () => {
                  </div>
              ) : (active.channel || active.friend) ? (
                  <>
+                    {/* ... (Chat messages area - unchanged) */}
                     {loading.chat ? (
                         <div className="flex-1 p-6 space-y-6 overflow-hidden">
                             {[...Array(6)].map((_, i) => (
@@ -1580,7 +1635,6 @@ const createRole = async () => {
                     ) : (
                         <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
                             {chatHistory
-                                // 🔍 FILTER: Only show messages containing search query
                                 .filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase()))
                                 .map((msg, i) => {
                                     const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
@@ -1684,6 +1738,22 @@ const createRole = async () => {
                         </div>
                     )}
 
+                    {/* ✅ TYPING INDICATOR (ABSOLUTE ABOVE INPUT) */}
+                    {typingUsers.size > 0 && (
+                        <div className="absolute bottom-20 left-6 z-20 animate-in fade-in slide-in-from-bottom-2 duration-300 pointer-events-none">
+                            <div className="flex items-center gap-2 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-full border border-white/10 shadow-lg">
+                                <div className="flex gap-1">
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                                    <div className="w-1.5 h-1.5 bg-white rounded-full animate-bounce"></div>
+                                </div>
+                                <span className="text-[10px] font-bold text-white/80">
+                                    {Array.from(typingUsers).join(", ")} is typing...
+                                </span>
+                            </div>
+                        </div>
+                    )}
+
                     <div className="p-4 relative">
                         {showEmojiPicker && <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"><EmojiPicker theme={Theme.DARK} onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)} lazyLoadEmojis={true}/></div>}
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
@@ -1729,6 +1799,7 @@ const createRole = async () => {
              ) : <div className="flex-1 flex items-center justify-center text-white/20 font-bold uppercase tracking-widest animate-pulse">{t('chat_select')}</div>}
          </div>
 
+         {/* ... (Call UI remains unchanged) */}
          {inCall && (
              <div className={`${isCallExpanded ? "absolute inset-0 z-50 bg-[#000000] animate-in zoom-in-95 duration-300" : "hidden"} flex flex-col`}>
                  <div className="absolute top-4 left-4 right-4 z-[60] flex justify-between items-start pointer-events-none">
@@ -1863,6 +1934,7 @@ const createRole = async () => {
           </div>
       )}
 
+      {/* ... (Incoming Call, Viewing Profile, Changelog, Settings, Context Menu, Zoomed Image Modal remain the same) */}
       {incomingCall && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4 animate-in zoom-in-95 duration-300">
               <div className="relative flex flex-col items-center gap-8 animate-in slide-in-from-bottom-12 duration-500">
