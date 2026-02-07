@@ -34,7 +34,7 @@ const TRANSLATIONS: any = {
   }
 };
 
-// 🎨 THEME CONFIGURATION
+// 🎨 THEME CONFIGURATION (Updated with meshGradient)
 const THEMES: Record<string, any> = {
     indigo: { 
         name: "Default (Indigo)", 
@@ -46,7 +46,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-indigo-500",
         lightBg: "bg-indigo-600/20",
         gradient: "from-indigo-600 to-blue-600",
-        shadow: "shadow-indigo-500/20"
+        shadow: "shadow-indigo-500/20",
+        meshGradient: "from-indigo-900 via-purple-900" // Original deep background
     },
     blue: { 
         name: "Ocean Blue", 
@@ -58,7 +59,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-blue-500",
         lightBg: "bg-blue-600/20",
         gradient: "from-blue-600 to-cyan-600",
-        shadow: "shadow-blue-500/20"
+        shadow: "shadow-blue-500/20",
+        meshGradient: "from-blue-900 via-cyan-900"
     },
     purple: { 
         name: "Royal Purple", 
@@ -70,7 +72,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-purple-500",
         lightBg: "bg-purple-600/20",
         gradient: "from-purple-600 to-pink-600",
-        shadow: "shadow-purple-500/20"
+        shadow: "shadow-purple-500/20",
+        meshGradient: "from-purple-900 via-fuchsia-900"
     },
     emerald: { 
         name: "Emerald", 
@@ -82,7 +85,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-emerald-500",
         lightBg: "bg-emerald-600/20",
         gradient: "from-emerald-600 to-green-600",
-        shadow: "shadow-emerald-500/20"
+        shadow: "shadow-emerald-500/20",
+        meshGradient: "from-emerald-900 via-teal-900"
     },
     rose: { 
         name: "Rose", 
@@ -94,7 +98,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-rose-500",
         lightBg: "bg-rose-600/20",
         gradient: "from-rose-600 to-red-600",
-        shadow: "shadow-rose-500/20"
+        shadow: "shadow-rose-500/20",
+        meshGradient: "from-rose-900 via-red-900"
     },
     amber: { 
         name: "Amber", 
@@ -106,7 +111,8 @@ const THEMES: Record<string, any> = {
         ring: "focus:ring-amber-500",
         lightBg: "bg-amber-600/20",
         gradient: "from-amber-600 to-orange-600",
-        shadow: "shadow-amber-500/20"
+        shadow: "shadow-amber-500/20",
+        meshGradient: "from-amber-900 via-yellow-900"
     }
 };
 
@@ -1223,10 +1229,11 @@ const createRole = async () => {
   const onTouchEnd = () => { if (!touchStart || !touchEnd) return; const distance = touchStart - touchEnd; if (distance > 50) setShowMobileMembers(true); if (distance < -50) setShowMobileMembers(false); };
 
   if (!user) return (
-    <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
+    <div className={`flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-${accentColor}-500/30 select-none`}>
       {/* 🌟 GLOBAL GLOW */}
       <GlobalCursorGlow color={theme.hex} />
-      <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
+      {/* ✅ NEW: Dynamic Background Mesh Gradient */}
+      <div className={`absolute inset-0 bg-linear-to-br ${theme.meshGradient} to-black opacity-40 animate-pulse-slow`}></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
             <img src="/logo.png" alt="DaChat" className="w-full h-full object-contain relative z-10 drop-shadow-[0_0_15px_rgba(100,100,255,0.5)] rounded-4xl" />
@@ -1263,7 +1270,7 @@ const createRole = async () => {
   );
 
   return (
-    <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
+    <div className={`flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-${accentColor}-500/30 select-none`}>
       {/* 🌟 GLOBAL GLOW */}
       <GlobalCursorGlow color={theme.hex} />
       <style>{`
@@ -1298,7 +1305,8 @@ const createRole = async () => {
         }
       `}</style>
 
-      <div className="absolute inset-0 bg-linear-to-br from-indigo-600/30 via-black to-black z-0 pointer-events-none"></div>
+      {/* ✅ NEW: Dynamic Background Mesh Gradient */}
+      <div className={`absolute inset-0 bg-linear-to-br ${theme.meshGradient} to-black opacity-40 animate-pulse-slow z-0 pointer-events-none`}></div>
       
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-2xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
