@@ -34,6 +34,82 @@ const TRANSLATIONS: any = {
   }
 };
 
+// 🎨 THEME CONFIGURATION
+const THEMES: Record<string, any> = {
+    indigo: { 
+        name: "Default (Indigo)", 
+        hex: "99, 102, 241",
+        primary: "bg-indigo-600", 
+        hover: "hover:bg-indigo-500", 
+        text: "text-indigo-400", 
+        border: "border-indigo-500", 
+        ring: "focus:ring-indigo-500",
+        lightBg: "bg-indigo-600/20",
+        gradient: "from-indigo-600 to-blue-600",
+        shadow: "shadow-indigo-500/20"
+    },
+    blue: { 
+        name: "Ocean Blue", 
+        hex: "59, 130, 246",
+        primary: "bg-blue-600", 
+        hover: "hover:bg-blue-500", 
+        text: "text-blue-400", 
+        border: "border-blue-500", 
+        ring: "focus:ring-blue-500",
+        lightBg: "bg-blue-600/20",
+        gradient: "from-blue-600 to-cyan-600",
+        shadow: "shadow-blue-500/20"
+    },
+    purple: { 
+        name: "Royal Purple", 
+        hex: "168, 85, 247",
+        primary: "bg-purple-600", 
+        hover: "hover:bg-purple-500", 
+        text: "text-purple-400", 
+        border: "border-purple-500", 
+        ring: "focus:ring-purple-500",
+        lightBg: "bg-purple-600/20",
+        gradient: "from-purple-600 to-pink-600",
+        shadow: "shadow-purple-500/20"
+    },
+    emerald: { 
+        name: "Emerald", 
+        hex: "16, 185, 129",
+        primary: "bg-emerald-600", 
+        hover: "hover:bg-emerald-500", 
+        text: "text-emerald-400", 
+        border: "border-emerald-500", 
+        ring: "focus:ring-emerald-500",
+        lightBg: "bg-emerald-600/20",
+        gradient: "from-emerald-600 to-green-600",
+        shadow: "shadow-emerald-500/20"
+    },
+    rose: { 
+        name: "Rose", 
+        hex: "244, 63, 94",
+        primary: "bg-rose-600", 
+        hover: "hover:bg-rose-500", 
+        text: "text-rose-400", 
+        border: "border-rose-500", 
+        ring: "focus:ring-rose-500",
+        lightBg: "bg-rose-600/20",
+        gradient: "from-rose-600 to-red-600",
+        shadow: "shadow-rose-500/20"
+    },
+    amber: { 
+        name: "Amber", 
+        hex: "245, 158, 11",
+        primary: "bg-amber-600", 
+        hover: "hover:bg-amber-500", 
+        text: "text-amber-400", 
+        border: "border-amber-500", 
+        ring: "focus:ring-amber-500",
+        lightBg: "bg-amber-600/20",
+        gradient: "from-amber-600 to-orange-600",
+        shadow: "shadow-amber-500/20"
+    }
+};
+
 const SOUNDS = [
     { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
     { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
@@ -72,8 +148,8 @@ const GifPicker = ({ onSelect, onClose, className }: any) => { const [gifs, setG
 
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
-// ✅ NEW: Global Glow Effect
-const GlobalCursorGlow = () => {
+// ✅ NEW: Global Glow Effect (Now Dynamic)
+const GlobalCursorGlow = ({ color = "100, 100, 255" }: { color?: string }) => {
   const [pos, setPos] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -88,14 +164,14 @@ const GlobalCursorGlow = () => {
     <div
       className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-300"
       style={{
-        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(100, 100, 255, 0.15), transparent 40%)`,
+        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(${color}, 0.15), transparent 40%)`,
       }}
     />
   );
 };
 
 // ✅ NEW: Spotlight Button Component
-const SpotlightButton = ({ children, onClick, className = "", style = {} }: any) => {
+const SpotlightButton = ({ children, onClick, className = "", style = {}, glowColor = "99, 102, 241" }: any) => {
   const divRef = useRef<HTMLButtonElement>(null);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [opacity, setOpacity] = useState(0);
@@ -124,7 +200,7 @@ const SpotlightButton = ({ children, onClick, className = "", style = {} }: any)
         className="pointer-events-none absolute -inset-px transition-opacity duration-300"
         style={{
           opacity,
-          background: `radial-gradient(150px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
+          background: `radial-gradient(150px circle at ${position.x}px ${position.y}px, rgba(${glowColor}, 0.4), transparent 80%)`,
         }}
       />
       <div className="relative z-10 flex items-center justify-center gap-2">
@@ -140,6 +216,10 @@ export default function DaChat() {
   const [authForm, setAuthForm] = useState({ username: "", password: "" });
   const [error, setError] = useState("");
   const [lang, setLang] = useState("en");
+
+  // ✅ NEW: Theme State
+  const [accentColor, setAccentColor] = useState("indigo");
+  const theme = THEMES[accentColor] || THEMES['indigo'];
 
   // ✅ NEW: Loading State
   const [loading, setLoading] = useState({
@@ -314,9 +394,9 @@ export default function DaChat() {
     const parts = content.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`|https?:\/\/[^\s]+)/g);
     return parts.map((part, i) => {
         if (part.startsWith('**') && part.endsWith('**')) return <b key={i} className="font-bold text-yellow-200">{part.slice(2, -2)}</b>;
-        if (part.startsWith('*') && part.endsWith('*')) return <i key={i} className="italic text-blue-200">{part.slice(1, -1)}</i>;
+        if (part.startsWith('*') && part.endsWith('*')) return <i key={i} className={`italic ${theme.text}`}>{part.slice(1, -1)}</i>;
         if (part.startsWith('`') && part.endsWith('`')) return <code key={i} className="bg-black/30 px-1 rounded font-mono text-xs text-red-200">{part.slice(1, -1)}</code>;
-        if (part.match(/https?:\/\/[^\s]+/)) return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-blue-400 underline hover:text-blue-300 break-all" onClick={(e) => e.stopPropagation()}>{part}</a>;
+        if (part.match(/https?:\/\/[^\s]+/)) return <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={`${theme.text} underline hover:text-opacity-80 break-all`} onClick={(e) => e.stopPropagation()}>{part}</a>;
         return <span key={i} className="break-words">{part}</span>;
     });
   };
@@ -334,6 +414,9 @@ export default function DaChat() {
           
           const savedLang = localStorage.getItem("dachat_lang");
           if (savedLang) setLang(savedLang);
+
+          const savedTheme = localStorage.getItem("dachat_theme");
+          if (savedTheme && THEMES[savedTheme]) setAccentColor(savedTheme);
 
           const storedVersion = localStorage.getItem("dachat_version");
           if (storedVersion !== APP_VERSION) setShowChangelog(true);
@@ -1142,7 +1225,7 @@ const createRole = async () => {
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
       {/* 🌟 GLOBAL GLOW */}
-      <GlobalCursorGlow />
+      <GlobalCursorGlow color={theme.hex} />
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
@@ -1153,24 +1236,24 @@ const createRole = async () => {
         <div className="space-y-3">
             {!is2FALogin ? (
                 <>
-                    <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40" placeholder={t('auth_user')} onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
+                    <input className={`w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 ${theme.ring} transition-all placeholder-white/20 hover:bg-black/40`} placeholder={t('auth_user')} onChange={e => setAuthForm({ ...authForm, username: e.target.value })} />
                     <div className="relative">
-                        <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500/50 transition-all placeholder-white/20 hover:bg-black/40 pr-12" type={showPassword ? "text" : "password"} placeholder={t('auth_pass')} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
+                        <input className={`w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl focus:outline-none focus:ring-2 ${theme.ring} transition-all placeholder-white/20 hover:bg-black/40 pr-12`} type={showPassword ? "text" : "password"} placeholder={t('auth_pass')} onChange={e => setAuthForm({ ...authForm, password: e.target.value })} />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/30 hover:text-white transition-colors text-xl">{showPassword ? "🙈" : "👁️"}</button>
                     </div>
-                    {!isRegistering && ( <div className="flex items-center gap-2 px-2"> <input type="checkbox" id="remember" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className="w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer accent-blue-600"/> <label htmlFor="remember" className="text-xs text-white/50 cursor-pointer select-none hover:text-white transition-colors">{t('auth_remember')}</label> </div> )}
+                    {!isRegistering && ( <div className="flex items-center gap-2 px-2"> <input type="checkbox" id="remember" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} className={`w-4 h-4 rounded bg-white/10 border-white/20 cursor-pointer accent-${accentColor}-600`}/> <label htmlFor="remember" className="text-xs text-white/50 cursor-pointer select-none hover:text-white transition-colors">{t('auth_remember')}</label> </div> )}
                 </>
             ) : (
                 <div className="animate-in slide-in-from-right-4">
                     <div className="text-center text-white/50 mb-2 text-xs">{t('auth_2fa')}</div>
-                    <input className="w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 focus:ring-blue-500/50" placeholder="000 000" maxLength={6} onChange={e => setTwoFACode(e.target.value)} />
+                    <input className={`w-full bg-black/30 border border-white/5 text-white px-5 py-4 rounded-2xl text-center text-2xl tracking-widest font-mono focus:outline-none focus:ring-2 ${theme.ring}`} placeholder="000 000" maxLength={6} onChange={e => setTwoFACode(e.target.value)} />
                     <button onClick={() => setIs2FALogin(false)} className="w-full text-xs text-white/30 mt-2 hover:text-white">{t('auth_back')}</button>
                 </div>
             )}
         </div>
         
         {/* 🌟 SPOTLIGHT BUTTON: Auth */}
-        <SpotlightButton onClick={handleAuth} className="w-full shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(99,102,241,0.4)]">
+        <SpotlightButton onClick={handleAuth} glowColor={theme.hex} className="w-full shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(255,255,255,0.2)]">
             {is2FALogin ? t('auth_verify') : (isRegistering ? t('auth_register') : t('auth_login'))}
         </SpotlightButton>
 
@@ -1182,7 +1265,7 @@ const createRole = async () => {
   return (
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
       {/* 🌟 GLOBAL GLOW */}
-      <GlobalCursorGlow />
+      <GlobalCursorGlow color={theme.hex} />
       <style>{`
         * {
           scrollbar-width: thin;
@@ -1312,7 +1395,7 @@ const createRole = async () => {
                     }))}
 
                     <div className="mt-6 px-2 space-y-2">
-                        <button onClick={inviteUser} className="w-full py-2 bg-blue-600/20 text-blue-400 rounded-lg text-xs font-bold hover:bg-blue-600/30 transition-all hover:scale-[1.02] active:scale-95">Invite People</button>
+                        <button onClick={inviteUser} className={`w-full py-2 ${theme.lightBg} ${theme.text} rounded-lg text-xs font-bold hover:bg-opacity-30 transition-all hover:scale-[1.02] active:scale-95`}>Invite People</button>
                         <button onClick={leaveServer} className="w-full py-2 bg-red-600/10 text-red-400 rounded-lg text-xs font-bold hover:bg-red-600/20 transition-all hover:scale-[1.02] active:scale-95">Leave Server</button>
                     </div>
                 </>
@@ -1350,7 +1433,7 @@ const createRole = async () => {
                                     <div className="flex justify-between items-center"> 
                                         <div className="text-xs font-bold truncate">{f.username}</div> 
                                         {unreadMap[f.id] && (
-                                            <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6] animate-pulse ml-2"></div>
+                                            <div className={`w-2 h-2 ${theme.primary} rounded-full ${theme.shadow} animate-pulse ml-2`}></div>
                                         )}
                                         {isPlaying && <img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3 opacity-50" />} 
                                     </div>
@@ -1468,14 +1551,14 @@ const createRole = async () => {
                                                 </div> 
 
                                                 {msg.reply_to_id && (
-                                                    <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
+                                                    <div className={`mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 ${theme.border}`}>
                                                         <span>⤴️ {t('chat_replying')}</span>
                                                     </div>
                                                 )}
 
                                                 <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
                                                     ${msg.sender_id === user.id 
-        ? "bg-gradient-to-br from-indigo-600/80 to-blue-600/80 backdrop-blur-md border border-blue-400/30 text-white shadow-[0_4px_20px_rgba(79,70,229,0.4)] rounded-br-none" 
+        ? `bg-gradient-to-br ${theme.gradient} backdrop-blur-md border border-white/10 text-white ${theme.shadow} rounded-br-none` 
         : "bg-zinc-800/60 backdrop-blur-md border border-white/5 text-gray-100 hover:bg-zinc-800/80 rounded-bl-none"
     }
                                                 `}> 
@@ -1512,7 +1595,7 @@ const createRole = async () => {
                                                             <button 
                                                                 key={emoji}
                                                                 onClick={() => toggleReaction(msg, emoji)}
-                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
+                                                                className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? `bg-white/10 ${theme.border} text-white` : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
                                                             >
                                                                 <span>{emoji}</span>
                                                                 <span className="font-bold text-[10px]">{data.count}</span>
@@ -1561,7 +1644,7 @@ const createRole = async () => {
                                         <div 
                                             key={m.id} 
                                             onClick={() => insertMention(m.username)}
-                                            className="flex items-center gap-3 px-4 py-2 hover:bg-indigo-600/20 hover:text-indigo-200 cursor-pointer transition-colors"
+                                            className={`flex items-center gap-3 px-4 py-2 ${theme.lightBg} ${theme.text} cursor-pointer transition-colors`}
                                         >
                                             <UserAvatar src={m.avatar_url} className="w-6 h-6 rounded-full" />
                                             <span className="text-sm font-bold">{m.username}</span>
@@ -1574,7 +1657,7 @@ const createRole = async () => {
                             </div>
                         )}
 
-                        <div className="bg-zinc-900/50 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all duration-300 focus-within:border-indigo-500/50 focus-within:shadow-[0_0_30px_rgba(99,102,241,0.3)] focus-within:bg-black/80">
+                        <div className={`bg-zinc-900/50 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all duration-300 focus-within:border-${accentColor}-500/50 focus-within:${theme.shadow} focus-within:bg-black/80`}>
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <button className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false);}} onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}>{emojiBtnIcon}</button>
@@ -1605,7 +1688,7 @@ const createRole = async () => {
                      </div>
 
                      <div className="flex gap-2 pointer-events-auto">
-                         <button onClick={() => setShowSoundboard(!showSoundboard)} className="px-4 py-2 bg-indigo-600/80 hover:bg-indigo-500 text-white rounded-full text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
+                         <button onClick={() => setShowSoundboard(!showSoundboard)} className={`px-4 py-2 ${theme.primary} ${theme.hover} text-white rounded-full text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2`}> 
                             <span>🎭</span> Sounds
                          </button>
                          <button onClick={() => setIsCallExpanded(false)} className="px-4 py-2 bg-zinc-800/80 hover:bg-zinc-700 text-white rounded-full text-xs font-bold backdrop-blur-md transition-all shadow-lg flex items-center gap-2"> 
@@ -1640,7 +1723,7 @@ const createRole = async () => {
                                             deleteCustomSound(s.id);
                                         }
                                     }} 
-                                    className="aspect-square bg-black/40 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 border border-white/5 hover:border-indigo-500/50 group relative"
+                                    className={`aspect-square bg-black/40 hover:bg-white/10 rounded-xl flex flex-col items-center justify-center transition-all active:scale-90 border border-white/5 hover:${theme.border} group relative`}
                                     title={s.emoji + ((s as any).isCustom ? " (Right-click to delete)" : "")}
                                 >
                                     <span className="text-2xl">{s.emoji.substring(0, 2)}</span>
@@ -1650,7 +1733,7 @@ const createRole = async () => {
 
                             <button 
                                 onClick={() => soundInputRef.current?.click()}
-                                className="aspect-square bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-200 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-indigo-500/30 border-dashed"
+                                className={`aspect-square ${theme.lightBg} ${theme.text} hover:bg-opacity-40 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border ${theme.border} border-dashed`}
                                 title="Add Custom Sound"
                             >
                                 +
@@ -1670,7 +1753,7 @@ const createRole = async () => {
                            socket.emit("leave_voice");
                        }} 
                     >
-                        <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} />
+                        <RoomPlayer track={currentTrack} onSearch={playMusic} t={t} accentColor={accentColor} theme={theme} />
                     </LiveKitVoiceRoom>
                  </div>
              </div>
@@ -1776,14 +1859,14 @@ const createRole = async () => {
                             Report a Bug
                           </button> 
                           <button onClick={()=>(document.getElementById('pUpload') as any).click()} className="text-xs bg-white/10 hover:bg-white/20 px-3 py-2 rounded-lg transition-colors w-full text-center">{t('set_upload')}</button> 
-                          <button onClick={() => setShowSettingsGifPicker(true)} className="text-xs bg-linear-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center">{t('set_gif')}</button> 
+                          <button onClick={() => setShowSettingsGifPicker(true)} className={`text-xs bg-linear-to-r ${theme.gradient} text-white px-3 py-2 rounded-lg transition-all font-bold shadow-lg w-full text-center`}>{t('set_gif')}</button> 
                           <button onClick={saveSteamId} className="text-xs bg-[#171a21] text-[#c7d5e0] hover:bg-[#2a475e] px-3 py-2 rounded-lg transition-all font-bold shadow-lg flex items-center justify-center gap-2 w-full"><img src="https://upload.wikimedia.org/wikipedia/commons/8/83/Steam_icon_logo.svg" className="w-3 h-3" />{user.steam_id ? "Linked" : "Link Steam"}</button> 
                         </div> 
                         <input id="pUpload" type="file" className="hidden" onChange={e=>e.target.files && setNewAvatarFile(e.target.files[0])} /> 
                       </div> 
                       <div className="flex-1 w-full flex flex-col gap-4"> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
-                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
+                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className={`w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 ${theme.ring} outline-none transition-all border border-white/5 focus:bg-black/20`} value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
+                        <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className={`w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 ${theme.ring} outline-none transition-all border border-white/5 focus:bg-black/20`} value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
                         <div className="space-y-1 pt-2">
                             <label className="text-xs text-white/50 ml-1 font-bold uppercase">Status</label>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
@@ -1816,8 +1899,22 @@ const createRole = async () => {
                             <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">App Preferences</h3> 
                             <div className="bg-white/5 p-4 rounded-xl border border-white/5 space-y-4"> 
                                 <div className="space-y-1"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_lang')}</label> 
-                                    <select className="w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-indigo-500/50 outline-none appearance-none" value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > 
+                                    <label className={`text-xs ${theme.text} font-bold ml-1`}>Color Theme</label>
+                                    <div className="flex gap-2 flex-wrap">
+                                        {Object.keys(THEMES).map((key) => (
+                                            <button
+                                                key={key}
+                                                onClick={() => { setAccentColor(key); localStorage.setItem("dachat_theme", key); }}
+                                                className={`w-8 h-8 rounded-full transition-transform hover:scale-110 ${THEMES[key].primary} ${accentColor === key ? "ring-2 ring-white scale-110" : ""}`}
+                                                title={THEMES[key].name}
+                                            />
+                                        ))}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-1"> 
+                                    <label className={`text-xs ${theme.text} font-bold ml-1`}>{t('set_lang')}</label> 
+                                    <select className={`w-full bg-black/40 p-2 rounded-lg text-sm text-white border border-white/10 focus:border-${accentColor}-500/50 outline-none appearance-none`} value={lang} onChange={(e) => { setLang(e.target.value); localStorage.setItem("dachat_lang", e.target.value); }} > 
                                         <option value="en">English (Default)</option> 
                                         <option value="ro">Română (Romanian)</option> 
                                         <option value="de">Deutsch (German)</option> 
@@ -1833,7 +1930,7 @@ const createRole = async () => {
                                 </div> 
                                 
                                 <div className="space-y-2"> 
-                                    <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
+                                    <label className={`text-xs ${theme.text} font-bold ml-1`}>{t('set_ringtone')}</label> 
                                     
                                     <div className="flex flex-col gap-2">
                                         <input 
@@ -1846,7 +1943,7 @@ const createRole = async () => {
 
                                         <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10">
                                             <div className="flex items-center gap-3 overflow-hidden">
-                                                <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
+                                                <div className={`w-8 h-8 rounded-full ${theme.lightBg} flex items-center justify-center ${theme.text}`}>
                                                     🎵
                                                 </div>
                                                 <div className="flex flex-col min-w-0">
@@ -1863,7 +1960,7 @@ const createRole = async () => {
                                                 onClick={() => isPreviewing ? stopPreview() : playPreview(selectedRingtone)}
                                                 className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${
                                                     isPreviewing 
-                                                    ? "bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)] scale-110" 
+                                                    ? `${theme.primary} text-white ${theme.shadow} scale-110` 
                                                     : "hover:bg-white/10 text-white/60 hover:text-white"
                                                 }`}
                                                 title={isPreviewing ? "Stop Preview" : "Play Preview"}
@@ -1875,7 +1972,7 @@ const createRole = async () => {
                                         <div className="flex gap-2 mt-1">
                                             <button 
                                                 onClick={() => ringtoneInputRef.current?.click()} 
-                                                className="flex-1 py-2 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-400 text-xs font-bold rounded-lg border border-indigo-500/30 transition-all active:scale-95"
+                                                className={`flex-1 py-2 ${theme.lightBg} hover:bg-opacity-30 ${theme.text} text-xs font-bold rounded-lg border ${theme.border} border-opacity-30 transition-all active:scale-95`}
                                             >
                                                 Upload New
                                             </button>
@@ -1909,7 +2006,7 @@ const createRole = async () => {
                                               }
                                               saveNotifSettings({...notifSettings, desktop_notifications: !notifSettings.desktop_notifications})
                                           }}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.desktop_notifications ? theme.primary : 'bg-zinc-700'}`}
                                       >
                                           <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.desktop_notifications ? 'right-1' : 'left-1'}`} />
                                       </button>
@@ -1919,7 +2016,7 @@ const createRole = async () => {
                                       <span className="text-sm">People I know start streaming</span>
                                       <button 
                                           onClick={() => saveNotifSettings({...notifSettings, streaming_notifications: !notifSettings.streaming_notifications})}
-                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? 'bg-indigo-500' : 'bg-zinc-700'}`}
+                                          className={`w-12 h-6 rounded-full transition-colors relative ${notifSettings.streaming_notifications ? theme.primary : 'bg-zinc-700'}`}
                                       >
                                           <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${notifSettings.streaming_notifications ? 'right-1' : 'left-1'}`} />
                                       </button>
@@ -1988,7 +2085,8 @@ const createRole = async () => {
                         </SpotlightButton> 
 <SpotlightButton 
     onClick={saveProfile} 
-    className="bg-indigo-600 text-white px-8 py-2 font-bold hover:scale-105 shadow-lg shadow-indigo-500/20 text-sm"
+    glowColor={theme.hex}
+    className={`${theme.primary} text-white px-8 py-2 font-bold hover:scale-105 shadow-lg ${theme.shadow} text-sm`}
 >
     {t('btn_save')}
 </SpotlightButton>
@@ -2045,12 +2143,12 @@ const createRole = async () => {
                                       </div>
                                       <div className="flex-1 space-y-6">
                                           <div className="space-y-2">
-                                              <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Server Name</label>
-                                              <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold text-lg placeholder-white/20" value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
+                                              <label className={`text-xs font-bold ${theme.text} uppercase tracking-wider ml-1`}>Server Name</label>
+                                              <input className={`w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:${theme.border} focus:ring-2 ${theme.ring} transition-all font-bold text-lg placeholder-white/20`} value={serverEditForm.name} onChange={e => setServerEditForm({ ...serverEditForm, name: e.target.value })} />
                                           </div>
                                           <div className="space-y-2">
                                               <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Description</label>
-                                              <textarea className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all h-24 resize-none text-sm placeholder-white/20" placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
+                                              <textarea className={`w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:${theme.border} focus:ring-2 ${theme.ring} transition-all h-24 resize-none text-sm placeholder-white/20`} placeholder="What is this server about?" value={(serverEditForm as any).description} onChange={e => setServerEditForm({ ...serverEditForm, description: e.target.value } as any)}/>
                                           </div>
                                       </div>
                                   </div>
@@ -2059,7 +2157,7 @@ const createRole = async () => {
                                   
                                   <div className="space-y-2">
                                       <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">System Messages Channel</label>
-                                      <select className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 appearance-none cursor-pointer" value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
+                                      <select className={`w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:${theme.border} focus:ring-2 ${theme.ring} appearance-none cursor-pointer`} value={(serverEditForm as any).systemChannelId || ""} onChange={e => setServerEditForm({ ...serverEditForm, systemChannelId: e.target.value } as any)}>
                                           {channels.filter(c => c.type === 'text').map(c => (
                                               <option key={c.id} value={c.id}># {c.name}</option>
                                           ))}
@@ -2069,7 +2167,7 @@ const createRole = async () => {
 
                                   <div className="space-y-2">
                                       <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Server Banner Image (URL)</label>
-                                      <input className="w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-mono text-xs text-blue-300" placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
+                                      <input className={`w-full bg-black/40 text-white p-4 rounded-xl outline-none border border-white/5 focus:${theme.border} focus:ring-2 ${theme.ring} transition-all font-mono text-xs text-blue-300`} placeholder="https://..." value={(serverEditForm as any).bannerUrl} onChange={e => setServerEditForm({ ...serverEditForm, bannerUrl: e.target.value } as any)} />
                                       {(serverEditForm as any).bannerUrl && (
                                           <div className="mt-4 h-40 w-full rounded-2xl bg-cover bg-center border border-white/10 shadow-2xl" style={{ backgroundImage: `url(${(serverEditForm as any).bannerUrl})` }} />
                                       )}
@@ -2110,7 +2208,7 @@ const createRole = async () => {
                                               <div className="grid grid-cols-2 gap-4">
                                                   <div className="space-y-2">
                                                       <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Name</label>
-                                                      <input className="w-full bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 focus:ring-2 ring-indigo-500/20 transition-all font-bold" value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
+                                                      <input className={`w-full bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:${theme.border} focus:ring-2 ${theme.ring} transition-all font-bold`} value={activeRole.name} onChange={(e) => setActiveRole({ ...activeRole, name: e.target.value })}/>
                                                   </div>
                                                   <div className="space-y-2">
                                                       <label className="text-xs font-bold text-white/40 uppercase tracking-wider ml-1">Role Color</label>
@@ -2118,13 +2216,13 @@ const createRole = async () => {
                                                           <div className="relative w-12 h-full rounded-xl overflow-hidden border border-white/10 shadow-inner">
                                                               <input type="color" className="absolute -top-2 -left-2 w-20 h-20 cursor-pointer" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
                                                           </div>
-                                                          <input className="flex-1 bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:border-indigo-500/50 transition-all font-mono text-xs uppercase" value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
+                                                          <input className={`flex-1 bg-black/40 text-white p-3 rounded-xl outline-none border border-white/5 focus:${theme.border} transition-all font-mono text-xs uppercase`} value={activeRole.color} onChange={(e) => setActiveRole({ ...activeRole, color: e.target.value })}/>
                                                       </div>
                                                   </div>
                                               </div>
 
                                               <div className="space-y-4">
-                                                  <label className="text-xs font-bold text-indigo-300 uppercase tracking-wider ml-1">Permissions</label>
+                                                  <label className={`text-xs font-bold ${theme.text} uppercase tracking-wider ml-1`}>Permissions</label>
                                                   <div className="space-y-3">
                                                       {[{ key: 'administrator', label: 'Administrator', desc: 'Grants all permissions. Dangerous!' }, { key: 'manage_channels', label: 'Manage Channels', desc: 'Create, edit, and delete channels.' }, { key: 'kick_members', label: 'Kick Members', desc: 'Remove members from the server.' }, { key: 'ban_members', label: 'Ban Members', desc: 'Permanently ban members.' }].map((perm) => (
                                                           <div key={perm.key} className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5 hover:border-white/10 transition-colors">
@@ -2305,7 +2403,7 @@ const createRole = async () => {
   );
 }
 
-const RoomPlayer = memo(({ track, onSearch, t }: any) => {
+const RoomPlayer = memo(({ track, onSearch, t, accentColor, theme }: any) => {
     const [search, setSearch] = useState("");
     const [showQueue, setShowQueue] = useState(false);
     const [localVolume, setLocalVolume] = useState(50);
@@ -2382,7 +2480,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
 
                 {track?.current ? (
                     <div className="flex-1 flex flex-col items-center justify-center w-full transition-all duration-300 ease-in-out" style={{ transform: showControls ? 'scale(0.95) translateY(-10px)' : 'scale(1)' }}>
-                        <div className="mt-32 md:mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:shadow-indigo-500/20 transition-all">
+                        <div className={`mt-32 md:mt-24 relative aspect-square w-full max-w-[240px] shadow-2xl rounded-2xl overflow-hidden mb-4 border border-white/10 shrink-0 bg-black group-hover:${theme.shadow} transition-all`}>
                             <img src={track.current.image} className="w-full h-full object-cover" alt="thumb" />
                             {!track.isPaused && ( <iframe ref={iframeRef} className="absolute inset-0 w-full h-full opacity-0 pointer-events-none" src={iframeSrc} allow="autoplay" /> )}
                         </div>
@@ -2404,7 +2502,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                     <div className="flex items-center gap-3 text-[10px] font-mono font-bold text-white/40 mb-3 px-1">
                         <span className="min-w-[30px] text-right">{formatTime(progress)}</span>
                         <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden relative">
-                            <div className="absolute inset-y-0 left-0 bg-indigo-500 rounded-full transition-all duration-1000 ease-linear" style={{ width: `${Math.min((progress / track.current.duration) * 100, 100)}%` }} />
+                            <div className={`absolute inset-y-0 left-0 ${theme.primary} rounded-full transition-all duration-1000 ease-linear`} style={{ width: `${Math.min((progress / track.current.duration) * 100, 100)}%` }} />
                         </div>
                         <span className="min-w-[30px]">{formatTime(track.current.duration)}</span>
                     </div>
@@ -2424,7 +2522,7 @@ const RoomPlayer = memo(({ track, onSearch, t }: any) => {
                          <div className="w-8 h-8 opacity-0 pointer-events-none"></div>
                          <button 
                             onClick={() => handleControl(track?.isPaused ? 'resume' : 'pause')} 
-                            className="w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:bg-indigo-50 transition-all active:scale-95 shadow-lg shadow-white/10"
+                            className={`w-12 h-12 rounded-full bg-white text-black flex items-center justify-center hover:scale-110 hover:${theme.primary} hover:text-white transition-all active:scale-95 shadow-lg shadow-white/10`}
                          > 
                             {track?.isPaused ? <PlayIcon /> : <PauseIcon />} 
                          </button>
