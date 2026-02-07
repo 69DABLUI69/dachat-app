@@ -73,7 +73,7 @@ const GlobalCursorGlow = () => {
 
   useEffect(() => {
     const handleMouseMove = (e: MouseEvent) => {
-      setPos({ x: e.clientX, y: e.clientY });
+      setPos({ x: e.clientX, y: e.clientY});
     };
     window.addEventListener("mousemove", handleMouseMove);
     return () => window.removeEventListener("mousemove", handleMouseMove);
@@ -240,6 +240,24 @@ export default function DaChat() {
 
   const stickyRoleRef = useRef<any>(null);
   const prevVoiceStates = useRef<Record<string, number[]>>({});
+
+  const [userStatus, setUserStatus] = useState("online");
+
+  const getStatusColor = (st: string) => {
+      switch(st) {
+          case 'online': return 'bg-green-500 shadow-[0_0_10px_#22c55e]';
+          case 'idle': return 'bg-yellow-500 shadow-[0_0_10px_#eab308]';
+          case 'dnd': return 'bg-red-500 shadow-[0_0_10px_#ef4444]';
+          case 'offline': return 'bg-gray-500 border-2 border-black';
+          default: return 'bg-green-500';
+      }
+  };
+
+  const handleStatusChange = (newStatus: string) => {
+      setUserStatus(newStatus);
+      // Emit to server so others see the change
+      socket.emit("set_status", { userId: user.id, status: newStatus });
+  };
 
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
       if ((!textMsg || !textMsg.trim()) && !fileUrl) return;
@@ -1241,40 +1259,47 @@ const createRole = async () => {
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
                  <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-white/[0.03] backdrop-blur-xl animate-in fade-in slide-in-from-top-2"> 
-                    {/* 🔍 UPDATED: Searchable Header */}
-                    <div className="flex items-center gap-3 font-bold text-lg overflow-hidden flex-1"> 
-                        <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white transition-transform active:scale-90" onClick={() => setShowMobileChat(false)}>←</button>
-                        
-                        {isSearching ? (
-                            <div className="flex items-center bg-black/40 border border-white/10 rounded-full px-4 py-1.5 w-full max-w-md animate-in slide-in-from-right-2">
-                                <span className="text-xs mr-2 opacity-40">🔍</span>
-                                <input 
-                                    autoFocus
-                                    className="bg-transparent border-none outline-none text-sm w-full placeholder-white/20"
-                                    placeholder="Search messages..."
-                                    value={searchQuery}
-                                    onChange={(e) => setSearchQuery(e.target.value)}
-                                />
-                                <button onClick={() => { setIsSearching(false); setSearchQuery(""); }} className="text-[10px] text-white/30 hover:text-white ml-2 bg-white/5 w-5 h-5 rounded-full">✕</button>
-                            </div>
-                        ) : (
-                            <>
-                                <span className="text-white/30">@</span> 
-                                <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
-                            </>
-                        )}
-                    </div> 
-                    <div className="flex items-center gap-4 ml-4">
-                        {!isSearching && (
-                            <button onClick={() => setIsSearching(true)} className="text-white/40 hover:text-white transition-colors" title="Search">
-                                🔍
-                            </button>
-                        )}
-                        {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
-                        {view === "servers" && active.server && (
-                           <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
-                        )}
-                    </div>
+                    {/* 🔍 UPDATED: Searchable Header with SVG Icons */}
+<div className="flex items-center gap-3 font-bold text-lg overflow-hidden flex-1"> 
+    <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white transition-transform active:scale-90" onClick={() => setShowMobileChat(false)}>←</button>
+    
+    {isSearching ? (
+        <div className="flex items-center bg-black/40 border border-white/10 rounded-full px-4 py-1.5 w-full max-w-md animate-in slide-in-from-right-2">
+            {/* SVG Icon inside input */}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4 mr-2 text-white/40">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+            <input 
+                autoFocus
+                className="bg-transparent border-none outline-none text-sm w-full placeholder-white/20"
+                placeholder="Search messages..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+            />
+            <button onClick={() => { setIsSearching(false); setSearchQuery(""); }} className="text-[10px] text-white/30 hover:text-white ml-2 bg-white/5 w-5 h-5 rounded-full flex items-center justify-center">✕</button>
+        </div>
+    ) : (
+        <>
+            <span className="text-white/30">@</span> 
+            <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
+        </>
+    )}
+</div> 
+
+<div className="flex items-center gap-4 ml-4">
+    {!isSearching && (
+        <button onClick={() => setIsSearching(true)} className="text-white/40 hover:text-white transition-colors p-2 rounded-full hover:bg-white/5" title="Search">
+            {/* SVG Icon for Button */}
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+            </svg>
+        </button>
+    )}
+    {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
+    {view === "servers" && active.server && (
+       <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
+    )}
+</div>
                  </div>
              )}
              
@@ -1322,10 +1347,10 @@ const createRole = async () => {
                                             )}
 
                                             <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
-                                                ${msg.sender_id===user.id 
-                                                    ? "bg-blue-500/40 backdrop-blur-md border border-blue-400/20 shadow-[0_4px_20px_rgba(59,130,246,0.15)]" 
-                                                    : "bg-white/5 backdrop-blur-md border border-white/5 hover:bg-white/10"
-                                                }
+                                                ${msg.sender_id === user.id 
+    ? "bg-gradient-to-br from-indigo-600/80 to-blue-600/80 backdrop-blur-md border border-blue-400/30 text-white shadow-[0_4px_20px_rgba(79,70,229,0.4)] rounded-br-none" 
+    : "bg-zinc-800/60 backdrop-blur-md border border-white/5 text-gray-100 hover:bg-zinc-800/80 rounded-bl-none"
+}
                                             `}> 
                                                 {formatMessage(msg.content)} 
                                                 
@@ -1421,7 +1446,7 @@ const createRole = async () => {
                             </div>
                         )}
 
-                        <div className="bg-white/5 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all focus-within:ring-2 focus-within:ring-blue-500/30 focus-within:bg-black/40"> 
+                        <div className="bg-zinc-900/50 border border-white/10 rounded-full p-2 flex items-center gap-2 transition-all duration-300 focus-within:border-indigo-500/50 focus-within:shadow-[0_0_30px_rgba(99,102,241,0.3)] focus-within:bg-black/80">
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>fileInputRef.current?.click()}>📎</button> 
                             <button className="w-10 h-10 rounded-full hover:bg-white/10 text-[10px] font-bold text-white/50 transition-transform hover:scale-110 active:scale-90" onClick={()=>setShowGifPicker(!showGifPicker)}>GIF</button> 
                             <button className={`w-10 h-10 rounded-full hover:bg-white/10 text-xl transition-transform hover:scale-110 active:scale-90 ${showEmojiPicker ? "bg-white/10 text-white" : "text-white/50"}`} onClick={() => {setShowEmojiPicker(!showEmojiPicker); setShowGifPicker(false);}} onMouseEnter={() => setEmojiBtnIcon(RANDOM_EMOJIS[Math.floor(Math.random() * RANDOM_EMOJIS.length)])}>{emojiBtnIcon}</button>
@@ -1622,6 +1647,26 @@ const createRole = async () => {
                       <div className="flex-1 w-full flex flex-col gap-4"> 
                         <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Username</label> <input className="w-full bg-white/5 p-3 rounded-xl text-white focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.username} onChange={e=>setEditForm({...editForm, username: e.target.value})} /> </div> 
                         <div className="space-y-1"> <label className="text-xs text-white/50 ml-1 font-bold uppercase">Bio</label> <textarea className="w-full bg-white/5 p-3 rounded-xl text-white h-24 resize-none focus:ring-2 focus:ring-blue-500/50 outline-none transition-all border border-white/5 focus:bg-black/20" value={editForm.bio} onChange={e=>setEditForm({...editForm, bio: e.target.value})} /> </div> 
+                        <div className="space-y-1 pt-2">
+                            <label className="text-xs text-white/50 ml-1 font-bold uppercase">Status</label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                                {[
+                                    { id: 'online', label: 'Online', color: 'bg-green-500 shadow-[0_0_10px_#22c55e]' },
+                                    { id: 'idle', label: 'Idle', color: 'bg-yellow-500 shadow-[0_0_10px_#eab308]' },
+                                    { id: 'dnd', label: 'Do Not Disturb', color: 'bg-red-500 shadow-[0_0_10px_#ef4444]' },
+                                    { id: 'offline', label: 'Invisible', color: 'bg-gray-500' }
+                                ].map((status) => (
+                                    <button
+                                        key={status.id}
+                                        onClick={() => handleStatusChange(status.id)}
+                                        className={`flex items-center gap-3 p-2 rounded-xl border transition-all ${userStatus === status.id ? 'bg-white/10 border-white/20 shadow-lg scale-[1.02]' : 'bg-black/20 border-transparent opacity-50 hover:opacity-100 hover:bg-white/5'}`}
+                                    >
+                                        <div className={`w-3 h-3 rounded-full ${status.color}`}></div>
+                                        <span className="text-[10px] font-bold uppercase tracking-wider">{status.label}</span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                       </div> 
                     </div> 
                   </div>
@@ -1804,9 +1849,12 @@ const createRole = async () => {
                         <SpotlightButton onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm bg-transparent border-transparent">
                             {t('btn_cancel')}
                         </SpotlightButton> 
-                        <SpotlightButton onClick={saveProfile} className="bg-white text-black px-8 py-2 font-bold hover:scale-105 shadow-lg shadow-white/10 text-sm">
-                            {t('btn_save')}
-                        </SpotlightButton> 
+<SpotlightButton 
+    onClick={saveProfile} 
+    className="bg-indigo-600 text-white px-8 py-2 font-bold hover:scale-105 shadow-lg shadow-indigo-500/20 text-sm"
+>
+    {t('btn_save')}
+</SpotlightButton>
                       </div> 
                   </div>
               </GlassPanel>
