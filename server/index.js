@@ -24,12 +24,20 @@ const supabaseUrl = process.env.SUPABASE_URL;
 // Use Service Key if available, otherwise fall back to Anon Key
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
 
+// --- 🔍 DEBUG START: ADD THIS BLOCK ---
+console.log("---------------------------------------------------");
+console.log("🔍 DEBUGGING SUPABASE KEYS:");
+console.log("👉 SUPABASE_SERVICE_KEY exists?", !!process.env.SUPABASE_SERVICE_KEY);
+console.log("👉 Key being used length:", supabaseKey ? supabaseKey.length : "0");
+console.log("👉 Is using Service Key?", supabaseKey === process.env.SUPABASE_SERVICE_KEY);
+console.log("---------------------------------------------------");
+// --- 🔍 DEBUG END ---
+
 if (!supabaseUrl || !supabaseKey) {
   console.error("❌ MISSING .ENV VARIABLES: SUPABASE_URL or SUPABASE_SERVICE_KEY");
   process.exit(1);
 }
 
-// Initialize with auth persistence disabled (faster/safer for backend)
 const supabase = createClient(supabaseUrl, supabaseKey, {
   auth: {
     persistSession: false,
