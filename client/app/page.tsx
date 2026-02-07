@@ -55,7 +55,12 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
-const GlassPanel = ({ children, className, onClick, style }: any) => ( <div onClick={onClick} style={style} className={`backdrop-blur-xl bg-gray-900/80 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}> {children} </div> );
+// ✨ MODIFIED: More transparent, "Glass" effect
+const GlassPanel = ({ children, className, onClick, style }: any) => ( 
+    <div onClick={onClick} style={style} className={`backdrop-blur-2xl bg-black/40 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}> 
+        {children} 
+    </div> 
+);
 
 const UserAvatar = memo(({ src, alt, className, fallbackClass, onClick }: any) => { return src ? ( <img key={src} onClick={onClick} src={src} alt={alt || "User"} className={`${className} bg-black/20 object-cover cursor-pointer transition-transform duration-300 ease-out hover:scale-110 active:scale-95`} loading="lazy" /> ) : ( <div onClick={onClick} className={`${className} ${fallbackClass || "bg-white/5"} flex items-center justify-center backdrop-blur-md border border-white/10 cursor-pointer transition-transform duration-300 ease-out hover:scale-110 active:scale-95`}> <span className="text-[10px] text-white/40 font-bold">?</span> </div> ); });
 UserAvatar.displayName = "UserAvatar";
@@ -1112,9 +1117,11 @@ const createRole = async () => {
         }
       `}</style>
 
-      <div className="absolute inset-0 bg-linear-to-br from-indigo-900/40 via-black to-black z-0"></div>
+      {/* ✨ UPDATED: Brighter gradient to show off transparency */}
+      <div className="absolute inset-0 bg-linear-to-br from-indigo-600/30 via-black to-black z-0 pointer-events-none"></div>
       
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/40 backdrop-blur-xl animate-in fade-in slide-in-from-left-4 duration-500`}>
+      {/* ✨ UPDATED: Sidebar now more transparent (bg-black/20) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-2xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
         </div>
@@ -1131,7 +1138,8 @@ const createRole = async () => {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-black/20 backdrop-blur-md border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
+      {/* ✨ UPDATED: Channel list super transparent (bg-white/[0.02]) */}
+      <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-white/[0.02] backdrop-blur-xl border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
             {active.server && can('administrator') && <button onClick={openServerSettings} className="text-xs text-white/50 hover:text-white transition-colors duration-200 hover:rotate-90">⚙️</button>}
@@ -1220,7 +1228,8 @@ const createRole = async () => {
       >
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
-                 <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-black/20 backdrop-blur-md animate-in fade-in slide-in-from-top-2"> 
+                 // ✨ UPDATED: Chat header is now glass
+                 <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-white/[0.03] backdrop-blur-xl animate-in fade-in slide-in-from-top-2"> 
                     <div className="flex items-center gap-3 font-bold text-lg overflow-hidden"> 
                         <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white transition-transform active:scale-90" onClick={() => setShowMobileChat(false)}>←</button>
                         <span className="text-white/30">@</span> 
@@ -1275,7 +1284,13 @@ const createRole = async () => {
                                             </div>
                                         )}
 
-                                        <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text ${msg.sender_id===user.id?"bg-blue-600":"bg-white/10"}`}> 
+                                        {/* ✨ UPDATED: Message bubbles are now glass too */}
+                                        <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
+                                            ${msg.sender_id===user.id 
+                                                ? "bg-blue-500/40 backdrop-blur-md border border-blue-400/20 shadow-[0_4px_20px_rgba(59,130,246,0.15)]" 
+                                                : "bg-white/5 backdrop-blur-md border border-white/5 hover:bg-white/10"
+                                            }
+                                        `}> 
                                             {formatMessage(msg.content)} 
                                             
                                             <button 
@@ -1478,7 +1493,7 @@ const createRole = async () => {
              onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
              className={`
                 fixed inset-y-0 right-0 z-50 w-64 bg-black/95 backdrop-blur-2xl border-l border-white/10 p-4 transition-transform duration-300 ease-in-out shadow-2xl
-                lg:relative lg:translate-x-0 lg:bg-black/20 lg:z-20 lg:w-60 lg:shadow-none lg:block
+                lg:relative lg:translate-x-0 lg:bg-black/5 lg:backdrop-blur-md lg:z-20 lg:w-60 lg:shadow-none lg:block
                 ${showMobileMembers ? "translate-x-0" : "translate-x-full"}
              `}
           >
