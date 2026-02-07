@@ -67,6 +67,68 @@ const GifPicker = ({ onSelect, onClose, className }: any) => { const [gifs, setG
 
 const DaChatLogo = ({ className = "w-12 h-12" }: { className?: string }) => ( <img src="/logo.png" alt="DaChat Logo" className={`${className} object-contain rounded-xl transition-transform hover:scale-110 duration-300`} /> );
 
+// ✅ NEW: Global Glow Effect
+const GlobalCursorGlow = () => {
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      setPos({ x: e.clientX, y: e.clientY });
+    };
+    window.addEventListener("mousemove", handleMouseMove);
+    return () => window.removeEventListener("mousemove", handleMouseMove);
+  }, []);
+
+  return (
+    <div
+      className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-300"
+      style={{
+        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(100, 100, 255, 0.03), transparent 40%)`,
+      }}
+    />
+  );
+};
+
+// ✅ NEW: Spotlight Button Component
+const SpotlightButton = ({ children, onClick, className = "", style = {} }: any) => {
+  const divRef = useRef<HTMLButtonElement>(null);
+  const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [opacity, setOpacity] = useState(0);
+
+  const handleMouseMove = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!divRef.current) return;
+    const div = divRef.current;
+    const rect = div.getBoundingClientRect();
+    setPosition({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const handleMouseEnter = () => setOpacity(1);
+  const handleMouseLeave = () => setOpacity(0);
+
+  return (
+    <button
+      ref={divRef}
+      onMouseMove={handleMouseMove}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={onClick}
+      style={style}
+      className={`relative overflow-hidden rounded-2xl border border-white/10 bg-black/40 px-6 py-3 font-bold text-white transition-all duration-200 active:scale-95 ${className}`}
+    >
+      <div
+        className="pointer-events-none absolute -inset-px transition-opacity duration-300"
+        style={{
+          opacity,
+          background: `radial-gradient(150px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
+        }}
+      />
+      <div className="relative z-10 flex items-center justify-center gap-2">
+        {children}
+      </div>
+    </button>
+  );
+};
+
 export default function DaChat() {
   const [user, setUser] = useState<any>(null);
   const [isRegistering, setIsRegistering] = useState(false);
@@ -997,6 +1059,8 @@ const createRole = async () => {
 
   if (!user) return (
     <div className="flex h-screen items-center justify-center bg-black relative overflow-hidden p-0 md:p-4">
+      {/* 🌟 GLOBAL GLOW */}
+      <GlobalCursorGlow />
       <div className="absolute inset-0 bg-linear-to-br from-indigo-900 via-purple-900 to-black opacity-40 animate-pulse-slow"></div>
       <GlassPanel className="p-10 w-full h-full md:h-auto md:max-w-100 rounded-none md:rounded-[40px] text-center relative z-10 flex flex-col justify-center gap-6 ring-1 ring-white/10 animate-in fade-in zoom-in-95 duration-500">
         <div className="w-32 h-32 mx-auto mb-2 flex items-center justify-center relative hover:scale-105 transition-transform duration-500">
@@ -1022,7 +1086,12 @@ const createRole = async () => {
                 </div>
             )}
         </div>
-        <button onClick={handleAuth} className="w-full bg-white text-black py-4 rounded-2xl font-bold shadow-[0_0_30px_rgba(255,255,255,0.2)] hover:shadow-[0_0_50px_rgba(255,255,255,0.4)] hover:scale-[1.02] transition-all active:scale-95 duration-200"> {is2FALogin ? t('auth_verify') : (isRegistering ? t('auth_register') : t('auth_login'))} </button>
+        
+        {/* 🌟 SPOTLIGHT BUTTON: Auth */}
+        <SpotlightButton onClick={handleAuth} className="w-full shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:shadow-[0_0_50px_rgba(99,102,241,0.4)]">
+            {is2FALogin ? t('auth_verify') : (isRegistering ? t('auth_register') : t('auth_login'))}
+        </SpotlightButton>
+
         {!is2FALogin && <p className="text-xs text-white/40 cursor-pointer hover:text-white transition-colors" onClick={() => setIsRegistering(!isRegistering)}>{isRegistering ? t('auth_back') : t('auth_register')}</p>}
       </GlassPanel>
     </div>
@@ -1030,6 +1099,8 @@ const createRole = async () => {
 
   return (
     <div className="flex h-screen w-screen bg-[#050505] text-white font-sans overflow-hidden relative selection:bg-blue-500/30 select-none">
+      {/* 🌟 GLOBAL GLOW */}
+      <GlobalCursorGlow />
       <style>{`
         * {
           scrollbar-width: thin;
@@ -1727,9 +1798,15 @@ const createRole = async () => {
 
                   <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
                       <button onClick={handleLogout} className="text-red-500 hover:text-red-400 text-xs font-bold transition-colors px-2">{t('set_logout')}</button> 
+                      
+                      {/* 🌟 SPOTLIGHT BUTTONS: Settings */}
                       <div className="flex gap-3"> 
-                        <button onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm">{t('btn_cancel')}</button> 
-                        <button onClick={saveProfile} className="bg-white text-black px-8 py-2 rounded-xl font-bold hover:scale-105 transition-transform shadow-lg shadow-white/10 text-sm">{t('btn_save')}</button> 
+                        <SpotlightButton onClick={()=>setShowSettings(false)} className="text-white/50 px-4 py-2 hover:text-white transition-colors text-sm bg-transparent border-transparent">
+                            {t('btn_cancel')}
+                        </SpotlightButton> 
+                        <SpotlightButton onClick={saveProfile} className="bg-white text-black px-8 py-2 font-bold hover:scale-105 shadow-lg shadow-white/10 text-sm">
+                            {t('btn_save')}
+                        </SpotlightButton> 
                       </div> 
                   </div>
               </GlassPanel>
