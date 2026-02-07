@@ -246,6 +246,9 @@ export default function DaChat() {
   // ✅ NEW: Collapsed Category State
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
 
+  // ✅ NEW: Zoomed Image State
+  const [zoomedImage, setZoomedImage] = useState<string | null>(null);
+
   const toggleCategory = (cat: string) => {
       setCollapsedCategories(prev => ({ ...prev, [cat]: !prev[cat] }));
   };
@@ -292,7 +295,7 @@ export default function DaChat() {
   const formatMessage = (content: string) => {
     if (!content) return null;
     if (content.match(/^https?:\/\/.*\.(jpeg|jpg|gif|png|webp|bmp)$/i)) {
-        return <img src={content} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105" alt="attachment" />;
+        return <img src={content} onClick={() => setZoomedImage(content)} className="max-w-[200px] md:max-w-[250px] rounded-lg transition-transform hover:scale-105 cursor-zoom-in" alt="attachment" />;
     }
     const parts = content.split(/(\*\*.*?\*\*|\*.*?\*|`.*?`|https?:\/\/[^\s]+)/g);
     return parts.map((part, i) => {
@@ -1412,7 +1415,7 @@ const createRole = async () => {
                                                 )}
                                             </div> 
 
-                                            {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" alt="attachment" />} 
+                                            {msg.file_url && <img src={msg.file_url} onClick={() => setZoomedImage(msg.file_url)} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-zoom-in" alt="attachment" />} 
                                             
                                             {Object.keys(reactionCounts).length > 0 && (
                                                 <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
@@ -2154,6 +2157,49 @@ const createRole = async () => {
                     <button onClick={() => { handleRemoveFriend(contextMenu.data.id); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-red-400 hover:bg-red-500/20 rounded-lg transition-colors flex items-center gap-2"> <span>🚫</span> {t('ctx_remove')} </button> 
                   </> 
               )}
+          </div>
+      )}
+
+      {/* 🖼️ NEW: Zoomed Image Modal */}
+      {zoomedImage && (
+          <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-xl flex items-center justify-center p-4 animate-in fade-in duration-200" onClick={() => setZoomedImage(null)}>
+              <div className="relative max-w-full max-h-full flex flex-col items-center group" onClick={e => e.stopPropagation()}>
+                  <img src={zoomedImage} className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+                  <div className="flex gap-4 mt-4">
+                       <button onClick={() => window.open(zoomedImage, '_blank')} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-md transition-colors text-sm font-bold flex items-center gap-2">
+                          Open Original ↗
+                      </button>
+                      <button onClick={async () => {
+                            try {
+                                const response = await fetch(zoomedImage);
+                                const blob = await response.blob();
+                                const blobUrl = window.URL.createObjectURL(blob);
+                                const link = document.createElement('a');
+                                link.href = blobUrl;
+                                link.download = `dachat-image-${Date.now()}.png`;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                window.URL.revokeObjectURL(blobUrl);
+                            } catch (e) { alert("Download failed (CORS restriction likely). Try 'Open Original'."); }
+                      }} className="px-4 py-2 bg-blue-600/80 hover:bg-blue-500 text-white rounded-lg backdrop-blur-md transition-colors text-sm font-bold flex items-center gap-2">
+                          Download ⬇
+                      </button>
+                      <button onClick={async () => {
+                          try {
+                              const data = await fetch(zoomedImage);
+                              const blob = await data.blob();
+                              await navigator.clipboard.write([new ClipboardItem({[blob.type]: blob})]);
+                              alert('Copied to clipboard!');
+                          } catch(e) { alert('Failed to copy'); }
+                      }} className="px-4 py-2 bg-white/10 hover:bg-white/20 text-white rounded-lg backdrop-blur-md transition-colors text-sm font-bold flex items-center gap-2">
+                          Copy 📋
+                      </button>
+                      <button onClick={() => setZoomedImage(null)} className="px-4 py-2 bg-red-500/20 hover:bg-red-500/40 text-red-200 rounded-lg backdrop-blur-md transition-colors text-sm font-bold">
+                          Close
+                      </button>
+                  </div>
+              </div>
           </div>
       )}
     </div>
