@@ -119,7 +119,7 @@ const SpotlightButton = ({ children, onClick, className = "", style = {} }: any)
         className="pointer-events-none absolute -inset-px transition-opacity duration-300"
         style={{
           opacity,
-          background: `radial-gradient(250px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
+          background: `radial-gradient(150px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
         }}
       />
       <div className="relative z-10 flex items-center justify-center gap-2">
