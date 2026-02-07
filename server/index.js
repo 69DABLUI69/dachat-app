@@ -365,16 +365,6 @@ app.post("/delete-channel", safeRoute(async (req, res) => {
   res.json({ success: true });
 }));
 
-app.post("/delete-channel", safeRoute(async (req, res) => {
-  const { serverId, userId, channelId } = req.body;
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member || !member.is_admin) return res.json({ success: false, message: "No permission" });
-
-  await supabase.from("channels").delete().eq("id", channelId);
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
-}));
-
 app.get("/servers/:id/channels", safeRoute(async (req, res) => {
   const { data } = await supabase.from("channels").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
   res.json(data || []);
@@ -784,7 +774,8 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
 
 const onlineUsers = new Map(); 
 let voiceRooms = {};           
-let socketToUser = {};         
+let socketToUser = {};
+let userStatuses = {}; // ✅ NEW: Store user statuses in memory     
 
 // ✅ HELPER: Clean up user from voice rooms properly
 const cleanupVoiceUser = (socket, io) => {
@@ -818,9 +809,20 @@ io.on("connection", (socket) => {
     
     // ✅ CRITICAL FIX: Join user's personal room for notifications
     socket.join(userId.toString());
+
+    // --- NEW STATUS LOGIC ---
+    // If status doesn't exist (new login), default to online. 
+    // If it exists (reconnect/new tab), keep existing status.
+    if (!userStatuses[userId]) {
+        userStatuses[userId] = 'online';
+    }
     
     socket.emit("connected");
     io.emit("user_connected", userId);
+
+    // Sync statuses
+    socket.emit("status_sync", userStatuses);
+    io.emit("user_status_update", { userId, status: userStatuses[userId] });
   });
 
   socket.on("get_online_users", () => {
@@ -835,6 +837,12 @@ io.on("connection", (socket) => {
           states[roomId] = users.map(u => u.userData.id);
       }
       socket.emit("voice_states", states);
+  });
+
+  // ✅ NEW: Handle status change event
+  socket.on("set_status", ({ userId, status }) => {
+      userStatuses[userId] = status;
+      io.emit("user_status_update", { userId, status });
   });
 
   // --- 2. CHAT & ROOMS ---
@@ -1024,6 +1032,7 @@ io.on("connection", (socket) => {
         userSockets.delete(socket.id);
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
+          delete userStatuses[userId]; // ✅ NEW: Cleanup status on disconnect
           io.emit("user_disconnected", userId);
         }
       }
