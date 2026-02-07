@@ -19,17 +19,15 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// 2. SUPABASE CONFIG (UPDATED FOR ADMIN ACCESS)
+// 2. SUPABASE CONFIG
 const supabaseUrl = process.env.SUPABASE_URL;
-// Use Service Key if available, otherwise fall back to Anon Key
 const supabaseKey = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
 
-// --- 🔍 DEBUG START: ADD THIS BLOCK ---
+// --- 🔍 DEBUG START ---
 console.log("---------------------------------------------------");
 console.log("🔍 DEBUGGING SUPABASE KEYS:");
 console.log("👉 SUPABASE_SERVICE_KEY exists?", !!process.env.SUPABASE_SERVICE_KEY);
 console.log("👉 Key being used length:", supabaseKey ? supabaseKey.length : "0");
-console.log("👉 Is using Service Key?", supabaseKey === process.env.SUPABASE_SERVICE_KEY);
 console.log("---------------------------------------------------");
 // --- 🔍 DEBUG END ---
 
@@ -39,11 +37,7 @@ if (!supabaseUrl || !supabaseKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseKey, {
-  auth: {
-    persistSession: false,
-    autoRefreshToken: false,
-    detectSessionInUrl: false,
-  },
+  auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
 });
 
 // 3. SOCKET SERVER SETUP
@@ -304,14 +298,14 @@ app.post("/servers/update", safeRoute(async (req, res) => {
 }));
 
 app.post("/servers/promote", safeRoute(async (req, res) => {
-  const { serverId, ownerId, targetUserId } = req.body;
-  const { data: server } = await supabase.from("servers").select("owner_id").eq("id", serverId).single();
-  if (server.owner_id !== ownerId) return res.json({ success: false, message: "Only Owner can promote" });
+    const { serverId, ownerId, targetUserId } = req.body;
+    const { data: server } = await supabase.from("servers").select("owner_id").eq("id", serverId).single();
+    if (server.owner_id !== ownerId) return res.json({ success: false, message: "Only Owner can promote" });
 
-  const { data: target } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", targetUserId).single();
-  await supabase.from("members").update({ is_admin: !target.is_admin }).eq("server_id", serverId).eq("user_id", targetUserId);
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
+    const { data: target } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", targetUserId).single();
+    await supabase.from("members").update({ is_admin: !target.is_admin }).eq("server_id", serverId).eq("user_id", targetUserId);
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 app.post("/servers/invite", safeRoute(async (req, res) => {
@@ -329,70 +323,70 @@ app.post("/servers/invite", safeRoute(async (req, res) => {
 }));
 
 app.post("/servers/leave", safeRoute(async (req, res) => {
-  const { serverId, userId } = req.body;
-  const { data: server } = await supabase.from("servers").select("owner_id").eq("id", serverId).single();
-  
-  if (server.owner_id === userId) {
-      await supabase.from("servers").delete().eq("id", serverId);
-  } else {
-      await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", userId);
-  }
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
+    const { serverId, userId } = req.body;
+    const { data: server } = await supabase.from("servers").select("owner_id").eq("id", serverId).single();
+    
+    if (server.owner_id === userId) {
+        await supabase.from("servers").delete().eq("id", serverId);
+    } else {
+        await supabase.from("members").delete().eq("server_id", serverId).eq("user_id", userId);
+    }
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 app.post("/create-channel", safeRoute(async (req, res) => {
-  const { serverId, userId, name, type } = req.body;
-  
-  // ✅ USE CHECK: Requires 'manage_channels'
-  const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
-  if (!hasPerm) return res.json({ success: false, message: "Missing 'Manage Channels' permission" });
+    const { serverId, userId, name, type } = req.body;
+    
+    // ✅ USE CHECK: Requires 'manage_channels'
+    const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
+    if (!hasPerm) return res.json({ success: false, message: "Missing 'Manage Channels' permission" });
 
-  const { data } = await supabase.from("channels").insert([{ server_id: serverId, name, type }]).select().single();
-  io.emit("server_updated", { serverId });
-  res.json({ success: true, channel: data });
+    const { data } = await supabase.from("channels").insert([{ server_id: serverId, name, type }]).select().single();
+    io.emit("server_updated", { serverId });
+    res.json({ success: true, channel: data });
 }));
 
 app.post("/delete-channel", safeRoute(async (req, res) => {
-  const { serverId, userId, channelId } = req.body;
+    const { serverId, userId, channelId } = req.body;
 
-  // ✅ USE CHECK: Requires 'manage_channels'
-  const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
-  if (!hasPerm) return res.json({ success: false, message: "Missing permission" });
+    // ✅ USE CHECK: Requires 'manage_channels'
+    const hasPerm = await checkPermission(serverId, userId, 'manage_channels');
+    if (!hasPerm) return res.json({ success: false, message: "Missing permission" });
 
-  await supabase.from("channels").delete().eq("id", channelId);
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
+    await supabase.from("channels").delete().eq("id", channelId);
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 app.get("/servers/:id/channels", safeRoute(async (req, res) => {
-  const { data } = await supabase.from("channels").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
-  res.json(data || []);
+    const { data } = await supabase.from("channels").select("*").eq("server_id", req.params.id).order("created_at", { ascending: true });
+    res.json(data || []);
 }));
 
 // Find this existing route and update the .select() string
 app.get("/servers/:id/members", safeRoute(async (req, res) => {
-  // We strictly join the 'roles' table to get color and name
-  const { data: members, error } = await supabase
-    .from("members")
-    .select(`
-      *,
-      users:users(*),
-      role:roles(*) 
-    `)
-    .eq("server_id", req.params.id);
+    // We strictly join the 'roles' table to get color and name
+    const { data: members, error } = await supabase
+      .from("members")
+      .select(`
+        *,
+        users:users(*),
+        role:roles(*) 
+      `)
+      .eq("server_id", req.params.id);
 
-  if (error) return res.json({ success: false, message: error.message });
+    if (error) return res.json({ success: false, message: error.message });
 
-  // Flatten the structure for the frontend
-  const formatted = members.map(m => ({
-      ...m.users,        // User details (username, avatar)
-      is_admin: m.is_admin,
-      role_id: m.role_id,
-      role: m.role       // The full role object (color, name)
-  }));
-  
-  res.json(formatted || []);
+    // Flatten the structure for the frontend
+    const formatted = members.map(m => ({
+        ...m.users,        // User details (username, avatar)
+        is_admin: m.is_admin,
+        role_id: m.role_id,
+        role: m.role       // The full role object (color, name)
+    }));
+    
+    res.json(formatted || []);
 }));
 
 // ==============================================================================
@@ -402,60 +396,60 @@ app.get("/servers/:id/members", safeRoute(async (req, res) => {
 // ✅ FIX: Force No-Cache Headers on the Backend
 // ✅ DEBUG: Get Roles (With Logs)
 app.get("/servers/:id/roles", safeRoute(async (req, res) => {
-  const serverId = req.params.id;
-  console.log(`🔍 [GET] Fetching roles for Server ID: '${serverId}' (Type: ${typeof serverId})`);
+    const serverId = req.params.id;
+    console.log(`🔍 [GET] Fetching roles for Server ID: '${serverId}' (Type: ${typeof serverId})`);
 
-  // Force No-Cache
-  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    // Force No-Cache
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
 
-  const { data, error } = await supabase
-    .from("roles")
-    .select("*")
-    .eq("server_id", serverId)
-    .order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("roles")
+      .select("*")
+      .eq("server_id", serverId)
+      .order("created_at", { ascending: true });
 
-  if (error) {
-      console.error("❌ [GET] Supabase Error:", error.message);
-      return res.status(500).json({ success: false, message: error.message });
-  }
+    if (error) {
+        console.error("❌ [GET] Supabase Error:", error.message);
+        return res.status(500).json({ success: false, message: error.message });
+    }
 
-  console.log(`✅ [GET] Found ${data.length} roles for Server ${serverId}`);
-  res.json(data || []);
+    console.log(`✅ [GET] Found ${data.length} roles for Server ${serverId}`);
+    res.json(data || []);
 }));
 
 // ✅ DEBUG: Create Role (With Logs)
 app.post("/servers/roles/create", safeRoute(async (req, res) => {
-  const { serverId, userId } = req.body;
-  const hasPerm = await checkPermission(serverId, userId, 'administrator');
-  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
-  console.log(`🛠 [CREATE] Request received. ServerID: ${serverId}, UserID: ${userId}`);
+    const { serverId, userId } = req.body;
+    const hasPerm = await checkPermission(serverId, userId, 'administrator');
+    if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
+    console.log(`🛠 [CREATE] Request received. ServerID: ${serverId}, UserID: ${userId}`);
 
-  if (!serverId) {
-      console.error("❌ [CREATE] Failed: Missing serverId in request body");
-      return res.status(400).json({ success: false, message: "Server ID is missing" });
-  }
-  
-  // 1. Permission Check
-  const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
-  if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
+    if (!serverId) {
+        console.error("❌ [CREATE] Failed: Missing serverId in request body");
+        return res.status(400).json({ success: false, message: "Server ID is missing" });
+    }
+    
+    // 1. Permission Check
+    const { data: member } = await supabase.from("members").select("is_admin").eq("server_id", serverId).eq("user_id", userId).single();
+    if (!member?.is_admin) return res.json({ success: false, message: "No permission" });
 
-  // 2. Insert Role
-  const { data, error } = await supabase.from("roles").insert([{ 
-    server_id: serverId, 
-    name: "New Role", 
-    color: "#99aab5", 
-    permissions: { administrator: false } 
-  }]).select().single();
-  
-  if (error) {
-      console.error("❌ [CREATE] Supabase Insert Error:", error.message);
-      return res.json({ success: false, message: error.message });
-  }
-  
-  console.log(`✅ [CREATE] Role Created: ID ${data.id}, ServerID ${data.server_id}`);
-  
-  io.emit("server_updated", { serverId });
-  res.json({ success: true, role: data });
+    // 2. Insert Role
+    const { data, error } = await supabase.from("roles").insert([{ 
+      server_id: serverId, 
+      name: "New Role", 
+      color: "#99aab5", 
+      permissions: { administrator: false } 
+    }]).select().single();
+    
+    if (error) {
+        console.error("❌ [CREATE] Supabase Insert Error:", error.message);
+        return res.json({ success: false, message: error.message });
+    }
+    
+    console.log(`✅ [CREATE] Role Created: ID ${data.id}, ServerID ${data.server_id}`);
+    
+    io.emit("server_updated", { serverId });
+    res.json({ success: true, role: data });
 }));
 
 // ✅ HELPER: Check Granular Permissions
@@ -486,61 +480,61 @@ const checkPermission = async (serverId, userId, requiredPerm) => {
 
 // A. UPDATE ROLE
 app.post("/servers/roles/update", safeRoute(async (req, res) => {
-  const { serverId, userId, roleId, updates } = req.body;
-  
-  // ✅ FIX: Use Granular Permission Check
-  const hasPerm = await checkPermission(serverId, userId, 'administrator');
-  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
+    const { serverId, userId, roleId, updates } = req.body;
+    
+    // ✅ FIX: Use Granular Permission Check
+    const hasPerm = await checkPermission(serverId, userId, 'administrator');
+    if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
-  const { data, error } = await supabase.from("roles")
-    .update({ 
-        name: updates.name, 
-        color: updates.color, 
-        permissions: updates.permissions 
-    })
-    .eq("id", roleId)
-    .select()
-    .single();
+    const { data, error } = await supabase.from("roles")
+      .update({ 
+          name: updates.name, 
+          color: updates.color, 
+          permissions: updates.permissions 
+      })
+      .eq("id", roleId)
+      .select()
+      .single();
 
-  if (error) return res.json({ success: false, message: error.message });
-  
-  io.emit("server_updated", { serverId });
-  res.json({ success: true, role: data });
+    if (error) return res.json({ success: false, message: error.message });
+    
+    io.emit("server_updated", { serverId });
+    res.json({ success: true, role: data });
 }));
 
 // B. DELETE ROLE
 app.post("/servers/roles/delete", safeRoute(async (req, res) => {
-  const { serverId, userId, roleId } = req.body;
+    const { serverId, userId, roleId } = req.body;
 
-  // ✅ FIX: Use Granular Permission Check
-  const hasPerm = await checkPermission(serverId, userId, 'administrator');
-  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
+    // ✅ FIX: Use Granular Permission Check
+    const hasPerm = await checkPermission(serverId, userId, 'administrator');
+    if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
-  const { error } = await supabase.from("roles").delete().eq("id", roleId);
-  if (error) return res.json({ success: false, message: error.message });
+    const { error } = await supabase.from("roles").delete().eq("id", roleId);
+    if (error) return res.json({ success: false, message: error.message });
 
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 // C. ASSIGN ROLE
 app.post("/servers/roles/assign", safeRoute(async (req, res) => {
-  const { serverId, ownerId, targetUserId, roleId } = req.body;
+    const { serverId, ownerId, targetUserId, roleId } = req.body;
 
-  // ✅ FIX: Use Granular Permission Check
-  const hasPerm = await checkPermission(serverId, ownerId, 'administrator');
-  if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
+    // ✅ FIX: Use Granular Permission Check
+    const hasPerm = await checkPermission(serverId, ownerId, 'administrator');
+    if (!hasPerm) return res.json({ success: false, message: "Missing Administrator permission" });
 
-  // Assign the role
-  const { error } = await supabase.from("members")
-    .update({ role_id: roleId }) 
-    .eq("server_id", serverId)
-    .eq("user_id", targetUserId);
+    // Assign the role
+    const { error } = await supabase.from("members")
+      .update({ role_id: roleId }) 
+      .eq("server_id", serverId)
+      .eq("user_id", targetUserId);
 
-  if (error) return res.json({ success: false, message: error.message });
-  
-  io.emit("server_updated", { serverId });
-  res.json({ success: true });
+    if (error) return res.json({ success: false, message: error.message });
+    
+    io.emit("server_updated", { serverId });
+    res.json({ success: true });
 }));
 
 app.post("/servers/kick", safeRoute(async (req, res) => {
@@ -845,7 +839,7 @@ io.on("connection", (socket) => {
       io.emit("user_status_update", { userId, status });
   });
 
-// --- TYPING INDICATORS ---
+  // ✅ ADDED: TYPING INDICATORS
   socket.on("typing", ({ roomId, username }) => {
       // Broadcast to everyone in the room EXCEPT the sender
       socket.to(roomId.toString()).emit("user_typing", { username });
