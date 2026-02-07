@@ -34,7 +34,6 @@ const TRANSLATIONS: any = {
   }
 };
 
-// 🎵 DEFAULT SOUNDS (Immutable Fallback)
 const SOUNDS = [
     { id: "vine", emoji: "💥", file: "/sounds/vine.mp3" },
     { id: "bruh", emoji: "🗿", file: "/sounds/bruh.mp3" },
@@ -55,7 +54,6 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
-// ✨ MODIFIED: More transparent, "Glass" effect
 const GlassPanel = ({ children, className, onClick, style }: any) => ( 
     <div onClick={onClick} style={style} className={`backdrop-blur-2xl bg-black/40 border border-white/10 shadow-[0_8px_32px_0_rgba(0,0,0,0.5)] transition-all duration-300 animate-in fade-in zoom-in-95 slide-in-from-bottom-2 ${className}`}> 
         {children} 
@@ -168,17 +166,17 @@ export default function DaChat() {
   const [serverSettingsTab, setServerSettingsTab] = useState("overview"); 
   const ringtoneInputRef = useRef<HTMLInputElement>(null);
 
-  // Role Management State
   const [serverRoles, setServerRoles] = useState<any[]>([]);
   const [activeRole, setActiveRole] = useState<any>(null);
 
-  // 🎵 NEW: Soundboard State & Ref
+  // 🔍 NEW: Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearching, setIsSearching] = useState(false);
+
   const [soundboard, setSoundboard] = useState(SOUNDS);
   const soundInputRef = useRef<HTMLInputElement>(null);
 
   const stickyRoleRef = useRef<any>(null);
-  
-  // 🎵 NEW: Track Previous Voice State (to detect changes)
   const prevVoiceStates = useRef<Record<string, number[]>>({});
 
   const sendMessage = (textMsg: string | null, fileUrl: string | null = null) => { 
@@ -236,7 +234,6 @@ export default function DaChat() {
           const storedVersion = localStorage.getItem("dachat_version");
           if (storedVersion !== APP_VERSION) setShowChangelog(true);
 
-          // 🎵 LOAD CUSTOM SOUNDS
           const savedSounds = localStorage.getItem("dachat_custom_sounds");
           if (savedSounds) {
               setSoundboard(prev => [...prev, ...JSON.parse(savedSounds)]);
@@ -433,12 +430,9 @@ const saveNotifSettings = async (newSettings: any) => {
           setChatHistory(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, content: updatedMsg.content, is_edited: true } : m));
       });
 
-      // 🎵 UPDATED: Trigger Sound Listener (Handles Custom Sounds)
       socket.on("trigger_sound", ({ soundId }) => {
-          // 1. Check Default Sounds
           let foundSound = SOUNDS.find(s => s.id === soundId);
           
-          // 2. If not found, check Custom Sounds from LocalStorage
           if (!foundSound) {
               const custom = JSON.parse(localStorage.getItem("dachat_custom_sounds") || "[]");
               foundSound = custom.find((s:any) => s.id === soundId);
@@ -463,25 +457,17 @@ const saveNotifSettings = async (newSettings: any) => {
       socket.on("new_friend_request", () => { if(user) fetchRequests(user.id); });
       socket.on("new_server_invite", () => { if(user) fetchServers(user.id); });
       
-      // Inside useEffect containing socket logic
 socket.on("server_updated", async ({ serverId }) => { 
       if (!user) return;
 
-      // 1. Refresh Server List
       const res = await fetch(`${BACKEND_URL}/my-servers/${user.id}`);
       const serversList = await res.json();
       setServers(serversList);
 
-      // 2. If we are currently looking at this server
       if (active.server && String(active.server.id) === String(serverId)) {
-          
-          // Refresh Members (Immediate is fine)
           const memRes = await fetch(`${BACKEND_URL}/servers/${serverId}/members`);
           setServerMembers(await memRes.json());
           
-          // ✅ CRITICAL FIX: Wait 500ms before fetching roles.
-          // This gives the database time to finish saving the new role 
-          // before we ask for the list.
           setTimeout(() => {
               fetchRoles(serverId);
           }, 500);
@@ -517,29 +503,22 @@ socket.on("server_updated", async ({ serverId }) => {
       }; 
   }, [user, viewingProfile, active.server, inCall, active.friend]);
 
-  // 🎵 NEW EFFECT: Handle Join/Leave Sounds for OTHER users
   useEffect(() => {
-      // If we aren't in a channel or logged in, just sync the state and return
       if (!activeVoiceChannelId || !user) {
           prevVoiceStates.current = voiceStates;
           return;
       }
 
-      // Get lists of who is in the channel now vs. before
       const currentUsers = voiceStates[activeVoiceChannelId] || [];
       const prevUsers = prevVoiceStates.current[activeVoiceChannelId] || [];
 
-      // 1. Detect who JOINED
       const joined = currentUsers.filter(id => !prevUsers.includes(id));
       joined.forEach(id => {
-          // Play sound if it's SOMEONE ELSE (we play our own sound immediately on click)
           if (id !== user.id) { 
-              // .cloneNode() allows overlapping sounds if multiple people join fast
               (joinSoundRef.current?.cloneNode() as HTMLAudioElement).play().catch(() => {});
           }
       });
 
-      // 2. Detect who LEFT
       const left = prevUsers.filter(id => !currentUsers.includes(id));
       left.forEach(id => {
           if (id !== user.id) {
@@ -547,7 +526,6 @@ socket.on("server_updated", async ({ serverId }) => {
           }
       });
 
-      // Update the ref for the next compare
       prevVoiceStates.current = voiceStates;
   }, [voiceStates, activeVoiceChannelId, user]);
 
@@ -576,7 +554,6 @@ socket.on("server_updated", async ({ serverId }) => {
   const fetchFriends = async (id: number) => setFriends(await (await fetch(`${BACKEND_URL}/my-friends/${id}`)).json());
   const fetchRequests = async (id: number) => setRequests(await (await fetch(`${BACKEND_URL}/my-requests/${id}`)).json());
   
-// ✅ FIX: Fetch with unique timestamp to bypass browser cache
 const fetchRoles = async (serverId: number) => {
     try {
         const res = await fetch(`${BACKEND_URL}/servers/${serverId}/roles?_t=${Date.now()}`, { 
@@ -586,9 +563,7 @@ const fetchRoles = async (serverId: number) => {
         const data = await res.json();
         
         if (Array.isArray(data)) {
-            // ✅ THE FIX: Merge the sticky role if the server forgot it
             if (stickyRoleRef.current && !data.find((r: any) => r.id === stickyRoleRef.current.id)) {
-                console.log("⚠️ Server list was stale. Injecting sticky role locally.");
                 data.push(stickyRoleRef.current);
             }
             setServerRoles(data);
@@ -603,7 +578,6 @@ const selectServer = async (server: any) => {
       setActive((prev:any) => ({ ...prev, server, friend: null, pendingRequest: null })); 
       setIsCallExpanded(false); 
       
-      // --- KEEP THIS CHANNEL LOADING CODE ---
       const res = await fetch(`${BACKEND_URL}/servers/${server.id}/channels`); 
       const chData = await res.json(); 
       setChannels(chData); 
@@ -611,13 +585,10 @@ const selectServer = async (server: any) => {
           const firstText = chData.find((c:any) => c.type === 'text'); 
           if (firstText) joinChannel(firstText); 
       } 
-      // --------------------------------------
 
-      // Fetch Members
       const memRes = await fetch(`${BACKEND_URL}/servers/${server.id}/members`); 
       setServerMembers(await memRes.json());
       
-      // ✅ ADD THIS LINE AT THE END:
       fetchRoles(server.id);
   };
 
@@ -713,7 +684,6 @@ const selectServer = async (server: any) => {
   const copyText = (text: string) => { navigator.clipboard.writeText(text); setContextMenu({ ...contextMenu, visible: false }); };
   const handleFileUpload = async (e: any) => { const file = e.target.files[0]; if(!file) return; const formData = new FormData(); formData.append("file", file); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if(data.success) sendMessage(null, data.fileUrl); };
   
-  // 🎵 UPDATED: Ringtone Preview Logic
   const [isPreviewing, setIsPreviewing] = useState(false);
   const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -755,10 +725,7 @@ const selectServer = async (server: any) => {
             const newRingtoneUrl = data.fileUrl;
             setSelectedRingtone(newRingtoneUrl);
             localStorage.setItem("dachat_ringtone", newRingtoneUrl);
-            
-            // Auto-play the new ringtone for preview
             playPreview(newRingtoneUrl);
-            
             alert("Custom ringtone set!");
         } else {
             alert("Upload failed: " + (data.message || "Unknown error"));
@@ -776,7 +743,6 @@ const selectServer = async (server: any) => {
     playPreview(defaultTone);
   };
 
-  // 🎵 NEW: Soundboard Upload Logic
   const handleSoundUpload = async (e: any) => {
       const file = e.target.files[0];
       if (!file) return;
@@ -786,7 +752,6 @@ const selectServer = async (server: any) => {
           return;
       }
 
-      // Ask for an emoji/name
       const name = prompt("Name this sound (or emoji):", "🔊");
       if (!name) return;
 
@@ -802,13 +767,11 @@ const selectServer = async (server: any) => {
                   id: `custom_${Date.now()}`, 
                   emoji: name, 
                   file: data.fileUrl,
-                  isCustom: true // Flag to allow deletion
+                  isCustom: true 
               };
 
-              // Update State
               setSoundboard(prev => {
                   const updated = [...prev, newSound];
-                  // Save ONLY custom sounds to local storage
                   const customOnly = updated.filter((s:any) => s.isCustom);
                   localStorage.setItem("dachat_custom_sounds", JSON.stringify(customOnly));
                   return updated;
@@ -824,7 +787,6 @@ const selectServer = async (server: any) => {
       }
   };
 
-  // 🎵 NEW: Delete Custom Sound Logic
   const deleteCustomSound = (soundId: string) => {
       if(!confirm("Remove this custom sound?")) return;
       
@@ -836,7 +798,6 @@ const selectServer = async (server: any) => {
       });
   };
 
-  // ⬇️ THESE WERE MISSING IN PREVIOUS VERSION
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
   const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
@@ -903,14 +864,10 @@ const selectServer = async (server: any) => {
   };
 
 const createRole = async () => {
-      // Safety Check: Ensure we have a valid server ID
       if (!active.server || !active.server.id) {
-          console.error("❌ Cannot create role: Active server ID is missing", active);
           alert("Error: Server ID missing. Please refresh the page.");
           return;
       }
-
-      console.log("🚀 Creating role for Server ID:", active.server.id);
 
       try {
           const res = await fetch(`${BACKEND_URL}/servers/roles/create`, {
@@ -921,13 +878,9 @@ const createRole = async () => {
           const data = await res.json();
           
           if (data.success) {
-              console.log("✅ Role created successfully:", data.role);
-              
-              // 1. Optimistic Update
               setServerRoles(prev => Array.isArray(prev) ? [...prev, data.role] : [data.role]);
               setActiveRole(data.role);
 
-              // 2. Sticky Ref (Keep this from previous fix)
               stickyRoleRef.current = data.role;
               setTimeout(() => { stickyRoleRef.current = null; }, 5000);
           } else {
@@ -983,7 +936,6 @@ const createRole = async () => {
     if (data.success) {
         alert("Role Updated");
         setContextMenu({ ...contextMenu, visible: false });
-        // Manually refresh members to ensure colors update immediately
         const memRes = await fetch(`${BACKEND_URL}/servers/${active.server.id}/members`);
         setServerMembers(await memRes.json());
     } else {
@@ -999,20 +951,15 @@ const createRole = async () => {
       const member = getMyMember();
       if (!member) return false;
       
-      // 1. Owner & Legacy Admin always have power
       if (active.server.owner_id === user.id || member.is_admin) return true;
       
-      // 2. Check Role
       if (!member.role || !member.role.permissions) return false;
       
-      // 3. Admin Role overrides all
       if (member.role.permissions.administrator) return true;
       
-      // 4. Specific Permission
       return !!member.role.permissions[permission];
   };
 
-  // Replaces "isMod" for simple checks
   const isMod = can('administrator');
   const isOwner = user && active.server?.owner_id === user.id;
 
@@ -1027,14 +974,12 @@ const createRole = async () => {
     setInCall(true);
     socket.emit("join_voice", { roomId, userData: user });
     
-    // Play sound immediately for yourself
     if (joinSoundRef.current) { 
         (joinSoundRef.current.cloneNode() as HTMLAudioElement).play().catch(() => {}); 
     }
   }, [user]);
 
   const leaveCall = () => {
-    // Play sound immediately for yourself
     if(leaveSoundRef.current) {
         (leaveSoundRef.current.cloneNode() as HTMLAudioElement).play().catch(()=>{});
     }
@@ -1117,10 +1062,8 @@ const createRole = async () => {
         }
       `}</style>
 
-      {/* ✨ UPDATED: Brighter gradient to show off transparency */}
       <div className="absolute inset-0 bg-linear-to-br from-indigo-600/30 via-black to-black z-0 pointer-events-none"></div>
       
-      {/* ✨ UPDATED: Sidebar now more transparent (bg-black/20) */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} z-30 w-22.5 h-full flex-col items-center py-8 gap-4 fixed left-0 top-0 border-r border-white/5 bg-black/20 backdrop-blur-2xl animate-in fade-in slide-in-from-left-4 duration-500`}>
         <div onClick={() => { setView("dms"); setActive({server:null}); setIsCallExpanded(false); }} className={`w-12 h-12 rounded-2xl flex items-center justify-center cursor-pointer transition-all duration-300 hover:scale-105 active:scale-95 ${view === 'dms' ? "bg-white/10 shadow-[0_0_20px_rgba(255,255,255,0.1)]" : "hover:bg-white/5"}`}>
           <DaChatLogo className="w-7 h-7" />
@@ -1138,7 +1081,6 @@ const createRole = async () => {
         <UserAvatar onClick={openSettings} src={user.avatar_url} className="w-12 h-12 rounded-full cursor-pointer ring-2 ring-transparent hover:ring-white/50 transition-all duration-300 hover:scale-105" />
       </div>
 
-      {/* ✨ UPDATED: Channel list super transparent (bg-white/[0.02]) */}
       <div className={`${showMobileChat ? 'hidden md:flex' : 'flex'} relative z-10 h-screen bg-white/[0.02] backdrop-blur-xl border-r border-white/5 flex-col md:w-65 md:ml-22.5 w-[calc(100vw-90px)] ml-22.5 animate-in fade-in duration-500`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-white/5 font-bold tracking-wide">
             <span className="truncate animate-in fade-in slide-in-from-left-2 duration-300">{active.server ? active.server.name : t('dock_dm')}</span>
@@ -1204,7 +1146,6 @@ const createRole = async () => {
                                 <div className="flex-1 min-w-0" onClick={()=>selectFriend(f)}>
                                     <div className="flex justify-between items-center"> 
                                         <div className="text-xs font-bold truncate">{f.username}</div> 
-                                        {/* UNREAD DOT */}
                                         {unreadMap[f.id] && (
                                             <div className="w-2 h-2 bg-blue-500 rounded-full shadow-[0_0_10px_#3b82f6] animate-pulse ml-2"></div>
                                         )}
@@ -1228,14 +1169,36 @@ const createRole = async () => {
       >
          <div className="absolute inset-0 flex flex-col z-0">
              {(active.channel || active.friend) && (
-                 // ✨ UPDATED: Chat header is now glass
                  <div className="h-16 border-b border-white/5 flex items-center justify-between px-6 bg-white/[0.03] backdrop-blur-xl animate-in fade-in slide-in-from-top-2"> 
-                    <div className="flex items-center gap-3 font-bold text-lg overflow-hidden"> 
+                    {/* 🔍 UPDATED: Searchable Header */}
+                    <div className="flex items-center gap-3 font-bold text-lg overflow-hidden flex-1"> 
                         <button className="md:hidden mr-2 p-1 text-white/50 hover:text-white transition-transform active:scale-90" onClick={() => setShowMobileChat(false)}>←</button>
-                        <span className="text-white/30">@</span> 
-                        <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
+                        
+                        {isSearching ? (
+                            <div className="flex items-center bg-black/40 border border-white/10 rounded-full px-4 py-1.5 w-full max-w-md animate-in slide-in-from-right-2">
+                                <span className="text-xs mr-2 opacity-40">🔍</span>
+                                <input 
+                                    autoFocus
+                                    className="bg-transparent border-none outline-none text-sm w-full placeholder-white/20"
+                                    placeholder="Search messages..."
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                />
+                                <button onClick={() => { setIsSearching(false); setSearchQuery(""); }} className="text-[10px] text-white/30 hover:text-white ml-2 bg-white/5 w-5 h-5 rounded-full">✕</button>
+                            </div>
+                        ) : (
+                            <>
+                                <span className="text-white/30">@</span> 
+                                <span className="truncate">{active.channel ? active.channel.name : active.friend?.username}</span>
+                            </>
+                        )}
                     </div> 
-                    <div className="flex gap-2">
+                    <div className="flex items-center gap-4 ml-4">
+                        {!isSearching && (
+                            <button onClick={() => setIsSearching(true)} className="text-white/40 hover:text-white transition-colors" title="Search">
+                                🔍
+                            </button>
+                        )}
                         {!active.channel && <button onClick={() => startDMCall()} className="bg-green-600 p-2 rounded-full hover:bg-green-500 shrink-0 transition-transform hover:scale-110 active:scale-90">📞</button>} 
                         {view === "servers" && active.server && (
                            <button className="md:hidden p-2 text-white/50 hover:text-white" onClick={() => setShowMobileMembers(!showMobileMembers)}>👥</button>
@@ -1256,86 +1219,94 @@ const createRole = async () => {
              ) : (active.channel || active.friend) ? (
                  <>
                     <div className="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
-                        {chatHistory.map((msg, i) => {
-                            const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
-                            (msg.reactions || []).forEach((r: any) => {
-                                if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
-                                reactionCounts[r.emoji].count++;
-                                if (r.user_id === user.id) reactionCounts[r.emoji].hasReacted = true;
-                            });
+                        {chatHistory
+                            // 🔍 FILTER: Only show messages containing search query
+                            .filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase()))
+                            .map((msg, i) => {
+                                const reactionCounts: Record<string, { count: number, hasReacted: boolean }> = {};
+                                (msg.reactions || []).forEach((r: any) => {
+                                    if (!reactionCounts[r.emoji]) reactionCounts[r.emoji] = { count: 0, hasReacted: false };
+                                    reactionCounts[r.emoji].count++;
+                                    if (r.user_id === user.id) reactionCounts[r.emoji].hasReacted = true;
+                                });
 
-                            return (
-                                <div key={msg.id || i} 
-                                     className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""}`} 
-                                     onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
-                                > 
-                                    <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
-                                    
-                                    <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col relative`}> 
+                                return (
+                                    <div key={msg.id || i} 
+                                         className={`flex gap-3 animate-in slide-in-from-bottom-2 fade-in duration-300 group/msg relative ${msg.sender_id === user.id ? "flex-row-reverse" : ""} ${searchQuery && "ring-1 ring-yellow-500/30 bg-yellow-500/5 rounded-xl p-2 transition-all"}`} 
+                                         onContextMenu={(e) => handleContextMenu(e, 'message', msg)}
+                                    > 
+                                        <UserAvatar onClick={()=>viewUserProfile(msg.sender_id)} src={msg.avatar_url} className="w-10 h-10 rounded-xl hover:scale-105 transition-transform" /> 
                                         
-                                        <div className="flex items-center gap-2 mb-1"> 
-                                            <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
-                                            {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
-                                        </div> 
-
-                                        {msg.reply_to_id && (
-                                            <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
-                                                <span>⤴️ {t('chat_replying')}</span>
-                                            </div>
-                                        )}
-
-                                        {/* ✨ UPDATED: Message bubbles are now glass too */}
-                                        <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
-                                            ${msg.sender_id===user.id 
-                                                ? "bg-blue-500/40 backdrop-blur-md border border-blue-400/20 shadow-[0_4px_20px_rgba(59,130,246,0.15)]" 
-                                                : "bg-white/5 backdrop-blur-md border border-white/5 hover:bg-white/10"
-                                            }
-                                        `}> 
-                                            {formatMessage(msg.content)} 
+                                        <div className={`max-w-[85%] md:max-w-[70%] ${msg.sender_id===user.id?"items-end":"items-start"} flex flex-col relative`}> 
                                             
-                                            <button 
-                                                onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
-                                                className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
-                                            >
-                                                🙂
-                                            </button>
+                                            <div className="flex items-center gap-2 mb-1"> 
+                                                <span className="text-xs font-bold text-white/50">{msg.sender_name}</span> 
+                                                {msg.is_edited && <span className="text-[9px] text-white/30">(edited)</span>}
+                                            </div> 
+
+                                            {msg.reply_to_id && (
+                                                <div className="mb-1 text-[10px] text-white/40 flex items-center gap-1 bg-white/5 px-2 py-1 rounded-md border-l-2 border-indigo-500">
+                                                    <span>⤴️ {t('chat_replying')}</span>
+                                                </div>
+                                            )}
+
+                                            <div className={`relative px-4 py-2 rounded-2xl text-sm shadow-md cursor-pointer transition-all hover:scale-[1.01] select-text 
+                                                ${msg.sender_id===user.id 
+                                                    ? "bg-blue-500/40 backdrop-blur-md border border-blue-400/20 shadow-[0_4px_20px_rgba(59,130,246,0.15)]" 
+                                                    : "bg-white/5 backdrop-blur-md border border-white/5 hover:bg-white/10"
+                                                }
+                                            `}> 
+                                                {formatMessage(msg.content)} 
+                                                
+                                                <button 
+                                                    onClick={(e) => { e.stopPropagation(); setActiveReactionMessageId(activeReactionMessageId === msg.id ? null : msg.id); }}
+                                                    className={`absolute -top-3 ${msg.sender_id===user.id ? "-left-3" : "-right-3"} w-6 h-6 bg-zinc-800 border border-white/10 rounded-full flex items-center justify-center text-xs shadow-md opacity-0 group-hover/msg:opacity-100 transition-opacity hover:scale-110 hover:bg-zinc-700 z-10`}
+                                                >
+                                                    🙂
+                                                </button>
+                                                
+                                                {activeReactionMessageId === msg.id && (
+                                                    <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
+                                                         <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
+                                                             <EmojiPicker 
+                                                                 theme={Theme.DARK} 
+                                                                 emojiStyle={EmojiStyle.NATIVE}
+                                                                 lazyLoadEmojis={true}
+                                                                 width={300}
+                                                                 height={350}
+                                                                 onEmojiClick={(e) => toggleReaction(msg, e.emoji)}
+                                                             />
+                                                         </div>
+                                                    </div>
+                                                )}
+                                            </div> 
+
+                                            {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" alt="attachment" />} 
                                             
-                                            {activeReactionMessageId === msg.id && (
-                                                <div className={`absolute z-50 top-6 ${msg.sender_id===user.id ? "right-0" : "left-0"}`}>
-                                                     <div className="bg-zinc-900 border border-white/10 rounded-xl shadow-xl overflow-hidden">
-                                                         <EmojiPicker 
-                                                             theme={Theme.DARK} 
-                                                             emojiStyle={EmojiStyle.NATIVE}
-                                                             lazyLoadEmojis={true}
-                                                             width={300}
-                                                             height={350}
-                                                             onEmojiClick={(e) => toggleReaction(msg, e.emoji)}
-                                                         />
-                                                     </div>
+                                            {Object.keys(reactionCounts).length > 0 && (
+                                                <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
+                                                    {Object.entries(reactionCounts).map(([emoji, data]) => (
+                                                        <button 
+                                                            key={emoji}
+                                                            onClick={() => toggleReaction(msg, emoji)}
+                                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
+                                                        >
+                                                            <span>{emoji}</span>
+                                                            <span className="font-bold text-[10px]">{data.count}</span>
+                                                        </button>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div> 
-
-                                        {msg.file_url && <img src={msg.file_url} className="mt-2 max-w-62.5 rounded-xl border border-white/10 transition-transform hover:scale-105 cursor-pointer" alt="attachment" />} 
-                                        
-                                        {Object.keys(reactionCounts).length > 0 && (
-                                            <div className={`flex flex-wrap gap-1 mt-1 ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}>
-                                                {Object.entries(reactionCounts).map(([emoji, data]) => (
-                                                    <button 
-                                                        key={emoji}
-                                                        onClick={() => toggleReaction(msg, emoji)}
-                                                        className={`flex items-center gap-1 px-1.5 py-0.5 rounded-lg text-xs border transition-all hover:scale-105 ${data.hasReacted ? "bg-blue-500/20 border-blue-500/50 text-blue-200" : "bg-white/5 border-transparent text-white/60 hover:bg-white/10"}`}
-                                                    >
-                                                        <span>{emoji}</span>
-                                                        <span className="font-bold text-[10px]">{data.count}</span>
-                                                    </button>
-                                                ))}
-                                            </div>
-                                        )}
                                     </div> 
-                                </div> 
-                            );
-                        })}
+                                );
+                            })}
+                        {chatHistory.filter(msg => msg.content?.toLowerCase().includes(searchQuery.toLowerCase())).length === 0 && (
+                            <div className="flex flex-col items-center justify-center h-full text-white/20">
+                                <span className="text-4xl mb-2">🕵️</span>
+                                <p className="text-xs font-bold uppercase tracking-widest">No messages found</p>
+                            </div>
+                        )}
                         <div ref={messagesEndRef} />
                     </div>
 
@@ -1356,7 +1327,6 @@ const createRole = async () => {
                         {showEmojiPicker && <div className="absolute bottom-20 left-4 z-50 shadow-2xl rounded-[30px] overflow-hidden animate-in slide-in-from-bottom-4 fade-in duration-200"><EmojiPicker theme={Theme.DARK} onEmojiClick={(e) => setMessage((prev) => prev + e.emoji)} lazyLoadEmojis={true}/></div>}
                         {showGifPicker && <div className="absolute bottom-20 left-4 z-50 w-full"><GifPicker onSelect={(u:string)=>{sendMessage(null,u); setShowGifPicker(false)}} onClose={()=>setShowGifPicker(false)} /></div>}
                         
-                        {/* Mention List UI */}
                         {showMentions && (
                             <div className="absolute bottom-20 left-4 right-4 z-50 bg-zinc-900 border border-white/10 rounded-xl shadow-2xl overflow-hidden max-h-60 flex flex-col animate-in slide-in-from-bottom-2 custom-scrollbar">
                                 <div className="px-3 py-2 text-[10px] font-bold text-white/40 bg-white/5 border-b border-white/5 uppercase tracking-widest">
@@ -1420,7 +1390,6 @@ const createRole = async () => {
                      </div>
                  </div>
 
-                 {/* 🎵 UPDATED: Soundboard UI with Upload & Delete */}
                  {showSoundboard && (
                     <div className="absolute top-16 right-4 z-[70] bg-[#1e1f22] border border-white/5 rounded-2xl p-4 w-72 animate-in zoom-in-95 shadow-2xl max-h-[60vh] flex flex-col">
                         <div className="flex justify-between items-center mb-3">
@@ -1428,7 +1397,6 @@ const createRole = async () => {
                             <button onClick={() => setShowSoundboard(false)} className="text-white/50 hover:text-white">✕</button>
                         </div>
                         
-                        {/* Hidden Input for Upload */}
                         <input 
                             type="file" 
                             ref={soundInputRef} 
@@ -1438,13 +1406,11 @@ const createRole = async () => {
                         />
 
                         <div className="grid grid-cols-3 gap-2 overflow-y-auto custom-scrollbar pr-1">
-                            {/* Render All Sounds */}
                             {soundboard.map(s => (
                                 <button 
                                     key={s.id} 
                                     onClick={() => playSoundEffect(s.id)}
                                     onContextMenu={(e) => {
-                                        // Right-click to delete custom sounds
                                         if((s as any).isCustom) {
                                             e.preventDefault();
                                             deleteCustomSound(s.id);
@@ -1458,7 +1424,6 @@ const createRole = async () => {
                                 </button>
                             ))}
 
-                            {/* Add New Button */}
                             <button 
                                 onClick={() => soundInputRef.current?.click()}
                                 className="aspect-square bg-indigo-600/20 hover:bg-indigo-600/40 text-indigo-400 hover:text-indigo-200 rounded-xl flex items-center justify-center text-2xl transition-all active:scale-90 border border-indigo-500/30 border-dashed"
@@ -1502,7 +1467,6 @@ const createRole = async () => {
                   <button className="lg:hidden text-white/50 hover:text-white" onClick={() => setShowMobileMembers(false)}>✕</button>
               </div>
               <div className="space-y-1 overflow-y-auto h-full pb-20 custom-scrollbar">
-{/* Find the Member List mapping section in your JSX */}
 {serverMembers.map(m => ( 
     <div 
         key={m.id} 
@@ -1512,7 +1476,6 @@ const createRole = async () => {
     > 
         <UserAvatar src={m.avatar_url} className="w-8 h-8 rounded-full transition-transform group-hover:scale-110" /> 
         <div className="flex-1 min-w-0"> 
-            {/* COLOR LOGIC APPLIED HERE */}
             <div 
                 className="text-sm font-bold truncate transition-colors duration-300"
                 style={{ 
@@ -1521,7 +1484,6 @@ const createRole = async () => {
             >
                 {m.username}
             </div> 
-            {/* Show Role Name if exists */}
             {m.role && <div className="text-[10px] opacity-50 font-bold" style={{ color: m.role.color }}>{m.role.name}</div>}
         </div> 
         {m.id === active.server.owner_id && <span title="Owner">👑</span>} 
@@ -1617,12 +1579,10 @@ const createRole = async () => {
                                     </select> 
                                 </div> 
                                 
-                                {/* 🎵 UPDATED RINGTONE UI */}
                                 <div className="space-y-2"> 
                                     <label className="text-xs text-indigo-400 font-bold ml-1">{t('set_ringtone')}</label> 
                                     
                                     <div className="flex flex-col gap-2">
-                                        {/* Hidden File Input */}
                                         <input 
                                             type="file" 
                                             ref={ringtoneInputRef} 
@@ -1631,7 +1591,6 @@ const createRole = async () => {
                                             onChange={handleRingtoneUpload} 
                                         />
 
-                                        {/* Current Ringtone Display */}
                                         <div className="flex items-center justify-between bg-black/40 p-3 rounded-lg border border-white/10">
                                             <div className="flex items-center gap-3 overflow-hidden">
                                                 <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center text-indigo-400">
@@ -1647,7 +1606,6 @@ const createRole = async () => {
                                                 </div>
                                             </div>
 
-                                            {/* Play/Preview Button (Small) */}
                                             <button 
                                                 onClick={() => isPreviewing ? stopPreview() : playPreview(selectedRingtone)}
                                                 className={`w-8 h-8 flex items-center justify-center rounded-full transition-all duration-200 ${
@@ -1661,7 +1619,6 @@ const createRole = async () => {
                                             </button>
                                         </div>
 
-                                        {/* Action Buttons */}
                                         <div className="flex gap-2 mt-1">
                                             <button 
                                                 onClick={() => ringtoneInputRef.current?.click()} 
@@ -1779,11 +1736,9 @@ const createRole = async () => {
           </div>
       )}
 
-      {/* ✅ SERVER SETTINGS MODAL (Updated to match Glass Theme) */}
       {showServerSettings && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
               <GlassPanel className="w-full max-w-5xl h-[85vh] flex overflow-hidden relative p-0 rounded-3xl animate-in zoom-in-95 shadow-2xl">
-                  {/* Glass Sidebar */}
                   <div className="w-64 bg-black/20 flex flex-col pt-12 pb-4 px-3 border-r border-white/5 backdrop-blur-md">
                       <div className="w-full px-3 mb-4 text-xs font-bold text-white/50 uppercase truncate text-right tracking-widest">
                           {active.server.name}
@@ -1805,7 +1760,6 @@ const createRole = async () => {
                       </div>
                   </div>
 
-                  {/* Glass Content Area */}
                   <div className="flex-1 flex flex-col bg-transparent relative min-w-0">
                       <div className="absolute top-6 right-8 flex flex-col items-center gap-1 cursor-pointer group z-20" onClick={() => setShowServerSettings(false)}>
                           <div className="w-10 h-10 rounded-full bg-black/40 border border-white/10 flex items-center justify-center text-white/50 font-bold group-hover:bg-white/10 group-hover:text-white transition-all shadow-lg backdrop-blur-md">✕</div>
@@ -1966,7 +1920,6 @@ const createRole = async () => {
                           )}
                       </div>
 
-                      {/* Glass Footer Actions */}
                       <div className="p-6 bg-black/20 backdrop-blur-xl border-t border-white/5 flex justify-end gap-4 animate-in slide-in-from-bottom-2 z-10">
                           <button onClick={() => setShowServerSettings(false)} className="px-6 py-2 text-sm text-white/50 hover:text-white font-bold transition-colors">Cancel</button>
                           <button onClick={saveServerSettings} className="px-8 py-2 bg-white text-black text-sm font-bold rounded-xl transition-transform hover:scale-105 active:scale-95 shadow-[0_0_20px_rgba(255,255,255,0.2)]">Save Changes</button>
@@ -1986,18 +1939,15 @@ const createRole = async () => {
                     <div className="h-px bg-white/10 my-1 mx-2"></div> 
                     <button onClick={() => { navigator.clipboard.writeText(contextMenu.data.id.toString()); setContextMenu({ ...contextMenu, visible: false }); }} className="text-left px-3 py-2 text-sm text-white/50 hover:text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"> <span>🆔</span> {t('ctx_id')} </button> 
                     
-                    {/* ✅ UPDATED CONTEXT MENU: Role Assignment */}
                     {active.server && isMod && (
                         <>
                             <div className="h-px bg-white/10 my-1 mx-2"></div>
                             <div className="px-3 py-1 text-[10px] font-bold text-white/30 uppercase">Assign Role</div>
                             
-                            {/* Option to remove role */}
                             <button onClick={() => assignRole(contextMenu.data.id, null)} className="text-left px-3 py-2 text-xs text-white/50 hover:bg-white/10 rounded-lg w-full">
                                 No Role
                             </button>
 
-                            {/* List available roles */}
                             {serverRoles.map(role => (
                                 <button 
                                     key={role.id} 
@@ -2012,7 +1962,6 @@ const createRole = async () => {
                         </>
                     )}
 
-                    {/* ✅ KICK BUTTON */}
 {active.server && can('kick_members') && contextMenu.data.id !== user.id && (
     <button onClick={async () => {
         if(!confirm(`Kick ${contextMenu.data.username}?`)) return;
@@ -2027,7 +1976,6 @@ const createRole = async () => {
     </button>
 )}
 
-{/* ✅ BAN BUTTON */}
 {active.server && can('ban_members') && contextMenu.data.id !== user.id && (
     <button onClick={async () => {
         if(!confirm(`Ban ${contextMenu.data.username}?`)) return;
