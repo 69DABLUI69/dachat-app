@@ -83,7 +83,7 @@ const GlobalCursorGlow = () => {
     <div
       className="pointer-events-none fixed inset-0 z-0 transition-opacity duration-300"
       style={{
-        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(100, 100, 255, 0.03), transparent 40%)`,
+        background: `radial-gradient(600px circle at ${pos.x}px ${pos.y}px, rgba(100, 100, 255, 0.15), transparent 40%)`,
       }}
     />
   );
@@ -119,7 +119,7 @@ const SpotlightButton = ({ children, onClick, className = "", style = {} }: any)
         className="pointer-events-none absolute -inset-px transition-opacity duration-300"
         style={{
           opacity,
-          background: `radial-gradient(150px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
+          background: `radial-gradient(250px circle at ${position.x}px ${position.y}px, rgba(99, 102, 241, 0.4), transparent 80%)`,
         }}
       />
       <div className="relative z-10 flex items-center justify-center gap-2">
