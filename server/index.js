@@ -769,7 +769,47 @@ app.get("/livekit/token", safeRoute(async (req, res) => {
 const onlineUsers = new Map(); 
 let voiceRooms = {};           
 let socketToUser = {};
-let userStatuses = {}; // ✅ NEW: Store user statuses in memory     
+let userStatuses = {}; 
+const sessionMetadata = new Map(); // ✅ NEW: Store session info
+
+// ==============================================================================
+// 📱 SESSIONS & DEVICES
+// ==============================================================================
+
+app.get("/users/:id/sessions", safeRoute(async (req, res) => {
+    const userId = parseInt(req.params.id);
+    if (!onlineUsers.has(userId)) return res.json({ success: true, sessions: [] });
+
+    const userSockets = Array.from(onlineUsers.get(userId));
+    const sessions = userSockets.map(socketId => {
+        const meta = sessionMetadata.get(socketId);
+        return meta ? meta : null;
+    }).filter(s => s !== null);
+
+    res.json({ success: true, sessions });
+}));
+
+app.post("/users/sessions/revoke", safeRoute(async (req, res) => {
+    const { userId, socketId } = req.body;
+    
+    // Security check: Ensure this socket actually belongs to this user
+    if (onlineUsers.has(userId) && onlineUsers.get(userId).has(socketId)) {
+        // 1. Notify the specific client to clear local storage
+        io.to(socketId).emit("force_logout");
+        
+        // 2. Disconnect the socket from the server side
+        const socket = io.sockets.sockets.get(socketId);
+        if (socket) socket.disconnect(true);
+        
+        // 3. Cleanup
+        onlineUsers.get(userId).delete(socketId);
+        sessionMetadata.delete(socketId);
+        
+        res.json({ success: true, message: "Device disconnected" });
+    } else {
+        res.json({ success: false, message: "Session not found" });
+    }
+}));
 
 // ✅ HELPER: Clean up user from voice rooms properly
 const cleanupVoiceUser = (socket, io) => {
@@ -798,6 +838,18 @@ io.on("connection", (socket) => {
   // --- 1. SETUP & ONLINE STATUS ---
   socket.on("setup", (userId) => {
     socket.userData = { id: userId };
+    
+    // ✅ NEW: Store Session Metadata
+    const ua = socket.handshake.headers["user-agent"] || "Unknown Device";
+    const ip = socket.handshake.headers["x-forwarded-for"] || socket.handshake.address || "Unknown IP";
+    
+    sessionMetadata.set(socket.id, {
+        socketId: socket.id,
+        ip: ip.split(',')[0], // Handle proxies
+        userAgent: ua,
+        connectedAt: new Date().toISOString()
+    });
+
     if (!onlineUsers.has(userId)) onlineUsers.set(userId, new Set());
     onlineUsers.get(userId).add(socket.id);
     
@@ -805,8 +857,6 @@ io.on("connection", (socket) => {
     socket.join(userId.toString());
 
     // --- NEW STATUS LOGIC ---
-    // If status doesn't exist (new login), default to online. 
-    // If it exists (reconnect/new tab), keep existing status.
     if (!userStatuses[userId]) {
         userStatuses[userId] = 'online';
     }
@@ -1029,6 +1079,9 @@ io.on("connection", (socket) => {
   // --- 5. DISCONNECT ---
   socket.on("disconnect", () => {
     cleanupVoiceUser(socket, io);
+    // ✅ NEW: Cleanup session metadata
+    sessionMetadata.delete(socket.id);
+    
     if (socket.userData && socket.userData.id) {
       const userId = socket.userData.id;
       if (onlineUsers.has(userId)) {
@@ -1036,7 +1089,7 @@ io.on("connection", (socket) => {
         userSockets.delete(socket.id);
         if (userSockets.size === 0) {
           onlineUsers.delete(userId);
-          delete userStatuses[userId]; // ✅ NEW: Cleanup status on disconnect
+          delete userStatuses[userId]; 
           io.emit("user_disconnected", userId);
         }
       }

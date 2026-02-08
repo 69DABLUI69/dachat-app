@@ -144,6 +144,24 @@ const KLIPY_BASE_URL = "https://api.klipy.com/v2";
 
 const socket: Socket = io(BACKEND_URL, { autoConnect: false, transports: ["websocket", "polling"] });
 
+// 🖥️ PARSE USER AGENT FOR DEVICES
+const parseUserAgent = (ua: string) => {
+    let os = "Unknown OS";
+    if (ua.includes("Win")) os = "Windows";
+    else if (ua.includes("Mac")) os = "macOS";
+    else if (ua.includes("Linux")) os = "Linux";
+    else if (ua.includes("Android")) os = "Android";
+    else if (ua.includes("iPhone") || ua.includes("iPad")) os = "iOS";
+
+    let browser = "Unknown Browser";
+    if (ua.includes("Firefox")) browser = "Firefox";
+    else if (ua.includes("Chrome") && !ua.includes("Edg")) browser = "Chrome";
+    else if (ua.includes("Safari") && !ua.includes("Chrome")) browser = "Safari";
+    else if (ua.includes("Edg")) browser = "Edge";
+
+    return { os, browser, icon: os === "Android" || os === "iOS" ? "📱" : "💻" };
+};
+
 const Skeleton = ({ className, style }: { className?: string, style?: any }) => (
     <div className={`animate-pulse bg-white/5 rounded-lg ${className}`} style={style} />
 );
@@ -257,6 +275,10 @@ export default function DaChat() {
   const [requests, setRequests] = useState<any[]>([]);
   const [serverMembers, setServerMembers] = useState<any[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<number>>(new Set());
+
+  // 📱 DEVICES STATE
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
 
   const [view, setView] = useState("dms");
   const [active, setActive] = useState<any>({ server: null, channel: null, friend: null, pendingRequest: null });
@@ -382,6 +404,26 @@ export default function DaChat() {
       setUserStatus(newStatus);
       // Emit to server so others see the change
       socket.emit("set_status", { userId: user.id, status: newStatus });
+  };
+
+  const fetchSessions = async () => {
+    setLoadingSessions(true);
+    try {
+        const res = await fetch(`${BACKEND_URL}/users/${user.id}/sessions`);
+        const data = await res.json();
+        if (data.success) setSessions(data.sessions);
+    } catch (e) { console.error(e); }
+    setLoadingSessions(false);
+  };
+
+  const revokeSession = async (socketId: string) => {
+    if(!confirm("Log out this device?")) return;
+    await fetch(`${BACKEND_URL}/users/sessions/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, socketId })
+    });
+    setSessions(prev => prev.filter(s => s.socketId !== socketId));
   };
 
   // Helper to get room ID
@@ -723,6 +765,13 @@ const saveNotifSettings = async (newSettings: any) => {
           }
       });
 
+      // 🛑 FORCE LOGOUT LISTENER
+      socket.on("force_logout", () => {
+          localStorage.removeItem("dachat_user");
+          alert("You have been logged out from this device.");
+          window.location.reload();
+      });
+
       socket.on("audio_state_update", (track) => setCurrentTrack(track));
       socket.on("audio_state_clear", () => setCurrentTrack(null));
       socket.on("voice_state_update", ({ channelId, users }) => { setVoiceStates(prev => ({ ...prev, [channelId]: users })); });
@@ -780,6 +829,7 @@ socket.on("server_updated", async ({ serverId }) => {
           socket.off("push_notification"); 
           socket.off("user_typing");
           socket.off("user_stop_typing");
+          socket.off("force_logout");
       }; 
   }, [user, viewingProfile, active.server, inCall, active.friend]);
 
@@ -1110,7 +1160,11 @@ const selectServer = async (server: any) => {
 
   const viewUserProfile = async (userId: number) => { const res = await fetch(`${BACKEND_URL}/users/${userId}`); const data = await res.json(); if (data.success) setViewingProfile(data.user); };
 
-  const openSettings = () => { setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); setShowSettings(true); };
+  const openSettings = () => { 
+      setEditForm({ username: user.username, bio: user.bio || "", avatarUrl: user.avatar_url }); 
+      fetchSessions(); // Fetch sessions on open
+      setShowSettings(true); 
+  };
   const saveProfile = async () => { let finalAvatarUrl = editForm.avatarUrl; if (newAvatarFile) { const formData = new FormData(); formData.append("file", newAvatarFile); const res = await fetch(`${BACKEND_URL}/upload`, { method: "POST", body: formData }); const data = await res.json(); if (data.success) finalAvatarUrl = data.fileUrl; } const res = await fetch(`${BACKEND_URL}/update-profile`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, username: editForm.username, bio: editForm.bio, avatarUrl: finalAvatarUrl }) }); const data = await res.json(); if (data.success) { const updatedUser = { ...user, username: editForm.username, bio: editForm.bio, avatar_url: finalAvatarUrl }; setUser(updatedUser); localStorage.setItem("dachat_user", JSON.stringify(updatedUser)); setShowSettings(false); setNewAvatarFile(null); } else { alert("Failed to update profile."); } };
   const handleChangePassword = async () => { if (!passChangeForm.newPassword || !passChangeForm.code) { alert("Please fill in both fields"); return; } const res = await fetch(`${BACKEND_URL}/auth/change-password`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id, newPassword: passChangeForm.newPassword, token: passChangeForm.code }) }); const data = await res.json(); if (data.success) { alert("Password Changed Successfully! Logging you out..."); localStorage.removeItem("dachat_user"); window.location.reload(); } else { alert(data.message || "Failed to change password"); } };
   const start2FASetup = async () => { const res = await fetch(`${BACKEND_URL}/auth/2fa/generate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId: user.id }) }); const data = await res.json(); if (data.success) { setQrCodeUrl(data.qrCode); setSetupStep(1); } };
@@ -1127,7 +1181,7 @@ const selectServer = async (server: any) => {
           imageUrl: active.server.image_url || "", 
           description: active.server.description || "",
           bannerUrl: active.server.banner_url || "",
-          isPrivate: active.server.is_private || false,
+          isPrivate: active.server.is_private || false, 
           systemChannelId: active.server.system_channel_id || (channels[0]?.id || null)
       }); 
       setServerSettingsTab("overview"); 
@@ -2199,6 +2253,60 @@ const createRole = async () => {
                             )} 
                         </div> 
                       </div>
+                  </div>
+
+                  {/* 🖥️ CONNECTED DEVICES UI */}
+                  <div className="space-y-4 pt-4 border-t border-white/10">
+                      <div className="flex justify-between items-center">
+                          <h3 className="text-xs font-bold text-white/40 uppercase tracking-wider">Connected Devices</h3>
+                          <button onClick={fetchSessions} className="text-xs text-white/50 hover:text-white">↻ Refresh</button>
+                      </div>
+                      
+                      <div className="bg-white/5 rounded-xl border border-white/5 overflow-hidden">
+                          {loadingSessions ? (
+                              <div className="p-4 text-center text-xs text-white/30">Loading sessions...</div>
+                          ) : sessions.length === 0 ? (
+                              <div className="p-4 text-center text-xs text-white/30">No active sessions found</div>
+                          ) : (
+                              <div className="divide-y divide-white/5">
+                                  {sessions.map((s) => {
+                                      const { os, browser, icon } = parseUserAgent(s.userAgent);
+                                      const isCurrent = s.socketId === socket.id;
+                                      
+                                      return (
+                                          <div key={s.socketId} className="p-4 flex items-center justify-between hover:bg-white/5 transition-colors">
+                                              <div className="flex items-center gap-4">
+                                                  <div className={`w-10 h-10 rounded-full flex items-center justify-center text-xl ${isCurrent ? "bg-green-500/20 text-green-400" : "bg-white/10 text-white/50"}`}>
+                                                      {icon}
+                                                  </div>
+                                                  <div>
+                                                      <div className="flex items-center gap-2">
+                                                          <span className="text-sm font-bold text-white">{os} • {browser}</span>
+                                                          {isCurrent && <span className="text-[9px] bg-green-500/20 text-green-400 border border-green-500/30 px-1.5 py-0.5 rounded font-bold uppercase">This Device</span>}
+                                                      </div>
+                                                      <div className="text-xs text-white/40 font-mono mt-0.5">
+                                                          IP: {s.ip} • <span title={s.connectedAt}>{new Date(s.connectedAt).toLocaleTimeString()}</span>
+                                                      </div>
+                                                  </div>
+                                              </div>
+                                              
+                                              {!isCurrent && (
+                                                  <button 
+                                                      onClick={() => revokeSession(s.socketId)}
+                                                      className="px-3 py-1.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-bold rounded-lg border border-red-500/20 transition-all active:scale-95"
+                                                  >
+                                                      Log Out
+                                                  </button>
+                                              )}
+                                          </div>
+                                      );
+                                  })}
+                              </div>
+                          )}
+                      </div>
+                      <p className="text-[10px] text-white/30 px-2">
+                          Note: Logging out a device will immediately disconnect it and clear its saved login data.
+                      </p>
                   </div>
 
                   <div className="flex justify-between items-center pt-4 border-t border-white/10 mt-2"> 
